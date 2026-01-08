@@ -1,10 +1,10 @@
 const { getHanaConnection } = require("../config/hana");
 
-async function getDataFromHana(query) {
+async function getDataFromHana(query, params = []) {
   const client = getHanaConnection();
 
   return new Promise((resolve, reject) => {
-    client.exec(query, (err, rows) => {
+    client.exec(query, params, (err, rows) => {
       client.disconnect();
       if (err) {
         console.error("HANA query error:", err);
