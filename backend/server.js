@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const session = require("./config/session");
 const authRoutes = require("./routes/auth.routes");
+const dataRoutes = require("./routes/data.routes"); // <- baru
 const app = express();
 
 // ======================
@@ -21,6 +22,8 @@ app.use(session);
 // ROUTES
 // ======================
 app.use("/api/auth", authRoutes);
+app.use("/api/data", dataRoutes); // <- endpoint sync HANA/Postgres
+
 // ======================
 // SERVER
 // ======================
