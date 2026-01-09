@@ -20,6 +20,7 @@ import {
   TrendingDown,
   TrendingUpIcon,
   Upload,
+  Calendar,
 } from "lucide-react";
 
 export default function DashboardLayout() {
@@ -95,18 +96,16 @@ export default function DashboardLayout() {
     <div className="min-h-screen flex bg-slate-100">
       {/* ================= SIDEBAR ================= */}
       <aside
-        className={`${
-          collapsed ? "w-20" : "w-64"
-        } bg-slate-900 text-slate-100 flex flex-col transition-all duration-300 shadow-2xl`}
+        className={`${collapsed ? "w-20" : "w-64"
+          } bg-slate-900 text-slate-100 flex flex-col transition-all duration-300 shadow-2xl`}
       >
         {/* BRAND */}
         <div className="flex flex-col items-center pt-4">
           <img
             src={logo}
             alt="BBP"
-            className={`transition-all duration-300 ${
-              collapsed ? "w-20" : "w-32"
-            }`}
+            className={`transition-all duration-300 ${collapsed ? "w-20" : "w-32"
+              }`}
           />
         </div>
 
@@ -139,7 +138,14 @@ export default function DashboardLayout() {
             label="Dashboard"
             collapsed={collapsed}
           />
-
+          {/* Rencana Pengiriman */}
+          <MenuLink
+            to="/dashboard/rencana-pengiriman"
+            icon={Calendar}
+            label="Rencana Pengiriman"
+            collapsed={collapsed}
+          />
+          
           {/* Entry Data */}
           <EntryDropdown collapsed={collapsed} currentPath={location.pathname} />
 
@@ -213,9 +219,9 @@ function MenuLink({ to, label, icon: Icon, collapsed }) {
       className={({ isActive }) =>
         `flex items-center gap-3 px-3 py-2 rounded-lg transition font-medium
           ${isActive
-            ? "bg-slate-800 text-white"
-            : "text-slate-300 hover:bg-slate-800 hover:text-white"
-          }`
+          ? "bg-slate-800 text-white"
+          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+        }`
       }
     >
       <Icon size={18} />
@@ -401,9 +407,9 @@ function SubMenuLink({ to, label, icon: Icon }) {
       className={({ isActive }) =>
         `flex items-center gap-3 ml-6 px-3 py-2 rounded-lg text-sm transition
           ${isActive
-            ? "bg-slate-800 text-white"
-            : "text-slate-400 hover:bg-slate-800 hover:text-white"
-          }`
+          ? "bg-slate-800 text-white"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
+        }`
       }
     >
       <Icon size={16} />
