@@ -1,22 +1,38 @@
-const { getDataFromHanaByDateRange } = require("../services/hanaService");
-const { insertDataToPostgres } = require("../services/postgresService");
+const { USE_DUMMY } = require("../config/env");
+const {
+  getDummyData,
+  syncDummyData
+} = require("../services/planService");
 
-async function syncData(req, res) {
-  try {
-    const { fromDate, toDate } = req.body;
+const getDataSync = async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = ""
+  } = req.query;
 
-    if (!fromDate || !toDate)
-      return res.status(400).json({ message: "fromDate dan toDate wajib diisi" });
+  const result = USE_DUMMY
+    ? await getDummyData({ page, limit, search })
+    : { data: [], pagination: { totalPage: 1 } };
 
-    const data = await getDataFromHanaByDateRange(fromDate, toDate);
+  res.json({
+    success: true,
+    data: result.data,
+    pagination: result.pagination
+  });
+};
 
-    await insertDataToPostgres("my_postgres_table", data);
+const syncData = async (req, res) => {
+  const { fromDate, toDate } = req.body;
 
-    res.json({ message: "Data sync berhasil", rows: data.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Data sync gagal", error: err.message });
-  }
-}
+  const rows = USE_DUMMY
+    ? await syncDummyData(fromDate, toDate)
+    : 0;
 
-module.exports = { syncData };
+  res.json({ success: true, rows });
+};
+
+module.exports = {
+  getDataSync,
+  syncData
+};
