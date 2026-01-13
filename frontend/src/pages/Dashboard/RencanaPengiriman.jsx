@@ -33,6 +33,19 @@ export default function RencanaPengiriman() {
   // plans: { "2025-08-15": [{ id, text }] }
   const [plans, setPlans] = useState({});
 
+  /* ================= RESTORE FROM LOCALSTORAGE ================= */
+  useEffect(() => {
+    const saved = localStorage.getItem("rencanaPengiriman");
+    if (saved) {
+      setPlans(JSON.parse(saved));
+    }
+  }, []);
+
+  /* ================= SAVE TO LOCALSTORAGE ================= */
+  useEffect(() => {
+    localStorage.setItem("rencanaPengiriman", JSON.stringify(plans));
+  }, [plans]);
+
   const months = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December"
@@ -56,10 +69,10 @@ export default function RencanaPengiriman() {
 
     setPlans(prev => ({
       ...prev,
-      [dateKey]: [...(prev[dateKey] || []), {
-        id: Date.now(),
-        text
-      }]
+      [dateKey]: [
+        ...(prev[dateKey] || []),
+        { id: Date.now(), text }
+      ]
     }));
   };
 
@@ -117,9 +130,7 @@ export default function RencanaPengiriman() {
         ))}
 
         {days.map((day, i) => {
-          if (!day) {
-            return <div key={i} className="border h-28"></div>;
-          }
+          if (!day) return <div key={i} className="border h-28"></div>;
 
           const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
