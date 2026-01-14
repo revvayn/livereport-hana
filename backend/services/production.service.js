@@ -2,7 +2,8 @@ const pool = require("../db");
 
 /**
  * Bulk UPSERT production_reports
- * Hapus semua data lama sesuai range tanggal sebelum insert
+ * - UPSERT data baru
+ * - HAPUS semua data yang TIDAK ada di rentang tanggal
  * @param {Array} rows - Array data produksi
  * @param {String} fromDate - tanggal awal (YYYY-MM-DD)
  * @param {String} toDate - tanggal akhir (YYYY-MM-DD)
@@ -13,28 +14,31 @@ exports.syncProductionReportsBulk = async (rows, fromDate, toDate) => {
   try {
     await client.query("BEGIN");
 
-    // --- HAPUS DATA LAMA ---
-    console.log(`Deleting rows from: ${fromDate} to: ${toDate}`);
-    const deleteQuery = `
-      DELETE FROM production_reports
-      WHERE doc_date::date >= $1::date
-        AND doc_date::date <= $2::date
-    `;
-    const deleteResult = await client.query(deleteQuery, [fromDate, toDate]);
-    console.log("Deleted rows:", deleteResult.rowCount);
+    // --- HAPUS DATA DI LUAR RANGE TANGGAL ---
+    if (fromDate && toDate) {
+      const deleteQuery = `
+        DELETE FROM production_reports
+        WHERE doc_date::date < $1::date OR doc_date::date > $2::date
+      `;
+      const deleteResult = await client.query(deleteQuery, [fromDate, toDate]);
+      console.log("Deleted rows outside range:", deleteResult.rowCount);
+    }
 
-    // Jika tidak ada data baru, commit saja
+    // Jika tidak ada data baru untuk UPSERT, commit saja
     if (!rows || rows.length === 0) {
+      console.log("Tidak ada data untuk disync");
       await client.query("COMMIT");
       return 0;
     }
 
-    // --- PREPARE INSERT ---
+    // --- PREPARE UPSERT ---
     const now = new Date();
     const values = [];
-
     const placeholders = rows.map((r, i) => {
       const base = i * 34;
+      const docDate = new Date(r.doc_date);
+      docDate.setHours(0, 0, 0, 0);
+
       values.push(
         r.production_no,
         r.status_po,
@@ -45,7 +49,7 @@ exports.syncProductionReportsBulk = async (rows, fromDate, toDate) => {
         r.so_cancel,
         r.checkin_no,
         r.checkout_no,
-        r.doc_date,       // tetap string YYYY-MM-DD atau timestamp valid
+        docDate,
         r.bulan,
         r.shift,
         r.operator_name,
