@@ -1,11 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const {
-  getDataSync,
-  syncData
-} = require("../controllers/data.controller");
+const dataController = require("../controllers/data.controller");
 
-router.get("/data-sync", getDataSync);
-router.post("/sync", syncData);
+router.post("/sync", dataController.syncData);
+router.get("/data-sync", dataController.getDataSync); // ⬅️ INI YANG KURANG
 
 module.exports = router;
