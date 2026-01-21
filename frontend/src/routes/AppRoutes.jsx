@@ -4,7 +4,14 @@ import DashboardLayout from "../pages/Dashboard/DashboardLayout";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import RencanaPengiriman from "../pages/Dashboard/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/DataSync";
+
 import RejectRateMechine from "../pages/Dashboard/RejectRateMechine";
+import RejectRateFG from "../pages/Dashboard/RejectRateFG";
+import RejectRateFI from "../pages/Dashboard/RejectRateFI";
+import RejectRateHotpress from "../pages/Dashboard/RejectRateHotpress";
+import RejectRateBlowdetector from "../pages/Dashboard/RejectRateBlowdetector";
+import RejectRateSanding from "../pages/Dashboard/RejectRateSanding";
+
 import Profile from "../pages/Dashboard/Profile";
 
 function AppRoutes() {
@@ -13,17 +20,22 @@ function AppRoutes() {
       {/* Login */}
       <Route path="/" element={<Login />} />
 
-      {/* Dashboard Layout */}
+      {/* Dashboard */}
       <Route path="/dashboard" element={<DashboardLayout />}>
-        <Route index element={<Dashboard />} />           {/* /dashboard */}
+        <Route index element={<Dashboard />} />
         <Route path="rencana-pengiriman" element={<RencanaPengiriman />} />
-        <Route path="data-sync" element={<DataSync />} /> {/* /dashboard/data-sync */}
+        <Route path="data-sync" element={<DataSync />} />
+
+        {/* Reject Rate */}
         <Route path="reject-rate/machine" element={<RejectRateMechine />} />
+        <Route path="reject-rate/grading-fg" element={<RejectRateFG />} />
+        <Route path="reject-rate/grading-fi" element={<RejectRateFI />} />
+        <Route path="reject-rate/hotpress" element={<RejectRateHotpress />} />
+        <Route path="reject-rate/blow-detector" element={<RejectRateBlowdetector />} />
+        <Route path="reject-rate/sanding" element={<RejectRateSanding />} />
 
-        <Route path="profile" element={<Profile />} />   {/* /dashboard/profile */}
-
-        {/* Tambahan jika ada menu lain */}
-        {/* <Route path="reject-bahanbaku" element={<RejectBahanBaku />} /> */}
+        {/* Profile */}
+        <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>
   );

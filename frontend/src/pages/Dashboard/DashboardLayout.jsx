@@ -266,12 +266,12 @@ function EntryDropdown({ collapsed, currentPath }) {
           <SubMenuLink
             to="/dashboard/data-sync"
             icon={TrendingDown}
-            label="Data Sync"
+            label="Data Sync Reject"
           />
           <SubMenuLink
             to="/dashboard/reject-bahanbaku"
             icon={Trees}
-            label="Bahan Baku"
+            label="Data Sync Bahan Baku"
           />
         </div>
       )}
@@ -282,8 +282,9 @@ function EntryDropdown({ collapsed, currentPath }) {
 function RejectRateDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/reject-rate/machine",
-    "/dashboard/reject-rate/qc-grading-fg",
-    "/dashboard/reject-rate/qc-grading-fi",
+    "/dashboard/reject-rate/grading-fg",
+    "/dashboard/reject-rate/grading-fi",
+    "/dashboard/reject-rate/sanding",
     "/dashboard/reject-rate/hotpress",
     "/dashboard/reject-rate/blow-detector",
   ];
@@ -323,14 +324,19 @@ function RejectRateDropdown({ collapsed, currentPath }) {
             label="Machine"
           />
           <SubMenuLink
-            to="/dashboard/reject-rate/qc-grading-fg"
+            to="/dashboard/reject-rate/grading-fg"
             icon={Layers}
             label="QC FG"
           />
           <SubMenuLink
-            to="/dashboard/reject-rate/qc-grading-fi"
+            to="/dashboard/reject-rate/grading-fi"
             icon={Layers}
             label="QC FI"
+          />
+          <SubMenuLink
+            to="/dashboard/reject-rate/sanding"
+            icon={Layers}
+            label="Sanding"
           />
           <SubMenuLink
             to="/dashboard/reject-rate/hotpress"
