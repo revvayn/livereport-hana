@@ -1,0 +1,17 @@
+{
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.colorTheme": "United Ubuntu",
+    "window.zoomLevel": 1,
+    "editor.fontSize": 14,
+  
+    "workbench.colorCustomizations": {
+      "terminal.background": "#1e1e1e",
+      "terminal.foreground": "#d4d4d4",
+      "terminalCursor.foreground": "#00ff9c",
+      "terminal.ansiGreen": "#00ff9c",
+      "terminal.ansiBlue": "#4fc3f7",
+      "terminal.integrated.lineHeight": 1.6
+
+    }
+  }
+  
