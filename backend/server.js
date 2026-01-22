@@ -5,6 +5,7 @@ const session = require("./config/session");
 
 const authRoutes = require("./routes/auth.routes");
 const dataRoutes = require("./routes/data.routes");
+const dataBahanRoutes = require("./routes/dataBahan.routes");
 const app = express();
 
 /* ======================
@@ -31,6 +32,7 @@ app.use(session);
 ====================== */
 app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
+app.use("/api/data", dataBahanRoutes);
 
 // reject rate (SENDIRI-SENDIRI)
 app.use("/api/reject-rate", require("./routes/rejectRateMechine.routes"));
