@@ -4,6 +4,7 @@ import DashboardLayout from "../pages/Dashboard/DashboardLayout";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import RencanaPengiriman from "../pages/Dashboard/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/DataSync";
+import EntryBahanbaku from "../pages/Dashboard/EntryBahanbaku";
 
 import RejectRateMechine from "../pages/Dashboard/RejectRateMechine";
 import RejectRateFG from "../pages/Dashboard/RejectRateFG";
@@ -25,6 +26,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="rencana-pengiriman" element={<RencanaPengiriman />} />
         <Route path="data-sync" element={<DataSync />} />
+        <Route path="bahanbaku" element={<EntryBahanbaku />} />
 
         {/* Reject Rate */}
         <Route path="reject-rate/machine" element={<RejectRateMechine />} />

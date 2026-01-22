@@ -269,7 +269,7 @@ function EntryDropdown({ collapsed, currentPath }) {
             label="Data Sync Reject"
           />
           <SubMenuLink
-            to="/dashboard/reject-bahanbaku"
+            to="/dashboard/bahanbaku"
             icon={Trees}
             label="Data Sync Bahan Baku"
           />

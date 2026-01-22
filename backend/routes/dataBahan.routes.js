@@ -2,10 +2,10 @@ const express = require("express");
 const router = express.Router();
 const dataController = require("../controllers/dataBahan.controller");
 
-// POST untuk sync data
-router.post("/sync", dataController.syncData);
+// POST sync GRPO
+router.post("/sync", dataController.syncGrpoData);
 
-// GET untuk fetch data sync
-router.get("/data-sync", dataController.getDataSync);
+// GET list GRPO
+router.get("/bahanbaku-sync", dataController.getGrpoDataSync);
 
 module.exports = router;

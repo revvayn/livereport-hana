@@ -32,7 +32,7 @@ app.use(session);
 ====================== */
 app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
-app.use("/api/data", dataBahanRoutes);
+app.use("/api/bahanbaku", dataBahanRoutes);
 
 // reject rate (SENDIRI-SENDIRI)
 app.use("/api/reject-rate", require("./routes/rejectRateMechine.routes"));
