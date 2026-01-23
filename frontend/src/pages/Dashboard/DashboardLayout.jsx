@@ -232,7 +232,7 @@ function MenuLink({ to, label, icon: Icon, collapsed }) {
 
 /* ================= DROPDOWNS ================= */
 function EntryDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/data-sync", "/dashboard/reject-bahanbaku"];
+  const paths = ["/dashboard/data-sync", "/dashboard/bahanbaku"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
