@@ -14,9 +14,11 @@ import {
   ChevronRight,
   BarChart3,
   Factory,
-  Layers,
+  CheckSquare,
+  ClipboardCheck,
+  Brush,
+  Radar,
   Flame,
-  ScanLine,
   TrendingDown,
   TrendingUpIcon,
   Upload,
@@ -145,7 +147,7 @@ export default function DashboardLayout() {
             label="Rencana Pengiriman"
             collapsed={collapsed}
           />
-          
+
           {/* Entry Data */}
           <EntryDropdown collapsed={collapsed} currentPath={location.pathname} />
 
@@ -323,31 +325,37 @@ function RejectRateDropdown({ collapsed, currentPath }) {
             icon={Factory}
             label="Machine"
           />
+
           <SubMenuLink
             to="/dashboard/reject-rate/grading-fg"
-            icon={Layers}
+            icon={CheckSquare}
             label="QC FG"
           />
+
           <SubMenuLink
             to="/dashboard/reject-rate/grading-fi"
-            icon={Layers}
+            icon={ClipboardCheck}
             label="QC FI"
           />
+
           <SubMenuLink
             to="/dashboard/reject-rate/sanding"
-            icon={Layers}
+            icon={Brush}
             label="Sanding"
           />
+
           <SubMenuLink
             to="/dashboard/reject-rate/hotpress"
             icon={Flame}
             label="Hotpress"
           />
+
           <SubMenuLink
             to="/dashboard/reject-rate/blow-detector"
-            icon={ScanLine}
+            icon={Radar}
             label="Blow Detector"
           />
+
         </div>
       )}
     </div>
