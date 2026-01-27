@@ -42,6 +42,7 @@ app.use("/api/reject-rate", require("./routes/rejectRateHotpress.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateBD.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateSanding.routes"));
 app.use("/api/bahan-baku", require("./routes/BBPerforma.routes"));
+app.use("/api/bahan-baku", require("./routes/BBAsalLog.routes"));
 
 /* ======================
    SERVER

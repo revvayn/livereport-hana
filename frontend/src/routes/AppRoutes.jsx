@@ -13,6 +13,7 @@ import RejectRateHotpress from "../pages/Dashboard/RejectRateHotpress";
 import RejectRateBlowdetector from "../pages/Dashboard/RejectRateBlowdetector";
 import RejectRateSanding from "../pages/Dashboard/RejectRateSanding";
 import BBPerforma from "../pages/Dashboard/BBPerforma";
+import BBAsalLog from "../pages/Dashboard/BBAsalLog";
 
 import Profile from "../pages/Dashboard/Profile";
 
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="reject-rate/blow-detector" element={<RejectRateBlowdetector />} />
         <Route path="reject-rate/sanding" element={<RejectRateSanding />} />
         <Route path="bahan-baku/performa" element={<BBPerforma />} />
+        <Route path="bahan-baku/asal-log" element={<BBAsalLog />} />
         {/* Profile */}
         <Route path="profile" element={<Profile />} />
       </Route>
