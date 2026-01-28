@@ -23,6 +23,8 @@ import {
   TrendingUpIcon,
   Upload,
   Calendar,
+  Form,
+  ListTodo,
 } from "lucide-react";
 
 export default function DashboardLayout() {
@@ -147,9 +149,17 @@ export default function DashboardLayout() {
             label="Rencana Pengiriman"
             collapsed={collapsed}
           />
+          {/* Reject Rate */}
+          <PlanningDropdown
+            collapsed={collapsed}
+            currentPath={location.pathname}
+          />
 
           {/* Entry Data */}
-          <EntryDropdown collapsed={collapsed} currentPath={location.pathname} />
+          <EntryDropdown 
+          collapsed={collapsed} 
+          currentPath={location.pathname} 
+          />
 
           {/* Reject Rate */}
           <RejectRateDropdown
@@ -280,7 +290,51 @@ function EntryDropdown({ collapsed, currentPath }) {
     </div>
   );
 }
+function PlanningDropdown({ collapsed, currentPath }) {
+  const paths = [
+    "/dashboard/planning/form",
+  ];
+  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
 
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        title={collapsed ? "Planning" : ""}
+        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
+          ${isActive
+            ? "bg-slate-800 text-white"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+      >
+        <div className="flex items-center gap-3">
+          <ListTodo size={18} />
+          {!collapsed && "Planning"}
+        </div>
+        {!collapsed && (
+          <span
+            className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}
+          >
+            ▼
+          </span>
+        )}
+      </button>
+
+      {!collapsed && open && (
+        <div className="mt-2 space-y-1">
+          <SubMenuLink
+            to="/dashboard/planning/form"
+            icon={Form}
+            label="Form Planning"
+          />
+
+        </div>
+      )}
+    </div>
+  );
+}
 function RejectRateDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/reject-rate/machine",
