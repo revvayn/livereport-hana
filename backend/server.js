@@ -35,6 +35,7 @@ app.use("/api/data", dataRoutes);
 app.use("/api/bahanbaku", dataBahanRoutes);
 
 // reject rate (SENDIRI-SENDIRI)
+app.use("/api/planning", require("./routes/formPlanning.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateMechine.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateFG.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateFI.routes"));
