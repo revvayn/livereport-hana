@@ -14,7 +14,7 @@ import RejectRateBlowdetector from "../pages/Dashboard/RejectRateBlowdetector";
 import RejectRateSanding from "../pages/Dashboard/RejectRateSanding";
 import BBPerforma from "../pages/Dashboard/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/BBAsalLog";
-
+import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
 
 function AppRoutes() {
@@ -26,24 +26,36 @@ function AppRoutes() {
       {/* Dashboard */}
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
-        <Route path="rencana-pengiriman" element={<RencanaPengiriman />} />
-        <Route path="data-sync" element={<DataSync />} />
-        <Route path="bahanbaku" element={<EntryBahanbaku />} />
 
-        {/* Reject Rate */}
-        <Route path="planning/form" element={<FormPlanning />} />
+        {/* ADMIN ONLY */}
+        <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
+          <Route path="rencana-pengiriman" element={<RencanaPengiriman />} />
+          <Route path="data-sync" element={<DataSync />} />
+          <Route path="bahanbaku" element={<EntryBahanbaku />} />
 
-        {/* Reject Rate */}
-        <Route path="reject-rate/machine" element={<RejectRateMechine />} />
-        <Route path="reject-rate/grading-fg" element={<RejectRateFG />} />
-        <Route path="reject-rate/grading-fi" element={<RejectRateFI />} />
-        <Route path="reject-rate/hotpress" element={<RejectRateHotpress />} />
-        <Route path="reject-rate/blow-detector" element={<RejectRateBlowdetector />} />
-        <Route path="reject-rate/sanding" element={<RejectRateSanding />} />
-        <Route path="bahan-baku/performa" element={<BBPerforma />} />
-        <Route path="bahan-baku/asal-log" element={<BBAsalLog />} />
-        {/* Profile */}
-        <Route path="profile" element={<Profile />} />
+          {/* Reject Rate */}
+          <Route path="reject-rate/machine" element={<RejectRateMechine />} />
+          <Route path="reject-rate/grading-fg" element={<RejectRateFG />} />
+          <Route path="reject-rate/grading-fi" element={<RejectRateFI />} />
+          <Route path="reject-rate/hotpress" element={<RejectRateHotpress />} />
+          <Route
+            path="reject-rate/blow-detector"
+            element={<RejectRateBlowdetector />}
+          />
+          <Route path="reject-rate/sanding" element={<RejectRateSanding />} />
+
+          {/* Bahan Baku */}
+          <Route path="bahan-baku/performa" element={<BBPerforma />} />
+          <Route path="bahan-baku/asal-log" element={<BBAsalLog />} />
+        </Route>
+
+        {/* ADMIN & PLANNER */}
+        <Route
+          element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}
+        >
+          <Route path="planning/form" element={<FormPlanning />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
       </Route>
     </Routes>
   );

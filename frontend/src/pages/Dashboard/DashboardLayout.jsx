@@ -33,6 +33,10 @@ export default function DashboardLayout() {
 
   const [time, setTime] = useState("");
   const [user, setUser] = useState(null);
+  /* ================= ROLE HELPER ================= */
+  const isAdmin = user?.role === "Admin";
+  const isPlanner = user?.role === "Planner";
+
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -135,60 +139,67 @@ export default function DashboardLayout() {
 
         {/* MENU */}
         <nav className="flex-1 px-3 py-6 space-y-1 text-sm">
-          {/* Dashboard */}
+
+          {/* ================= ALL USER ================= */}
           <MenuLink
             to="/dashboard"
             icon={LayoutDashboard}
             label="Dashboard"
             collapsed={collapsed}
           />
-          {/* Rencana Pengiriman */}
-          <MenuLink
-            to="/dashboard/rencana-pengiriman"
-            icon={Calendar}
-            label="Rencana Pengiriman"
-            collapsed={collapsed}
-          />
-          {/* Reject Rate */}
-          <PlanningDropdown
-            collapsed={collapsed}
-            currentPath={location.pathname}
-          />
 
-          {/* Entry Data */}
-          <EntryDropdown 
-          collapsed={collapsed} 
-          currentPath={location.pathname} 
-          />
+          {/* ================= PLANNING (Admin & Planner) ================= */}
+          {(isAdmin || isPlanner) && (
+            <PlanningDropdown
+              collapsed={collapsed}
+              currentPath={location.pathname}
+            />
+          )}
 
-          {/* Reject Rate */}
-          <RejectRateDropdown
-            collapsed={collapsed}
-            currentPath={location.pathname}
-          />
+          {/* ================= ADMIN ONLY ================= */}
+          {isAdmin && (
+            <>
+              <MenuLink
+                to="/dashboard/rencana-pengiriman"
+                icon={Calendar}
+                label="Rencana Pengiriman"
+                collapsed={collapsed}
+              />
 
-          {/* Bahan Baku */}
-          <BahanBakuDropdown
-            collapsed={collapsed}
-            currentPath={location.pathname}
-          />
+              <EntryDropdown
+                collapsed={collapsed}
+                currentPath={location.pathname}
+              />
 
-          {/* Export */}
-          <MenuLink
-            to="/dashboard/export-data"
-            icon={Upload}
-            label="Export Data"
-            collapsed={collapsed}
-          />
+              <RejectRateDropdown
+                collapsed={collapsed}
+                currentPath={location.pathname}
+              />
 
-          {/* Profile */}
+              <BahanBakuDropdown
+                collapsed={collapsed}
+                currentPath={location.pathname}
+              />
+
+              <MenuLink
+                to="/dashboard/export-data"
+                icon={Upload}
+                label="Export Data"
+                collapsed={collapsed}
+              />
+            </>
+          )}
+
+          {/* ================= ALL LOGIN USER ================= */}
           <MenuLink
             to="/dashboard/profile"
             icon={User}
             label="Profil"
             collapsed={collapsed}
           />
+
         </nav>
+
 
         {/* USER INFO */}
         <div className="px-4 py-4 border-t border-slate-800">
@@ -197,7 +208,7 @@ export default function DashboardLayout() {
               <p className="text-sm font-medium truncate">
                 {user?.nama_lengkap || user?.username}
               </p>
-              <p className="text-xs text-slate-400">Akun Pengguna</p>
+              <p className="text-xs text-slate-400">{user?.role || user?.role}</p>
             </div>
           )}
 

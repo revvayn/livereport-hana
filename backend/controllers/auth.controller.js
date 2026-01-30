@@ -16,7 +16,7 @@ exports.login = async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT user_id, username, nama_lengkap, email, password
+      `SELECT user_id, username, nama_lengkap, email, password, role
        FROM public.users
        WHERE username = $1 OR email = $1`,
       [username]
@@ -39,11 +39,13 @@ exports.login = async (req, res) => {
       });
     }
 
+    // 🔥 SIMPAN ROLE KE SESSION
     req.session.user = {
       id: user.user_id,
       username: user.username,
       nama_lengkap: user.nama_lengkap,
       email: user.email,
+      role: user.role,
     };
 
     await pool.query(
@@ -51,22 +53,31 @@ exports.login = async (req, res) => {
       [user.user_id]
     );
 
-    res.json({ success: true, user: req.session.user });
+    res.json({
+      success: true,
+      user: req.session.user,
+    });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-
 /**
- * ME
+ * ME (cek session)
  */
 exports.me = (req, res) => {
   if (!req.session.user) {
-    return res.status(401).json({ success: false, message: "Belum login" });
+    return res.status(401).json({
+      success: false,
+      message: "Belum login",
+    });
   }
-  res.json({ success: true, user: req.session.user });
+
+  res.json({
+    success: true,
+    user: req.session.user,
+  });
 };
 
 /**
@@ -83,7 +94,7 @@ exports.updateProfile = async (req, res) => {
   if (!nama_lengkap || !email) {
     return res.status(400).json({
       success: false,
-      message: "Nama lengkap dan email wajib diisi"
+      message: "Nama lengkap dan email wajib diisi",
     });
   }
 
@@ -95,14 +106,13 @@ exports.updateProfile = async (req, res) => {
       [nama_lengkap, email, userId]
     );
 
-    // update session
     req.session.user.nama_lengkap = nama_lengkap;
     req.session.user.email = email;
 
     res.json({
       success: true,
       message: "Profil berhasil diperbarui",
-      user: req.session.user
+      user: req.session.user,
     });
   } catch (err) {
     console.error(err);
@@ -127,12 +137,19 @@ exports.changePassword = async (req, res) => {
       [userId]
     );
 
-    const match = await bcrypt.compare(currentPassword, result.rows[0].password);
+    const match = await bcrypt.compare(
+      currentPassword,
+      result.rows[0].password
+    );
+
     if (!match) {
-      return res.status(400).json({ success: false, message: "Password lama salah" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Password lama salah" });
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
+
     await pool.query(
       "UPDATE public.users SET password = $1 WHERE user_id = $2",
       [hashed, userId]
@@ -145,10 +162,12 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// logout
+/**
+ * LOGOUT
+ */
 exports.logout = (req, res) => {
   req.session.destroy(() => {
-    res.clearCookie("connect.sid"); // 🔥 HARUS SAMA
+    res.clearCookie("connect.sid");
     res.json({ success: true, message: "Logout berhasil" });
   });
 };
