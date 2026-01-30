@@ -16,6 +16,7 @@ import BBPerforma from "../pages/Dashboard/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/BBAsalLog";
 import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
+import EntryBOM from "../pages/Dashboard/EntryBOM";
 
 function AppRoutes() {
   return (
@@ -54,6 +55,7 @@ function AppRoutes() {
           element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}
         >
           <Route path="planning/form" element={<FormPlanning />} />
+          <Route path="bom/entry" element={<EntryBOM />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>

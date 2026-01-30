@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 export default function DashboardLayout() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -103,9 +105,22 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen flex bg-slate-100">
       {/* ================= SIDEBAR ================= */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+        />
+      )}
+
       <aside
-        className={`${collapsed ? "w-20" : "w-64"
-          } bg-slate-900 text-slate-100 flex flex-col transition-all duration-300 shadow-2xl`}
+        className={`
+    fixed lg:static inset-y-0 left-0 z-50
+    ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+    lg:translate-x-0
+    ${collapsed ? "w-20" : "w-64"}
+    bg-slate-900 text-slate-100
+    flex flex-col transition-all duration-300 shadow-2xl
+  `}
       >
         {/* BRAND */}
         <div className="flex flex-col items-center pt-4">
@@ -221,6 +236,16 @@ export default function DashboardLayout() {
           </button>
         </div>
       </aside>
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between mb-4">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="p-2 rounded-lg bg-slate-900 text-white"
+        >
+          ☰
+        </button>
+        <h1 className="text-sm font-semibold">Live Report</h1>
+      </div>
 
       {/* ================= CONTENT ================= */}
       <main className="flex-1 p-6 overflow-y-auto">
@@ -304,6 +329,7 @@ function EntryDropdown({ collapsed, currentPath }) {
 function PlanningDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/planning/form",
+    "/dashboard/bom/entry",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
@@ -339,6 +365,11 @@ function PlanningDropdown({ collapsed, currentPath }) {
             to="/dashboard/planning/form"
             icon={Form}
             label="Form Planning"
+          />
+          <SubMenuLink
+            to="/dashboard/bom/entry"
+            icon={Download}
+            label="Bill of Materials"
           />
 
         </div>
