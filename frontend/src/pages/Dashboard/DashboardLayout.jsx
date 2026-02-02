@@ -165,7 +165,13 @@ export default function DashboardLayout() {
 
           {/* ================= PLANNING (Admin & Planner) ================= */}
           {(isAdmin || isPlanner) && (
-            <PlanningDropdown
+            <DemandDropdown
+              collapsed={collapsed}
+              currentPath={location.pathname}
+            />
+          )}
+          {(isAdmin || isPlanner) && (
+            <EntryMRPDropdown
               collapsed={collapsed}
               currentPath={location.pathname}
             />
@@ -326,10 +332,67 @@ function EntryDropdown({ collapsed, currentPath }) {
     </div>
   );
 }
-function PlanningDropdown({ collapsed, currentPath }) {
+function DemandDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/planning/form",
+    "/dashboard/planning/list",
+    "/dashboard/planning/planned-order",
+  ];
+  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        title={collapsed ? "Demand" : ""}
+        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
+          ${isActive
+            ? "bg-slate-800 text-white"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+      >
+        <div className="flex items-center gap-3">
+          <ListTodo size={18} />
+          {!collapsed && "Demand"}
+        </div>
+        {!collapsed && (
+          <span
+            className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}
+          >
+            ▼
+          </span>
+        )}
+      </button>
+
+      {!collapsed && open && (
+        <div className="mt-2 space-y-1">
+          <SubMenuLink
+            to="/dashboard/demand/form"
+            icon={Form}
+            label="Form Demand"
+          />
+          <SubMenuLink
+            to="/dashboard/demand/list"
+            icon={Form}
+            label="List Demand"
+          />
+          <SubMenuLink
+            to="/dashboard/demand/planned-order"
+            icon={Form}
+            label="Planned Order"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+function EntryMRPDropdown({ collapsed, currentPath }) {
+  const paths = [
     "/dashboard/bom/entry",
+    "/dashboard/inventory/entry",
+    "/dashboard/master-items/entry",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
@@ -348,7 +411,7 @@ function PlanningDropdown({ collapsed, currentPath }) {
       >
         <div className="flex items-center gap-3">
           <ListTodo size={18} />
-          {!collapsed && "Planning"}
+          {!collapsed && "MRP Entry"}
         </div>
         {!collapsed && (
           <span
@@ -362,14 +425,19 @@ function PlanningDropdown({ collapsed, currentPath }) {
       {!collapsed && open && (
         <div className="mt-2 space-y-1">
           <SubMenuLink
-            to="/dashboard/planning/form"
-            icon={Form}
-            label="Form Planning"
+            to="/dashboard/master-items/entry"
+            icon={Download}
+            label="Master Items"
           />
           <SubMenuLink
             to="/dashboard/bom/entry"
             icon={Download}
             label="Bill of Materials"
+          />
+          <SubMenuLink
+            to="/dashboard/inventory/entry"
+            icon={Download}
+            label="Inventory"
           />
 
         </div>

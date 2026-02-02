@@ -5,7 +5,9 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import RencanaPengiriman from "../pages/Dashboard/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/DataSync";
 import EntryBahanbaku from "../pages/Dashboard/EntryBahanbaku";
-import FormPlanning from "../pages/Dashboard/FormPlanning";
+import FormDemand from "../pages/Dashboard/FormDemand";
+import DemandList from "../pages/Dashboard/DemandList";
+import PlannedOrder from "../pages/Dashboard/PlannedOrder";
 import RejectRateMechine from "../pages/Dashboard/RejectRateMechine";
 import RejectRateFG from "../pages/Dashboard/RejectRateFG";
 import RejectRateFI from "../pages/Dashboard/RejectRateFI";
@@ -17,6 +19,8 @@ import BBAsalLog from "../pages/Dashboard/BBAsalLog";
 import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
 import EntryBOM from "../pages/Dashboard/EntryBOM";
+import EntryInventroy from "../pages/Dashboard/EntryInventory"
+import EntryMasteritems from "../pages/Dashboard/EntryMasteritems";
 
 function AppRoutes() {
   return (
@@ -54,8 +58,12 @@ function AppRoutes() {
         <Route
           element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}
         >
-          <Route path="planning/form" element={<FormPlanning />} />
+          <Route path="demand/form" element={<FormDemand />} />
+          <Route path="demand/list"element={<DemandList />}/>
+          <Route path="demand/planned-order" element={<PlannedOrder />} />
+          <Route path="master-items/entry" element={<EntryMasteritems />} />
           <Route path="bom/entry" element={<EntryBOM />} />
+          <Route path="inventory/entry" element={<EntryInventroy />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>

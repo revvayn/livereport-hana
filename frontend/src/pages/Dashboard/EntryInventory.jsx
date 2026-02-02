@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../api/api";
 
-export default function EntryBOM() {
+export default function EntryInventory() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -93,23 +93,6 @@ export default function EntryBOM() {
       );
     }
   };
-  const groupedBOM = bomData.reduce((acc, item) => {
-    if (!acc[item.product_item]) {
-      acc[item.product_item] = {
-        product_item: item.product_item,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        qtypcs_item: item.qtypcs_item,
-        warehouse_fg: item.warehouse_fg,
-        status_bom: item.status_bom,
-        components: [],
-      };
-    }
-
-    acc[item.product_item].components.push(item);
-    return acc;
-  }, {});
-  const groupedArray = Object.values(groupedBOM);
 
   return (
     <div className="space-y-6">
@@ -184,52 +167,32 @@ export default function EntryBOM() {
           </thead>
 
           <tbody>
-            {groupedArray.length === 0 ? (
+            {bomData.length === 0 ? (
               <tr>
                 <td colSpan="13" className="text-center py-4 text-gray-500">
                   Data tidak ditemukan
                 </td>
               </tr>
             ) : (
-              groupedArray.map((group) => (
-                <>
-                  {/* ===== PARENT ROW ===== */}
-                  <tr className="bg-slate-200 font-semibold">
-                    <td className="border px-2 py-1">{group.product_item}</td>
-                    <td className="border px-2 py-1">{group.product_name}</td>
-                    <td className="border px-2 py-1">{group.quantity}</td>
-                    <td className="border px-2 py-1">{group.qtypcs_item}</td>
-                    <td className="border px-2 py-1">{group.warehouse_fg}</td>
-                    <td className="border px-2 py-1">{group.status_bom}</td>
-                    <td colSpan="7" className="border px-2 py-1 italic text-gray-600">
-                      Components
-                    </td>
-                  </tr>
-
-                  {/* ===== CHILD ROWS ===== */}
-                  {group.components.map((row) => (
-                    <tr key={`${row.product_item}-${row.linenum}`} className="hover:bg-slate-50">
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-                      <td className="border px-2 py-1"></td>
-
-                      <td className="border px-2 py-1">{row.linenum}</td>
-                      <td className="border px-2 py-1">{row.component_code}</td>
-                      <td className="border px-2 py-1">{row.component_description}</td>
-                      <td className="border px-2 py-1">{row.component_quantity}</td>
-                      <td className="border px-2 py-1">{row.component_whs}</td>
-                      <td className="border px-2 py-1">{row.uom_component}</td>
-                      <td className="border px-2 py-1">{row.ratio_component}</td>
-                    </tr>
-                  ))}
-                </>
+              bomData.map((row) => (
+                <tr key={row.id} className="hover:bg-slate-50">
+                  <td className="border px-2 py-1">{row.product_item}</td>
+                  <td className="border px-2 py-1">{row.product_name}</td>
+                  <td className="border px-2 py-1">{row.quantity}</td>
+                  <td className="border px-2 py-1">{row.qtypcs_item}</td>
+                  <td className="border px-2 py-1">{row.warehouse_fg}</td>
+                  <td className="border px-2 py-1">{row.status_bom}</td>
+                  <td className="border px-2 py-1">{row.linenum}</td>
+                  <td className="border px-2 py-1">{row.component_code}</td>
+                  <td className="border px-2 py-1">{row.component_description}</td>
+                  <td className="border px-2 py-1">{row.component_quantity}</td>
+                  <td className="border px-2 py-1">{row.component_whs}</td>
+                  <td className="border px-2 py-1">{row.uom_component}</td>
+                  <td className="border px-2 py-1">{row.ratio_component}</td>
+                </tr>
               ))
             )}
           </tbody>
-
         </table>
 
         {/* ================= PAGINATION ================= */}
