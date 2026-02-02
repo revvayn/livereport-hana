@@ -337,6 +337,7 @@ function DemandDropdown({ collapsed, currentPath }) {
     "/dashboard/planning/form",
     "/dashboard/planning/list",
     "/dashboard/planning/planned-order",
+    "/dashboard/planning/bom-calculation",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
@@ -382,6 +383,11 @@ function DemandDropdown({ collapsed, currentPath }) {
             to="/dashboard/demand/planned-order"
             icon={Form}
             label="Planned Order"
+          />
+          <SubMenuLink
+            to="/dashboard/demand/bom-calculation"
+            icon={Form}
+            label="BOM Calculation"
           />
         </div>
       )}

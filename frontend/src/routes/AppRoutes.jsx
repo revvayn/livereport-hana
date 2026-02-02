@@ -8,6 +8,7 @@ import EntryBahanbaku from "../pages/Dashboard/EntryBahanbaku";
 import FormDemand from "../pages/Dashboard/FormDemand";
 import DemandList from "../pages/Dashboard/DemandList";
 import PlannedOrder from "../pages/Dashboard/PlannedOrder";
+import BOMCalculation from "../pages/Dashboard/BOMCalculation";
 import RejectRateMechine from "../pages/Dashboard/RejectRateMechine";
 import RejectRateFG from "../pages/Dashboard/RejectRateFG";
 import RejectRateFI from "../pages/Dashboard/RejectRateFI";
@@ -61,6 +62,7 @@ function AppRoutes() {
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="demand/list"element={<DemandList />}/>
           <Route path="demand/planned-order" element={<PlannedOrder />} />
+          <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="master-items/entry" element={<EntryMasteritems />} />
           <Route path="bom/entry" element={<EntryBOM />} />
           <Route path="inventory/entry" element={<EntryInventroy />} />

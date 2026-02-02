@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../api/api";
 
@@ -13,22 +13,19 @@ export default function EntryBOM() {
   const [totalPages, setTotalPages] = useState(1);
   const limit = 100;
 
-  /* ================= FETCH BOM (DB SEARCH) ================= */
+  /* ================= FETCH BOM ================= */
   const fetchBOM = async (pageNumber = 1, keyword = "") => {
     try {
-      const res = await api.get(
-        `/bom?page=${pageNumber}&limit=${limit}&search=${keyword}`
-      );
-
-      setBomData(res.data.data);
-      setPage(res.data.page);
-      setTotalPages(res.data.totalPages);
+      const res = await api.get(`/bom?page=${pageNumber}&limit=${limit}&search=${keyword}`);
+      setBomData(res.data?.data || []);
+      setPage(res.data?.page || 1);
+      setTotalPages(res.data?.totalPages || 1);
     } catch (err) {
+      console.error(err);
       Swal.fire("Error", "Gagal mengambil data BOM", "error");
     }
   };
 
-  /* ================= LOAD AWAL ================= */
   useEffect(() => {
     fetchBOM(1, "");
   }, []);
@@ -36,31 +33,21 @@ export default function EntryBOM() {
   /* ================= UPLOAD ================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!file) {
-      Swal.fire("Error", "Pilih file Excel terlebih dahulu", "error");
-      return;
-    }
+    if (!file) return Swal.fire("Error", "Pilih file Excel terlebih dahulu", "error");
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       setLoading(true);
-
       const res = await api.post("/bom/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      Swal.fire("Berhasil", res.data.message, "success");
+      Swal.fire("Berhasil", res.data?.message, "success");
       setFile(null);
       fetchBOM(1, search);
     } catch (err) {
-      Swal.fire(
-        "Gagal",
-        err.response?.data?.message || "Upload gagal",
-        "error"
-      );
+      Swal.fire("Gagal", err.response?.data?.message || "Upload gagal", "error");
     } finally {
       setLoading(false);
     }
@@ -86,26 +73,18 @@ export default function EntryBOM() {
       fetchBOM(1, "");
       setSearch("");
     } catch (err) {
-      Swal.fire(
-        "Gagal",
-        err.response?.data?.message || "Gagal clear data",
-        "error"
-      );
+      Swal.fire("Gagal", err.response?.data?.message || "Gagal clear data", "error");
     }
   };
-  const groupedBOM = bomData.reduce((acc, item) => {
+
+  /* ================= GROUP DATA ================= */
+  const groupedBOM = (bomData || []).reduce((acc, item) => {
     if (!acc[item.product_item]) {
       acc[item.product_item] = {
-        product_item: item.product_item,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        qtypcs_item: item.qtypcs_item,
-        warehouse_fg: item.warehouse_fg,
-        status_bom: item.status_bom,
+        ...item,
         components: [],
       };
     }
-
     acc[item.product_item].components.push(item);
     return acc;
   }, {});
@@ -113,55 +92,27 @@ export default function EntryBOM() {
 
   return (
     <div className="space-y-6">
-      {/* ================= UPLOAD ================= */}
+      {/* UPLOAD */}
       <div className="bg-white rounded-xl shadow p-6 max-w-xl">
         <h2 className="text-lg font-semibold mb-4">Upload BOM (Excel)</h2>
-
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) => setFile(e.target.files[0])}
-            className="block w-full border rounded p-2"
-          />
-
+          <input type="file" accept=".xlsx,.xls" onChange={(e) => setFile(e.target.files[0])} className="block w-full border rounded p-2" />
           <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50">
               {loading ? "Uploading..." : "Upload BOM"}
             </button>
-
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
+            <button type="button" onClick={handleClear} disabled={loading} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50">
               Clear Data BOM
             </button>
           </div>
         </form>
       </div>
 
-      {/* ================= TABLE ================= */}
+      {/* TABLE */}
       <div className="bg-white rounded-xl shadow p-6 overflow-x-auto">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-lg font-semibold">Data Bill of Materials</h2>
-
-          <input
-            type="text"
-            placeholder="Search data BOM..."
-            value={search}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSearch(val);
-              fetchBOM(1, val); // 🔥 SEARCH DB
-            }}
-            className="border rounded px-3 py-2 text-sm w-64"
-          />
+          <input type="text" placeholder="Search data BOM..." value={search} onChange={(e) => { setSearch(e.target.value); fetchBOM(1, e.target.value); }} className="border rounded px-3 py-2 text-sm w-64" />
         </div>
 
         <table className="min-w-full text-sm border">
@@ -185,15 +136,10 @@ export default function EntryBOM() {
 
           <tbody>
             {groupedArray.length === 0 ? (
-              <tr>
-                <td colSpan="13" className="text-center py-4 text-gray-500">
-                  Data tidak ditemukan
-                </td>
-              </tr>
+              <tr><td colSpan="13" className="text-center py-4 text-gray-500">Data tidak ditemukan</td></tr>
             ) : (
               groupedArray.map((group) => (
-                <>
-                  {/* ===== PARENT ROW ===== */}
+                <React.Fragment key={group.product_item}>
                   <tr className="bg-slate-200 font-semibold">
                     <td className="border px-2 py-1">{group.product_item}</td>
                     <td className="border px-2 py-1">{group.product_name}</td>
@@ -201,12 +147,9 @@ export default function EntryBOM() {
                     <td className="border px-2 py-1">{group.qtypcs_item}</td>
                     <td className="border px-2 py-1">{group.warehouse_fg}</td>
                     <td className="border px-2 py-1">{group.status_bom}</td>
-                    <td colSpan="7" className="border px-2 py-1 italic text-gray-600">
-                      Components
-                    </td>
+                    <td colSpan="7" className="border px-2 py-1 italic text-gray-600">Components</td>
                   </tr>
 
-                  {/* ===== CHILD ROWS ===== */}
                   {group.components.map((row) => (
                     <tr key={`${row.product_item}-${row.linenum}`} className="hover:bg-slate-50">
                       <td className="border px-2 py-1"></td>
@@ -215,45 +158,27 @@ export default function EntryBOM() {
                       <td className="border px-2 py-1"></td>
                       <td className="border px-2 py-1"></td>
                       <td className="border px-2 py-1"></td>
-
-                      <td className="border px-2 py-1">{row.linenum}</td>
-                      <td className="border px-2 py-1">{row.component_code}</td>
-                      <td className="border px-2 py-1">{row.component_description}</td>
-                      <td className="border px-2 py-1">{row.component_quantity}</td>
-                      <td className="border px-2 py-1">{row.component_whs}</td>
-                      <td className="border px-2 py-1">{row.uom_component}</td>
-                      <td className="border px-2 py-1">{row.ratio_component}</td>
+                      <td className="border px-2 py-1">{row.linenum ?? "-"}</td>
+                      <td className="border px-2 py-1">{row.component_code ?? "-"}</td>
+                      <td className="border px-2 py-1">{row.component_description ?? "-"}</td>
+                      <td className="border px-2 py-1">{row.component_quantity ?? 0}</td>
+                      <td className="border px-2 py-1">{row.component_whs ?? "-"}</td>
+                      <td className="border px-2 py-1">{row.uom_component ?? "-"}</td>
+                      <td className="border px-2 py-1">{row.ratio_component ?? 0}</td>
                     </tr>
                   ))}
-                </>
+                </React.Fragment>
               ))
             )}
           </tbody>
-
         </table>
 
-        {/* ================= PAGINATION ================= */}
+        {/* PAGINATION */}
         <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-600">
-            Page {page} / {totalPages} | Data tampil: {bomData.length}
-          </span>
-
+          <span className="text-sm text-gray-600">Page {page} / {totalPages} | Data tampil: {bomData.length}</span>
           <div className="flex gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => fetchBOM(page - 1, search)}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Prev
-            </button>
-
-            <button
-              disabled={page === totalPages}
-              onClick={() => fetchBOM(page + 1, search)}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Next
-            </button>
+            <button disabled={page === 1} onClick={() => fetchBOM(page - 1, search)} className="px-3 py-1 border rounded disabled:opacity-50">Prev</button>
+            <button disabled={page === totalPages} onClick={() => fetchBOM(page + 1, search)} className="px-3 py-1 border rounded disabled:opacity-50">Next</button>
           </div>
         </div>
       </div>

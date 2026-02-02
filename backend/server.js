@@ -38,6 +38,9 @@ app.use("/api/bahanbaku", dataBahanRoutes);
 app.use("/api/demand", require("./routes/formDemand.routes"));
 app.use("/api/mrp", require("./routes/mrp.routes"));
 app.use("/api/planned-order", require("./routes/plannedOrder.routes"));
+app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
+app.use("/api/bom", require("./routes/bom.routes"));
+app.use("/api/items", require("./routes/items.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateMechine.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateFG.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateFI.routes"));
@@ -46,8 +49,7 @@ app.use("/api/reject-rate", require("./routes/rejectRateBD.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateSanding.routes"));
 app.use("/api/bahan-baku", require("./routes/BBPerforma.routes"));
 app.use("/api/bahan-baku", require("./routes/BBAsalLog.routes"));
-app.use("/api/bom", require("./routes/bom.routes"));
-app.use("/api/items", require("./routes/items.routes"));
+
 /* ======================
    SERVER
 ====================== */

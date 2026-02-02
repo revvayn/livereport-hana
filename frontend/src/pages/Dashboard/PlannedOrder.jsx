@@ -8,7 +8,7 @@ export default function PlannedOrder() {
   useEffect(() => {
     async function fetchPlannedOrders() {
       try {
-        const res = await fetch("http://localhost:5000/api/planned-order"); // ganti URL sesuai backendmu
+        const res = await fetch("http://localhost:5000/api/planned-order"); 
         const data = await res.json();
         setPlannedOrders(data);
       } catch (err) {
@@ -21,6 +21,19 @@ export default function PlannedOrder() {
     fetchPlannedOrders();
   }, []);
 
+  // Fungsi format tanggal
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("id-ID"); // format dd/mm/yyyy
+  };
+
+  // Fungsi format angka tanpa nol tambahan
+  const formatQty = (qty) => {
+    if (qty === null || qty === undefined) return "-";
+    return Number(qty).toString();
+  };
+
   return (
     <div className="p-6 bg-white rounded-xl shadow">
       <h1 className="text-xl font-semibold mb-4">Planned Order</h1>
@@ -31,7 +44,7 @@ export default function PlannedOrder() {
         <p className="text-gray-500">Tidak ada planned order.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
+          <table className="min-w-full border border-gray-200 text-sm">
             <thead className="bg-gray-100">
               <tr>
                 <th className="py-2 px-4 border-b">Plan ID</th>
@@ -46,15 +59,18 @@ export default function PlannedOrder() {
             </thead>
             <tbody>
               {plannedOrders.map((po) => (
-                <tr key={po.plan_id} className="text-center">
+                <tr 
+                  key={po.plan_id} 
+                  className="text-center hover:bg-gray-50 transition-colors"
+                >
                   <td className="py-2 px-4 border-b">{po.plan_id}</td>
                   <td className="py-2 px-4 border-b">{po.component_code}</td>
-                  <td className="py-2 px-4 border-b">{po.qty_plan}</td>
-                  <td className="py-2 px-4 border-b">{po.due_date}</td>
+                  <td className="py-2 px-4 border-b">{formatQty(po.qty_plan)}</td>
+                  <td className="py-2 px-4 border-b">{formatDate(po.due_date)}</td>
                   <td className="py-2 px-4 border-b">{po.order_type}</td>
                   <td className="py-2 px-4 border-b">{po.status}</td>
-                  <td className="py-2 px-4 border-b">{po.reference_demand}</td>
-                  <td className="py-2 px-4 border-b">{po.created_at}</td>
+                  <td className="py-2 px-4 border-b">{po.reference_demand ?? "-"}</td>
+                  <td className="py-2 px-4 border-b">{formatDate(po.created_at)}</td>
                 </tr>
               ))}
             </tbody>
