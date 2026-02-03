@@ -55,7 +55,7 @@ export default function FormDemand() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* ITEM */}
         <div>
-          <label className="block text-sm mb-1">Item Code (FG)</label>
+          <label className="block text-sm mb-1">Item Code</label>
           <input
             type="text"
             value={itemCode}

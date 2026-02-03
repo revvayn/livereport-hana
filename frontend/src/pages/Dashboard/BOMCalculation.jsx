@@ -42,7 +42,7 @@ export default function BOMCalculation() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="py-2 px-4 border-b">Plan ID</th>
-                <th className="py-2 px-4 border-b">FG Code</th>
+                <th className="py-2 px-4 border-b">Item Code</th>
                 <th className="py-2 px-4 border-b">Component Code</th>
                 <th className="py-2 px-4 border-b">Description</th>
                 <th className="py-2 px-4 border-b">Required Qty</th>

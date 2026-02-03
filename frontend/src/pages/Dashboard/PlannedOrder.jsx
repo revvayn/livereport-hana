@@ -48,7 +48,7 @@ export default function PlannedOrder() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="py-2 px-4 border-b">Plan ID</th>
-                <th className="py-2 px-4 border-b">Component Code</th>
+                <th className="py-2 px-4 border-b">Item Code</th>
                 <th className="py-2 px-4 border-b">Qty Plan</th>
                 <th className="py-2 px-4 border-b">Due Date</th>
                 <th className="py-2 px-4 border-b">Order Type</th>
