@@ -42,7 +42,7 @@ export default function DemandList() {
     try {
       const res = await api.post("/mrp/run");
       Swal.fire("Berhasil", res.data.message, "success").then(() => {
-        navigate("/dashboard/planned-order");
+        navigate("/dashboard/demand/planned-order");
       });
     } catch (err) {
       Swal.fire(
