@@ -334,10 +334,10 @@ function EntryDropdown({ collapsed, currentPath }) {
 }
 function DemandDropdown({ collapsed, currentPath }) {
   const paths = [
-    "/dashboard/planning/form",
-    "/dashboard/planning/list",
-    "/dashboard/planning/planned-order",
-    "/dashboard/planning/bom-calculation",
+    "/dashboard/demand/form",
+    "/dashboard/demand/list",
+    "/dashboard/demand/planned-order",
+    "/dashboard/demand/bom-calculation",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
