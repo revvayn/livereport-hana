@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../../api/api";
+import api from "../../../api/api";
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -16,9 +16,9 @@ export default function RejectRateHotpress() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    api.get("/reject-rate/hotpress")
+    api.get("/reject-rate/blow-detector")
       .then(res => {
-        console.log("API RESULT HOTPRESS:", res.data);
+        console.log("API RESULT BLOW DETECTOR:", res.data);
         setData(res.data);
       })
       .catch(err => console.error(err));
@@ -47,7 +47,7 @@ export default function RejectRateHotpress() {
             {data.kpi.reject_rate}%
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Overall Hotpress
+            Overall BD
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export default function RejectRateHotpress() {
             Reject Per Hari
           </h3>
           <p className="text-xs text-gray-400">
-            Trend reject harian Hotpress
+            Trend reject harian BD
           </p>
         </div>
 

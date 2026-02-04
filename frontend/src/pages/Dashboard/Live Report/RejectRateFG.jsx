@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../../api/api";
+import api from "../../../api/api";
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -12,13 +12,13 @@ const cardBase =
 
 const COLORS = ["#2563eb", "#f97316", "#16a34a", "#eab308", "#9333ea"];
 
-export default function RejectRateHotpress() {
+export default function RejectRateFG() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    api.get("/reject-rate/blow-detector")
+    api.get("/reject-rate/grading-fg")
       .then(res => {
-        console.log("API RESULT BLOW DETECTOR:", res.data);
+        console.log("API RESULT FG:", res.data);
         setData(res.data);
       })
       .catch(err => console.error(err));
@@ -47,7 +47,7 @@ export default function RejectRateHotpress() {
             {data.kpi.reject_rate}%
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Overall BD
+            Overall FG
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export default function RejectRateHotpress() {
             Reject Per Hari
           </h3>
           <p className="text-xs text-gray-400">
-            Trend reject harian BD
+            Trend reject harian FG
           </p>
         </div>
 

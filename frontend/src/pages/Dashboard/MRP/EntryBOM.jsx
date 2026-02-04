@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
-import api from "../../api/api";
+import api from "../../../api/api";
 
 export default function EntryBOM() {
   const [file, setFile] = useState(null);

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
-import api from "../../api/api";
-import logo from "../assets/logo.png";
+import api from "../../../api/api";
+import logo from "../../assets/logo.png";
 
 import {
   LayoutDashboard,

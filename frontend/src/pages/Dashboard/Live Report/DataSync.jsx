@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import Loader from "../../components/Loader";
-import api from "../../api/api";
+import Loader from "../../../components/Loader";
+import api from "../../../api/api";
 
 export default function DataSync() {
   const [syncLoading, setSyncLoading] = useState(false);

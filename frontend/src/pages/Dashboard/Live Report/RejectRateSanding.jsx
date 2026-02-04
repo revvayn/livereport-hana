@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
-import api from "../../api/api";
+import api from "../../../api/api";
 import {
   LineChart, Line,
   BarChart, Bar,
   PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
+
 const cardBase =
   "rounded-2xl p-5 shadow-sm border border-gray-100 bg-white";
 
 const COLORS = ["#2563eb", "#f97316", "#16a34a", "#eab308", "#9333ea"];
 
-export default function RejectRateFI() {
+export default function RejectRateSanding() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    api.get("/reject-rate/grading-fi")
+    api.get("/reject-rate/sanding")
       .then(res => {
-        console.log("API RESULT:", res.data);
+        console.log("API RESULT SANDING:", res.data);
         setData(res.data);
       })
       .catch(err => console.error(err));
@@ -27,36 +28,39 @@ export default function RejectRateFI() {
 
   const totalRejectKategori =
     data.kategori?.reduce((a, b) => a + Number(b.reject || 0), 0) || 0;
+
   const kategoriData = data.kategori
-    .map(k => ({
+    ?.map(k => ({
       ...k,
-      reject: Number(k.reject),
+      reject: Number(k.reject || 0),
     }))
-    .filter(k => k.reject > 0);
+    .filter(k => k.reject > 0) || [];
+
   return (
     <div className="space-y-8">
-
-      {/* KPI */}
+    {/* ================= KPI =================*/}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className={`${cardBase} bg-gradient-to-br from-blue-50 to-white`}>
           <p className="text-sm text-gray-500">Reject Rate</p>
           <p className="text-3xl font-bold text-blue-600 mt-1">
-            {data.kpi.reject_rate}%
+            {data.kpi?.reject_rate ?? 0}%
           </p>
-          <p className="text-xs text-gray-400 mt-1">Overall Grading FI</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Overall Sanding
+          </p>
         </div>
 
         <div className={cardBase}>
           <p className="text-sm text-gray-500">Total Cek</p>
           <p className="text-3xl font-bold text-gray-800 mt-1">
-            {data.kpi.cek.toLocaleString()}
+            {(data.kpi?.cek ?? 0).toLocaleString()}
           </p>
         </div>
 
         <div className={cardBase}>
           <p className="text-sm text-gray-500">Total Reject</p>
           <p className="text-3xl font-bold text-red-600 mt-1">
-            {data.kpi.reject.toLocaleString()}
+            {(data.kpi?.reject ?? 0).toLocaleString()}
           </p>
         </div>
 
@@ -69,14 +73,14 @@ export default function RejectRateFI() {
       </div>
 
 
-      {/* Reject Per Hari */}
+      {/* ================= REJECT PER HARI ================= */}
       <div className={cardBase}>
         <div className="mb-4">
           <h3 className="font-semibold text-gray-800">
             Reject Per Hari
           </h3>
           <p className="text-xs text-gray-400">
-            Trend reject harian Grading FI
+            Trend reject harian Sanding
           </p>
         </div>
 
@@ -95,8 +99,7 @@ export default function RejectRateFI() {
         </ResponsiveContainer>
       </div>
 
-
-      {/* Reject Per Shift */}
+      {/* ================= REJECT PER SHIFT ================= */}
       <div className={cardBase}>
         <div className="mb-4">
           <h3 className="font-semibold text-gray-800">
@@ -121,8 +124,7 @@ export default function RejectRateFI() {
         </ResponsiveContainer>
       </div>
 
-
-      {/* Pie Kategori */}
+      {/* ================= PIE KATEGORI ================= */}
       <div className={cardBase}>
         <div className="mb-4 text-center">
           <h3 className="font-semibold text-gray-800">
@@ -189,7 +191,7 @@ export default function RejectRateFI() {
         )}
       </div>
 
-      {/* ================= TOP 3 REJECT BY BUYER ================= */}
+      {/* ================= TOP 3 BUYER ================= */}
       <div className={cardBase}>
         <h3 className="font-semibold text-gray-800 mb-1">
           Top 3 Reject by Buyer
@@ -199,41 +201,45 @@ export default function RejectRateFI() {
         </p>
 
         <div className="space-y-4">
-          {data.topBuyer.map((b, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition"
-            >
-              {/* RANK */}
+          {data.topBuyer?.length ? (
+            data.topBuyer.map((b, i) => (
               <div
-                className={`w-10 h-10 flex items-center justify-center rounded-full text-white font-bold
-            ${i === 0 ? "bg-red-500" : i === 1 ? "bg-orange-400" : "bg-yellow-400"}`}
+                key={i}
+                className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition"
               >
-                #{i + 1}
-              </div>
+                <div
+                  className={`w-10 h-10 flex items-center justify-center rounded-full text-white font-bold
+          ${i === 0 ? "bg-red-500" : i === 1 ? "bg-orange-400" : "bg-yellow-400"}`}
+                >
+                  #{i + 1}
+                </div>
 
-              {/* BUYER INFO */}
-              <div className="flex-1">
-                <p className="font-medium text-gray-800">
-                  {b.buyer_name || "Unknown Buyer"}
-                </p>
-                <p className="text-xs text-gray-400">
-                  Reject Rate
-                </p>
-              </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">
+                    {b.buyer_name || "Unknown Buyer"}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Reject Rate
+                  </p>
+                </div>
 
-              {/* RATE */}
-              <div
-                className={`text-lg font-bold ${b.reject_rate > 9
-                  ? "text-red-600"
-                  : "text-emerald-600"
-                  }`}
-              >
-                {b.reject_rate}%
+                <div
+                  className={`text-lg font-bold ${b.reject_rate > 9
+                    ? "text-red-600"
+                    : "text-emerald-600"
+                    }`}
+                >
+                  {b.reject_rate}%
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-center text-gray-400 py-6">
+              Tidak ada data buyer
+            </p>
+          )}
         </div>
+
       </div>
 
     </div>

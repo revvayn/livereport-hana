@@ -3,96 +3,118 @@ const pool = require("../db");
 
 function toNumber(value) {
     if (value === null || value === undefined || value === "") return null;
-    return Number(String(value).replace(",", "."));
-}
+  
+    // Kalau sudah number dari Excel, langsung pakai
+    if (typeof value === "number") return value;
+  
+    // Kalau string (locale ID / EU)
+    const normalized = value
+      .toString()
+      .replace(/\./g, "")   // hapus ribuan
+      .replace(",", ".");   // desimal
+  
+    const num = Number(normalized);
+    return isNaN(num) ? null : num;
+  }
+  
 
 exports.uploadBOM = async (req, res) => {
     if (!req.file) {
-        return res.status(400).json({ message: "File Excel tidak ditemukan" });
+      return res.status(400).json({ message: "File Excel tidak ditemukan" });
     }
-
+  
     const skipped = [];
     let inserted = 0;
-
+  
     try {
-        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet);
-
-        if (rows.length === 0) {
-            return res.status(400).json({ message: "Excel kosong" });
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+  
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "Excel kosong" });
+      }
+  
+      await pool.query("BEGIN");
+  
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+  
+        if (!r.PRODUCT_ITEM || !r.COMPONENT_ITEM) {
+          skipped.push(i + 2);
+          continue;
         }
-
-        await pool.query("BEGIN");
-
-        for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-
-            // ❗ WAJIB ADA
-            if (!r.PRODUCT_ITEM || !r.COMPONENT_ITEM) {
-                skipped.push(i + 2); // nomor baris excel
-                continue;
-            }
-
-            await pool.query(
-                `
-        INSERT INTO bill_of_materials (
-          product_item,
-          product_name,
-          quantity,
-          qtypcs_item,
-          warehouse_fg,
-          status_bom,
-          linenum,
-          component_code,
-          component_description,
-          component_quantity,
-          component_whs,
-          uom_component,
-          ratio_component
-        )
-        VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
-        )
-        `,
-                [
-                    r.PRODUCT_ITEM,
-                    r.PRODUCT_NAME,
-                    toNumber(r.QUANTITY_ITEM),
-                    toNumber(r.QTYPCS_ITEM),
-                    r.WAREHOUSE,
-                    r.STATUS_BOM,
-                    r.LINENUM,
-                    r.COMPONENT_ITEM,
-                    r.COMPONENT_NAME,
-                    toNumber(r.QUANTITY_COMPONENT),
-                    r.COMPONENT_WHS,
-                    r.UOM_COMPONENT,
-                    toNumber(r.RATIO_COMPONENT),
-                ]
-            );
-
-            inserted++;
+  
+        const quantityItem = toNumber(r.QUANTITY_ITEM);
+        const qtyPcs = toNumber(r.QTYPCS_ITEM);
+        const qtyComponent = toNumber(r.QUANTITY_COMPONENT);
+        const ratio = toNumber(r.RATIO_COMPONENT);
+  
+        if (quantityItem === null || qtyPcs === null || qtyComponent === null) {
+          skipped.push(i + 2);
+          continue;
         }
-
-        await pool.query("COMMIT");
-
-        res.json({
-            success: true,
-            message: `Upload selesai`,
-            inserted,
-            skipped: skipped.length,
-            skippedRows: skipped.slice(0, 10), // contoh 10 baris
-        });
+  
+        await pool.query(
+          `
+          INSERT INTO bill_of_materials (
+            product_item,
+            product_name,
+            quantity,
+            qtypcs_item,
+            warehouse_fg,
+            status_bom,
+            linenum,
+            component_code,
+            component_description,
+            component_quantity,
+            component_whs,
+            uom_component,
+            ratio_component
+          )
+          VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+          )
+          `,
+          [
+            r.PRODUCT_ITEM,
+            r.PRODUCT_NAME,
+            quantityItem,
+            qtyPcs,
+            r.WAREHOUSE,
+            r.STATUS_BOM,
+            r.LINENUM ?? 0,
+            r.COMPONENT_ITEM,
+            r.COMPONENT_NAME,
+            qtyComponent,
+            r.COMPONENT_WHS,
+            r.UOM_COMPONENT,
+            ratio ?? 1,
+          ]
+        );
+  
+        inserted++;
+      }
+  
+      await pool.query("COMMIT");
+  
+      res.json({
+        success: true,
+        message: "Upload BOM selesai",
+        inserted,
+        skipped: skipped.length,
+        skippedRows: skipped.slice(0, 10),
+      });
     } catch (err) {
-        await pool.query("ROLLBACK");
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            message: "Gagal upload BOM",
-        });
+      await pool.query("ROLLBACK");
+      console.error(err);
+      res.status(500).json({
+        success: false,
+        message: "Gagal upload BOM",
+      });
     }
-};
+  };
+  
 
 
 /* =========================

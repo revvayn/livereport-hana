@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
-import { useNavigate } from "react-router-dom";
-import api from "../../api/api";
+import api from "../../../api/api";
 
 export default function DemandList() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const fetchDemand = async () => {
     try {
       setLoading(true);
       const res = await api.get("/demand");
       setData(res.data);
-    } catch (err) {
+    } catch {
       Swal.fire("Error", "Gagal mengambil data demand", "error");
     } finally {
       setLoading(false);
@@ -24,30 +22,29 @@ export default function DemandList() {
     fetchDemand();
   }, []);
 
-  // 🔹 cek apakah ada demand NEW
-  const hasNewDemand = data.some(d => d.status === "NEW");
-
-  const handleRunMRP = async () => {
+  const handleRunMRP = async (row) => {
     const confirm = await Swal.fire({
       title: "Run MRP?",
-      text: "Semua demand status NEW akan diproses menjadi Planned Order",
+      text: `Demand ${row.item_code} akan diproses menjadi Planned Order`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Ya, Run MRP",
+      confirmButtonText: "Ya, Run",
       cancelButtonText: "Batal"
     });
 
     if (!confirm.isConfirmed) return;
 
     try {
-      const res = await api.post("/mrp/run");
-      Swal.fire("Berhasil", res.data.message, "success").then(() => {
-        navigate("/dashboard/demand/planned-order");
+      const res = await api.post("/mrp/run", {
+        demand_id: row.demand_id
       });
+
+      Swal.fire("Berhasil", res.data.message, "success");
+      fetchDemand();
     } catch (err) {
       Swal.fire(
         "Gagal",
-        err.response?.data?.message || "MRP gagal dijalankan",
+        err.response?.data?.message || "MRP gagal",
         "error"
       );
     }
@@ -55,21 +52,7 @@ export default function DemandList() {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-semibold">Demand List</h1>
-
-        <button
-          onClick={handleRunMRP}
-          disabled={!hasNewDemand}
-          className={`px-4 py-2 rounded text-white
-            ${hasNewDemand
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-gray-400 cursor-not-allowed"
-            }`}
-        >
-          ▶ Run MRP
-        </button>
-      </div>
+      <h1 className="text-xl font-semibold mb-4">Demand List</h1>
 
       {loading ? (
         <p className="text-gray-500">Loading...</p>
@@ -84,12 +67,13 @@ export default function DemandList() {
                 <th className="border px-3 py-2">Type</th>
                 <th className="border px-3 py-2">Reference</th>
                 <th className="border px-3 py-2">Status</th>
+                <th className="border px-3 py-2 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {data.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-4 text-gray-500">
+                  <td colSpan="7" className="text-center py-4 text-gray-500">
                     Belum ada demand
                   </td>
                 </tr>
@@ -117,6 +101,19 @@ export default function DemandList() {
                       >
                         {row.status}
                       </span>
+                    </td>
+                    <td className="border px-3 py-2 text-center">
+                      <button
+                        onClick={() => handleRunMRP(row)}
+                        disabled={row.status !== "NEW"}
+                        className={`px-3 py-1 rounded text-white text-xs
+                          ${row.status === "NEW"
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-gray-400 cursor-not-allowed"
+                          }`}
+                      >
+                        Run MRP
+                      </button>
                     </td>
                   </tr>
                 ))

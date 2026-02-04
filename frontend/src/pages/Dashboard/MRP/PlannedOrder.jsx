@@ -49,7 +49,7 @@ export default function PlannedOrder() {
               <tr>
                 <th className="py-2 px-4 border-b">Plan ID</th>
                 <th className="py-2 px-4 border-b">Item Code</th>
-                <th className="py-2 px-4 border-b">Qty Plan</th>
+                <th className="py-2 px-4 border-b">Pcs Plan</th>
                 <th className="py-2 px-4 border-b">Due Date</th>
                 <th className="py-2 px-4 border-b">Order Type</th>
                 <th className="py-2 px-4 border-b">Status</th>

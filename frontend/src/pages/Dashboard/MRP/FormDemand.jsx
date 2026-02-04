@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Swal from "sweetalert2";
-import api from "../../api/api";
+import api from "../../../api/api";
 
 export default function FormDemand() {
   const [itemCode, setItemCode] = useState("");
@@ -67,7 +67,7 @@ export default function FormDemand() {
 
         {/* QTY */}
         <div>
-          <label className="block text-sm mb-1">Qty Demand</label>
+          <label className="block text-sm mb-1">Pcs Demand</label>
           <input
             type="number"
             min="1"
