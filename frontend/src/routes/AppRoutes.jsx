@@ -2,13 +2,13 @@ import { Routes, Route } from "react-router-dom";
 import Login from "../pages/Login";
 import DashboardLayout from "../pages/Dashboard/Layout/DashboardLayout";
 import Dashboard from "../pages/Dashboard/Dashboard";
+import ProtectedRoute from "./ProtectedRoute";
+import Profile from "../pages/Dashboard/Profile";
+
+{/* Live Report */}
 import RencanaPengiriman from "../pages/Dashboard/Live Report/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/Live Report/DataSync";
 import EntryBahanbaku from "../pages/Dashboard/Live Report/EntryBahanbaku";
-import FormDemand from "../pages/Dashboard/MRP/FormDemand";
-import DemandList from "../pages/Dashboard/MRP/DemandList";
-import PlannedOrder from "../pages/Dashboard/MRP/PlannedOrder";
-import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import RejectRateMechine from "../pages/Dashboard/Live Report/RejectRateMechine";
 import RejectRateFG from "../pages/Dashboard/Live Report/RejectRateFG";
 import RejectRateFI from "../pages/Dashboard/Live Report/RejectRateFI";
@@ -17,11 +17,16 @@ import RejectRateBlowdetector from "../pages/Dashboard/Live Report/RejectRateBlo
 import RejectRateSanding from "../pages/Dashboard/Live Report/RejectRateSanding";
 import BBPerforma from "../pages/Dashboard/Live Report/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
-import ProtectedRoute from "./ProtectedRoute";
-import Profile from "../pages/Dashboard/Profile";
+
+{/* MRP */}
+import FormDemand from "../pages/Dashboard/MRP/FormDemand";
+import DemandList from "../pages/Dashboard/MRP/DemandList";
+import PlannedOrder from "../pages/Dashboard/MRP/PlannedOrder";
+import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
 import EntryInventroy from "../pages/Dashboard/MRP/EntryInventory"
 import EntryMasteritems from "../pages/Dashboard/MRP/EntryMasteritems";
+
 function AppRoutes() {
   return (
     <Routes>

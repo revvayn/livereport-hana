@@ -40,6 +40,7 @@ app.use("/api/mrp", require("./routes/mrp.routes"));
 app.use("/api/planned-order", require("./routes/plannedOrder.routes"));
 app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
 app.use("/api/bom", require("./routes/bom.routes"));
+app.use("/api/inventory", require("./routes/inventory.routes"));
 app.use("/api/items", require("./routes/items.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateMechine.routes"));
 app.use("/api/reject-rate", require("./routes/rejectRateFG.routes"));
