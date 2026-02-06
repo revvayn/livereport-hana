@@ -163,14 +163,20 @@ export default function DashboardLayout() {
             collapsed={collapsed}
           />
 
-          {/* ================= PLANNING (Admin & Planner) ================= */}
-          {(isAdmin || isPlanner) && (
+          {/* ================= PLANNING (Planner) ================= */}
+          {(isPlanner) && (
+            <MasterDropdown
+              collapsed={collapsed}
+              currentPath={location.pathname}
+            />
+          )}
+          {(isPlanner) && (
             <DemandDropdown
               collapsed={collapsed}
               currentPath={location.pathname}
             />
           )}
-          {(isAdmin || isPlanner) && (
+          {(isPlanner) && (
             <EntryMRPDropdown
               collapsed={collapsed}
               currentPath={location.pathname}
@@ -326,6 +332,78 @@ function EntryDropdown({ collapsed, currentPath }) {
             to="/dashboard/bahanbaku"
             icon={Trees}
             label="Data Sync Bahan Baku"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+function MasterDropdown({ collapsed, currentPath }) {
+  const paths = [
+    "/dashboard/master/customers",
+    "/dashboard/master/items",
+    "/dashboard/master/maschines",
+    "/dashboard/master/operations",
+    "/dashboard/master/item-routing",
+  ];
+
+  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const [open, setOpen] = useState(isActive);
+
+  useEffect(() => setOpen(isActive), [isActive]);
+
+  return (
+    <div>
+      {/* Dropdown Button */}
+      <button
+        onClick={() => setOpen(!open)}
+        title={collapsed ? "Master Data" : ""}
+        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
+          ${isActive
+            ? "bg-slate-800 text-white"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+      >
+        <div className="flex items-center gap-3">
+          <ListTodo size={18} />
+          {!collapsed && "Master Data"}
+        </div>
+        {!collapsed && (
+          <span
+            className={`text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          >
+            ▼
+          </span>
+        )}
+      </button>
+
+      {/* Submenu Master Data */}
+      {!collapsed && open && (
+        <div className="mt-2 space-y-1">
+          <SubMenuLink
+            to="/dashboard/master/customers"
+            icon={Form}
+            label="Customers"
+          />
+          <SubMenuLink
+            to="/dashboard/master/items"
+            icon={Form}
+            label="Items"
+          />
+          <SubMenuLink
+            to="/dashboard/master/maschines"
+            icon={Form}
+            label="Machines"
+          />
+          <SubMenuLink
+            to="/dashboard/master/operations"
+            icon={Form}
+            label="Operations"
+          />
+          <SubMenuLink
+            to="/dashboard/master/item-routing"
+            icon={Form}
+            label="Item Routing"
           />
         </div>
       )}
@@ -531,7 +609,6 @@ function RejectRateDropdown({ collapsed, currentPath }) {
     </div>
   );
 }
-
 function BahanBakuDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/bahan-baku/performa",

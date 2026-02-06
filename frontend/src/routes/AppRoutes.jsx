@@ -19,13 +19,12 @@ import BBPerforma from "../pages/Dashboard/Live Report/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 
 {/* MRP */}
+import Customers from "../pages/Dashboard/MRP/Customers";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
 import DemandList from "../pages/Dashboard/MRP/DemandList";
 import PlannedOrder from "../pages/Dashboard/MRP/PlannedOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
-import EntryInventroy from "../pages/Dashboard/MRP/EntryInventory"
-import EntryMasteritems from "../pages/Dashboard/MRP/EntryMasteritems";
 
 function AppRoutes() {
   return (
@@ -63,13 +62,12 @@ function AppRoutes() {
         <Route
           element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}
         >
+          <Route path="master/customers" element={<Customers />} />
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="demand/list"element={<DemandList />}/>
           <Route path="demand/planned-order" element={<PlannedOrder />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
-          <Route path="master-items/entry" element={<EntryMasteritems />} />
           <Route path="bom/entry" element={<EntryBOM />} />
-          <Route path="inventory/entry" element={<EntryInventroy />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>
