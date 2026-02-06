@@ -344,7 +344,7 @@ function MasterDropdown({ collapsed, currentPath }) {
     "/dashboard/master/items",
     "/dashboard/master/machines",
     "/dashboard/master/operations",
-    "/dashboard/master/item-routing",
+    "/dashboard/master/item-routings",
   ];
 
   const isActive = paths.some((path) => currentPath.startsWith(path));
@@ -401,7 +401,7 @@ function MasterDropdown({ collapsed, currentPath }) {
             label="Operations"
           />
           <SubMenuLink
-            to="/dashboard/master/item-routing"
+            to="/dashboard/master/item-routings"
             icon={Form}
             label="Item Routing"
           />
