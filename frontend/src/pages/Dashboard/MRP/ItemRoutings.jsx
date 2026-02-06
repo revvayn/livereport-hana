@@ -1,10 +1,19 @@
 import { useState, useEffect } from "react";
-import api from "../../../api/api"; // pastikan api.js baseURL ke backend
+import api from "../../../api/api";
 import Swal from "sweetalert2";
 
 export default function ItemRoutings() {
   const [routings, setRoutings] = useState([]);
-  const [form, setForm] = useState({ item_id: "", operation_id: "", machine_id: "", cycle_time_min: "", sequence: "" });
+  const [items, setItems] = useState([]);
+  const [machines, setMachines] = useState([]);
+  const [operations, setOperations] = useState([]);
+  const [form, setForm] = useState({
+    item_id: "",
+    operation_id: "",
+    machine_id: "",
+    cycle_time_min: "",
+    sequence: ""
+  });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -12,7 +21,7 @@ export default function ItemRoutings() {
     try {
       setLoading(true);
       const res = await api.get("/item-routings");
-      setRoutings(Array.isArray(res.data) ? res.data : []);
+      setRoutings(res.data || []);
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Gagal fetch item routings", "error");
@@ -21,15 +30,33 @@ export default function ItemRoutings() {
     }
   };
 
+  const fetchDropdowns = async () => {
+    try {
+      const [resItems, resMachines, resOperations] = await Promise.all([
+        api.get("/items"),
+        api.get("/machines"),
+        api.get("/operations")
+      ]);
+      setItems(resItems.data || []);
+      setMachines(resMachines.data || []);
+      setOperations(resOperations.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchRoutings();
+    fetchDropdowns();
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.item_id || !form.operation_id || !form.machine_id || !form.sequence) {
-      return Swal.fire("Error", "Item, Operation, Machine, dan Sequence wajib diisi", "warning");
+    const { item_id, operation_id, machine_id, cycle_time_min, sequence } = form;
+    if (!item_id || !operation_id || !machine_id || cycle_time_min === "" || sequence === "") {
+      return Swal.fire("Error", "Semua field wajib diisi", "warning");
     }
+
     try {
       setLoading(true);
       if (editId) {
@@ -44,7 +71,7 @@ export default function ItemRoutings() {
       fetchRoutings();
     } catch (err) {
       console.error(err);
-      Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan routing", "error");
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan item routing", "error");
     } finally {
       setLoading(false);
     }
@@ -56,26 +83,26 @@ export default function ItemRoutings() {
       operation_id: r.operation_id,
       machine_id: r.machine_id,
       cycle_time_min: r.cycle_time_min,
-      sequence: r.sequence,
+      sequence: r.sequence
     });
     setEditId(r.id);
   };
 
   const handleDelete = async (id) => {
     const confirm = await Swal.fire({
-      title: "Hapus item routing?",
+      title: "Hapus routing?",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Ya, hapus",
       cancelButtonText: "Batal",
-      confirmButtonColor: "#dc2626",
+      confirmButtonColor: "#dc2626"
     });
     if (!confirm.isConfirmed) return;
 
     try {
       setLoading(true);
       await api.delete(`/item-routings/${id}`);
-      Swal.fire("Berhasil", "Item routing dihapus", "success");
+      Swal.fire("Berhasil", "Routing dihapus", "success");
       fetchRoutings();
     } catch (err) {
       console.error(err);
@@ -86,16 +113,25 @@ export default function ItemRoutings() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full max-w-4xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Item Routings</h1>
+    <div className="p-4 border rounded">
+      <h2 className="text-lg font-semibold mb-2">Item Routings</h2>
 
-      <form onSubmit={handleSubmit} className="mb-6 flex flex-wrap gap-2">
-        <input placeholder="Item ID" value={form.item_id} onChange={(e) => setForm({...form, item_id: e.target.value})} required className="border p-2 rounded"/>
-        <input placeholder="Operation ID" value={form.operation_id} onChange={(e) => setForm({...form, operation_id: e.target.value})} required className="border p-2 rounded"/>
-        <input placeholder="Machine ID" value={form.machine_id} onChange={(e) => setForm({...form, machine_id: e.target.value})} required className="border p-2 rounded"/>
-        <input placeholder="Cycle Time (min)" value={form.cycle_time_min} onChange={(e) => setForm({...form, cycle_time_min: e.target.value})} className="border p-2 rounded"/>
-        <input placeholder="Sequence" value={form.sequence} onChange={(e) => setForm({...form, sequence: e.target.value})} required className="border p-2 rounded"/>
-        <button type="submit" className={`px-4 rounded text-white ${editId?"bg-yellow-500":"bg-blue-600"}`} disabled={loading}>
+      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 mb-4">
+        <select value={form.item_id} onChange={e => setForm({...form, item_id: e.target.value})} required className="border p-2 rounded">
+          <option value="">-- Pilih Item --</option>
+          {items.map(i => <option key={i.id} value={i.id}>{i.item_code}</option>)}
+        </select>
+        <select value={form.operation_id} onChange={e => setForm({...form, operation_id: e.target.value})} required className="border p-2 rounded">
+          <option value="">-- Pilih Operation --</option>
+          {operations.map(o => <option key={o.id} value={o.id}>{o.operation_name}</option>)}
+        </select>
+        <select value={form.machine_id} onChange={e => setForm({...form, machine_id: e.target.value})} required className="border p-2 rounded">
+          <option value="">-- Pilih Machine --</option>
+          {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
+        </select>
+        <input type="number" step="0.01" placeholder="Cycle Time (min)" value={form.cycle_time_min} onChange={e => setForm({...form, cycle_time_min: e.target.value})} required className="border p-2 rounded"/>
+        <input type="number" placeholder="Sequence" value={form.sequence} onChange={e => setForm({...form, sequence: e.target.value})} required className="border p-2 rounded"/>
+        <button type="submit" className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`} disabled={loading}>
           {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
         </button>
       </form>
@@ -116,7 +152,7 @@ export default function ItemRoutings() {
           {routings.length ? routings.map(r => (
             <tr key={r.id}>
               <td className="border p-2">{r.id}</td>
-              <td className="border p-2">{r.item_name}</td>
+              <td className="border p-2">{r.item_code}</td>
               <td className="border p-2">{r.operation_name}</td>
               <td className="border p-2">{r.machine_name}</td>
               <td className="border p-2">{r.cycle_time_min}</td>
@@ -128,7 +164,7 @@ export default function ItemRoutings() {
             </tr>
           )) : (
             <tr>
-              <td colSpan="7" className="text-center p-4 text-gray-500">{loading ? "Loading..." : "No item routings found"}</td>
+              <td colSpan="7" className="text-center p-2 text-gray-500">{loading ? "Loading..." : "No routings found"}</td>
             </tr>
           )}
         </tbody>

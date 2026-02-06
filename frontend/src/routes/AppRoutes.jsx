@@ -24,6 +24,8 @@ import Items from "../pages/Dashboard/MRP/Items";
 import Machines from "../pages/Dashboard/MRP/Machines";
 import Operations from "../pages/Dashboard/MRP/Operations";
 import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
+import SalesOrders from "../pages/Dashboard/MRP/SalesOrders";
+import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
 import DemandList from "../pages/Dashboard/MRP/DemandList";
 import PlannedOrder from "../pages/Dashboard/MRP/PlannedOrder";
@@ -71,6 +73,8 @@ function AppRoutes() {
           <Route path="master/machines" element={<Machines />} />
           <Route path="master/operations" element={<Operations />} />
           <Route path="master/item-routings" element={<ItemRoutings />} />
+          <Route path="sales/sales-orders" element={<SalesOrders />} />
+          <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="demand/list"element={<DemandList />}/>
           <Route path="demand/planned-order" element={<PlannedOrder />} />

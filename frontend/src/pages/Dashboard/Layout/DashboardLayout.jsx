@@ -171,6 +171,12 @@ export default function DashboardLayout() {
             />
           )}
           {(isPlanner) && (
+            <SalesDropdown
+              collapsed={collapsed}
+              currentPath={location.pathname}
+            />
+          )}
+          {(isPlanner) && (
             <DemandDropdown
               collapsed={collapsed}
               currentPath={location.pathname}
@@ -404,6 +410,60 @@ function MasterDropdown({ collapsed, currentPath }) {
             to="/dashboard/master/item-routings"
             icon={Form}
             label="Item Routing"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+function SalesDropdown({ collapsed, currentPath }) {
+  const paths = [
+    "/dashboard/sales/sales-orders",
+    "/dashboard/sales/sales-order-items",
+  ];
+
+  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const [open, setOpen] = useState(isActive);
+
+  useEffect(() => setOpen(isActive), [isActive]);
+
+  return (
+    <div>
+      {/* Dropdown Button */}
+      <button
+        onClick={() => setOpen(!open)}
+        title={collapsed ? "Sales" : ""}
+        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
+          ${isActive
+            ? "bg-slate-800 text-white"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+      >
+        <div className="flex items-center gap-3">
+          <ListTodo size={18} />
+          {!collapsed && "Sales"}
+        </div>
+        {!collapsed && (
+          <span
+            className={`text-xs transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          >
+            ▼
+          </span>
+        )}
+      </button>
+
+      {/* Submenu Master Data */}
+      {!collapsed && open && (
+        <div className="mt-2 space-y-1">
+          <SubMenuLink
+            to="/dashboard/sales/sales-orders"
+            icon={Form}
+            label="Sales Orders"
+          />
+          <SubMenuLink
+            to="/dashboard/sales/sales-order-items"
+            icon={Form}
+            label="Sales Order Items"
           />
         </div>
       )}
@@ -659,7 +719,6 @@ function BahanBakuDropdown({ collapsed, currentPath }) {
     </div>
   );
 }
-
 /* ================= SUB MENU ================= */
 function SubMenuLink({ to, label, icon: Icon }) {
   return (
