@@ -342,7 +342,7 @@ function MasterDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/master/customers",
     "/dashboard/master/items",
-    "/dashboard/master/maschines",
+    "/dashboard/master/machines",
     "/dashboard/master/operations",
     "/dashboard/master/item-routing",
   ];
@@ -391,7 +391,7 @@ function MasterDropdown({ collapsed, currentPath }) {
             label="Items"
           />
           <SubMenuLink
-            to="/dashboard/master/maschines"
+            to="/dashboard/master/machines"
             icon={Form}
             label="Machines"
           />

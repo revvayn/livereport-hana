@@ -1,12 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
-const upload = multer();
+const controller = require("../controllers/items.controller");
 
-const itemsController = require("../controllers/items.controller");
-
-router.get("/", itemsController.getItems);
-router.post("/upload", upload.single("file"), itemsController.uploadItems);
-router.delete("/clear", itemsController.clearItems);
+router.get("/", controller.getItems);
+router.get("/:id", controller.getItemById);
+router.post("/", controller.createItem);
+router.put("/:id", controller.updateItem);
+router.delete("/:id", controller.deleteItem);
 
 module.exports = router;

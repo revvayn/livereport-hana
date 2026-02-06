@@ -1,111 +1,88 @@
-const XLSX = require("xlsx");
 const pool = require("../db");
 
-/* ================= GET ITEMS ================= */
+// GET all items
 exports.getItems = async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 100;
-  const search = req.query.search || "";
-  const offset = (page - 1) * limit;
-
   try {
-    const dataQuery = `
-      SELECT *
-      FROM items
-      WHERE item_code ILIKE $1
-         OR item_name ILIKE $1
-      ORDER BY item_code
-      LIMIT $2 OFFSET $3
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) 
-      FROM items
-      WHERE item_code ILIKE $1
-         OR item_name ILIKE $1
-    `;
-
-    const dataResult = await pool.query(dataQuery, [
-      `%${search}%`,
-      limit,
-      offset,
-    ]);
-
-    const countResult = await pool.query(countQuery, [`%${search}%`]);
-
-    const totalData = parseInt(countResult.rows[0].count);
-    const totalPages = Math.ceil(totalData / limit);
-
-    res.json({
-      data: dataResult.rows,
-      page,
-      totalPages,
-      totalData,
-    });
+    const result = await pool.query("SELECT * FROM items ORDER BY id");
+    res.json(result.rows || []);
   } catch (err) {
-    res.status(500).json({ message: "Gagal mengambil data item" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch items" });
   }
 };
 
-/* ================= UPLOAD ITEMS ================= */
-exports.uploadItems = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "File Excel tidak ditemukan" });
-  }
-
+// GET item by ID
+exports.getItemById = async (req, res) => {
+  const { id } = req.params;
   try {
-    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
-
-    let inserted = 0;
-
-    for (const row of rows) {
-      if (!row.item_code || !row.item_name) continue;
-
-      await pool.query(
-        `
-        INSERT INTO items (
-          item_code,
-          item_name,
-          item_type,
-          uom,
-          lead_time_days,
-          safety_stock
-        )
-        VALUES ($1,$2,$3,$4,$5,$6)
-        ON CONFLICT (item_code) DO UPDATE SET
-          item_name = EXCLUDED.item_name,
-          item_type = EXCLUDED.item_type,
-          uom = EXCLUDED.uom,
-          lead_time_days = EXCLUDED.lead_time_days,
-          safety_stock = EXCLUDED.safety_stock
-        `,
-        [
-          row.item_code,
-          row.item_name,
-          row.item_type,
-          row.uom,
-          row.lead_time_days || 0,
-          row.safety_stock || 0,
-        ]
-      );
-
-      inserted++;
-    }
-
-    res.json({ message: `Upload berhasil (${inserted} item)` });
+    const result = await pool.query("SELECT * FROM items WHERE id=$1", [id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ message: "Upload item gagal" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch item" });
   }
 };
 
-/* ================= CLEAR ITEMS ================= */
-exports.clearItems = async (req, res) => {
+// CREATE item
+exports.createItem = async (req, res) => {
+  const { item_code, description, uom, item_type } = req.body;
+
+  if (!item_code || !item_type) {
+    return res.status(400).json({ error: "Item code and type are required" });
+  }
+
+  if (!["FG", "WIP", "RM"].includes(item_type)) {
+    return res.status(400).json({ error: "Item type must be FG, WIP, or RM" });
+  }
+
   try {
-    await pool.query("DELETE FROM items");
-    res.json({ message: "Data item berhasil dikosongkan" });
+    const result = await pool.query(
+      "INSERT INTO items(item_code, description, uom, item_type) VALUES($1,$2,$3,$4) RETURNING *",
+      [item_code, description, uom, item_type]
+    );
+    res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ message: "Gagal menghapus data item" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to create item" });
+  }
+};
+
+// UPDATE item
+exports.updateItem = async (req, res) => {
+  const { id } = req.params;
+  const { item_code, description, uom, item_type } = req.body;
+
+  if (!item_code || !item_type) {
+    return res.status(400).json({ error: "Item code and type are required" });
+  }
+
+  if (!["FG", "WIP", "RM"].includes(item_type)) {
+    return res.status(400).json({ error: "Item type must be FG, WIP, or RM" });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE items SET item_code=$1, description=$2, uom=$3, item_type=$4 WHERE id=$5 RETURNING *",
+      [item_code, description, uom, item_type, id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update item" });
+  }
+};
+
+// DELETE item
+exports.deleteItem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query("DELETE FROM items WHERE id=$1 RETURNING *", [id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Item not found" });
+    res.json({ message: "Item deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete item" });
   }
 };
