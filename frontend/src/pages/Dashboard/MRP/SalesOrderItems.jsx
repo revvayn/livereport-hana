@@ -46,19 +46,20 @@ useEffect(() => {
   cancelEdit();
 }, [selectedSOId, allSalesOrders]); // Tambahkan allSalesOrders sebagai dependency
 
-  const fetchItems = async (soId) => {
-    setLoading(true);
-    try {
-      const res = await api.get(`/sales-orders/${soId}/items`);
-      console.log("Data Items dari Server:", res.data); // CEK DISINI
-      setItems(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Error Fetch Items:", err);
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchItems = async (soId) => {
+  setLoading(true);
+  try {
+    const res = await api.get(`/sales-order-items/${soId}/items`);
+    console.log("Data Items dari Server:", res.data);
+    setItems(Array.isArray(res.data) ? res.data : []);
+  } catch (err) {
+    console.error("Error Fetch Items:", err);
+    setItems([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const cancelEdit = () => {
     setEditId(null);
@@ -73,7 +74,8 @@ useEffect(() => {
     try {
       const payload = { 
         item_id: parseInt(form.item_id), 
-        quantity: parseInt(form.quantity),
+        quantity: parseFloat(form.quantity),
+
         sales_order_id: parseInt(selectedSOId) 
       };
 
