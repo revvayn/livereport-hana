@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
@@ -16,6 +16,12 @@ const formatDate = d =>
     year: "numeric"
   });
 
+  const toInputDate = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return d.toISOString().split("T")[0];
+  };  
+
 const buildCalendar = (start, days = 30) =>
   Array.from({ length: days }, (_, i) => ({
     date: addDays(start, i),
@@ -23,6 +29,7 @@ const buildCalendar = (start, days = 30) =>
   }));
 
 const createItem = start => ({
+  itemId: null,
   itemCode: "",
   description: "",
   uom: "",
@@ -33,16 +40,69 @@ const createItem = start => ({
 
 /* ================= COMPONENT ================= */
 export default function FormDemand() {
+  /* ================= STATE ================= */
+  const [salesOrders, setSalesOrders] = useState([]);
+  const [selectedSO, setSelectedSO] = useState("");
+
   const [header, setHeader] = useState({
     soNo: "",
     soDate: "",
-    customer: ""
+    customer: "",
+    deliveryDate: "",
+    productionDate: ""
   });
 
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [items, setItems] = useState([createItem(new Date())]);
   const [drag, setDrag] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  /* ================= LOAD SALES ORDER LIST ================= */
+  useEffect(() => {
+    api.get("/sales-orders")
+      .then(res => setSalesOrders(res.data))
+      .catch(() => {
+        Swal.fire("Error", "Gagal memuat Sales Order", "error");
+      });
+  }, []);
+
+  /* ================= SELECT SO ================= */
+  const handleSelectSO = async (e) => {
+    const soId = e.target.value;
+    setSelectedSO(soId);
+    if (!soId) return;
+  
+    try {
+      const res = await api.get(`/demand/from-so/${soId}`);
+      const h = res.data.header;
+  
+      /* ================= HEADER ================= */
+      setHeader({
+        soNo: h.soNo || "",
+        soDate: toInputDate(h.soDate),             // ✅ AUTO ISI
+        customer: h.customer || "",
+        deliveryDate: toInputDate(h.deliveryDate), // ✅ AUTO ISI
+        productionDate: ""
+      });
+  
+      /* ================= ITEMS ================= */
+      setItems(
+        res.data.items.map(it => ({
+          itemId: it.itemId,
+          itemCode: it.itemCode,
+          description: it.description,
+          uom: it.uom,
+          qty: it.qty,
+          calendarStart: new Date(),
+          calendar: buildCalendar(new Date())
+        }))
+      );
+  
+    } catch (err) {
+      Swal.fire("Error", "Gagal mengambil data SO", "error");
+    }
+  };
+  
 
   /* ================= HEADER ================= */
   const updateHeader = (k, v) =>
@@ -76,7 +136,7 @@ export default function FormDemand() {
     );
   };
 
-  /* ================= SHIFT TOGGLE ================= */
+  /* ================= SHIFT ================= */
   const toggleShift = (itemIdx, dayIdx, shift, mode = "toggle") => {
     setItems(prev => {
       const c = [...prev];
@@ -88,12 +148,10 @@ export default function FormDemand() {
     });
   };
 
-  /* ================= DRAG UX ================= */
   const startDrag = (itemIdx, dayIdx, shift, e) => {
     let mode = "toggle";
     if (e.shiftKey) mode = "on";
     if (e.altKey) mode = "off";
-
     setDrag({ itemIdx, shift, mode });
     toggleShift(itemIdx, dayIdx, shift, mode);
   };
@@ -137,172 +195,85 @@ export default function FormDemand() {
         Demand Planner – Drag Calendar (3 Shift)
       </h1>
 
-      {/* HEADER */}
-      <div className="space-y-4 mb-6">
-
-        {/* ROW 1 : SO */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">
-              SO Number
-            </label>
-            <input
-              className="border p-2 rounded text-sm"
-              value={header.soNo}
-              onChange={e => updateHeader("soNo", e.target.value)}
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">
-              Tanggal SO
-            </label>
-            <input
-              type="date"
-              className="border p-2 rounded text-sm"
-              value={header.soDate}
-              onChange={e => updateHeader("soDate", e.target.value)}
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">
-              Customer
-            </label>
-            <input
-              className="border p-2 rounded text-sm"
-              value={header.customer}
-              onChange={e => updateHeader("customer", e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* ROW 2 : DATE PLAN */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">
-              Tanggal Kirim
-            </label>
-            <input
-              type="date"
-              className="border p-2 rounded text-sm"
-              value={header.deliveryDate}
-              onChange={e =>
-                updateHeader("deliveryDate", e.target.value)
-              }
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">
-              Tanggal Produksi
-            </label>
-            <input
-              type="date"
-              className="border p-2 rounded text-sm"
-              value={header.productionDate}
-              onChange={e =>
-                updateHeader("productionDate", e.target.value)
-              }
-            />
-          </div>
-        </div>
-
+      {/* SELECT SO */}
+      <div className="mb-6">
+        <label className="text-xs font-medium text-gray-600 mb-1 block">
+          Sales Order
+        </label>
+        <select
+          value={selectedSO}
+          onChange={handleSelectSO}
+          className="border p-2 rounded text-sm w-full"
+        >
+          <option value="">-- Pilih Sales Order --</option>
+          {salesOrders.map(so => (
+            <option key={so.id} value={so.id}>
+              {so.so_number}
+            </option>
+          ))}
+        </select>
       </div>
 
+      {/* HEADER */}
+      <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-3 gap-4">
+          {["soNo", "soDate", "customer"].map((k, i) => (
+            <div key={i} className="flex flex-col">
+              <label className="text-xs font-medium text-gray-600 mb-1">
+                {k === "soNo" ? "SO Number" : k === "soDate" ? "Tanggal SO" : "Customer"}
+              </label>
+              <input
+                type={k === "soDate" ? "date" : "text"}
+                className="border p-2 rounded text-sm"
+                value={header[k]}
+                onChange={e => updateHeader(k, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {["deliveryDate", "productionDate"].map(k => (
+            <div key={k} className="flex flex-col">
+              <label className="text-xs font-medium text-gray-600 mb-1">
+                {k === "deliveryDate" ? "Tanggal Kirim" : "Tanggal Produksi"}
+              </label>
+              <input
+                type="date"
+                className="border p-2 rounded text-sm"
+                value={header[k]}
+                onChange={e => updateHeader(k, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* DATE SEARCH */}
       <div className="flex gap-3 mb-6 items-center">
-        <label className="text-sm font-medium">
-          Jump to date:
-        </label>
-        <input
-          type="date"
-          className="border rounded p-2 text-sm"
-          onChange={e => jumpToDate(e.target.value)}
-        />
-        <span className="text-xs text-gray-500">
-          Kalender akan scroll dari tanggal ini
-        </span>
+        <label className="text-sm font-medium">Jump to date:</label>
+        <input type="date" className="border rounded p-2 text-sm" onChange={e => jumpToDate(e.target.value)} />
       </div>
 
       {/* ITEMS */}
       {items.map((item, i) => (
-        <div
-          key={i}
-          className="border rounded-xl p-4 mb-6 bg-gray-50"
-        >
-          {/* ITEM HEADER */}
+        <div key={i} className="border rounded-xl p-4 mb-6 bg-gray-50">
           <div className="grid grid-cols-5 gap-3 mb-4">
-            <div>
-              <div className="text-xs font-semibold mb-1">
-                Item Code
-              </div>
+            {["itemCode", "description", "uom", "qty"].map(k => (
               <input
-                className="border p-2 rounded text-sm w-full"
-                value={item.itemCode}
-                onChange={e =>
-                  updateItem(i, { itemCode: e.target.value })
-                }
+                key={k}
+                type={k === "qty" ? "number" : "text"}
+                className="border p-2 rounded text-sm"
+                value={item[k]}
+                onChange={e => updateItem(i, { [k]: e.target.value })}
+                placeholder={k.toUpperCase()}
               />
-            </div>
-
-            <div>
-              <div className="text-xs font-semibold mb-1">
-                Description
-              </div>
-              <input
-                className="border p-2 rounded text-sm w-full"
-                value={item.description}
-                onChange={e =>
-                  updateItem(i, { description: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <div className="text-xs font-semibold mb-1">
-                UOM
-              </div>
-              <input
-                className="border p-2 rounded text-sm w-full"
-                value={item.uom}
-                onChange={e =>
-                  updateItem(i, { uom: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <div className="text-xs font-semibold mb-1">
-                Quantity
-              </div>
-              <input
-                type="number"
-                className="border p-2 rounded text-sm w-full"
-                value={item.qty}
-                onChange={e =>
-                  updateItem(i, { qty: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={() => removeItem(i)}
-                className="text-red-600 text-sm hover:underline"
-              >
-                Remove Item
-              </button>
-            </div>
+            ))}
+            <button onClick={() => removeItem(i)} className="text-red-600 text-sm">
+              Remove
+            </button>
           </div>
 
-          {/* CALENDAR TITLE */}
-          <div className="text-sm font-semibold mb-2">
-            Tanggal Selesai Packing
-          </div>
-
-          {/* CALENDAR */}
           <div className="overflow-x-auto">
             <div className="flex gap-2">
               {item.calendar.map((d, idx) => (
@@ -318,19 +289,12 @@ export default function FormDemand() {
                   {["shift1", "shift2", "shift3"].map((s, si) => (
                     <button
                       key={s}
-                      type="button"
-                      onMouseDown={e =>
-                        startDrag(i, idx, s, e)
-                      }
-                      onMouseEnter={() =>
-                        enterDrag(i, idx)
-                      }
+                      onMouseDown={e => startDrag(i, idx, s, e)}
+                      onMouseEnter={() => enterDrag(i, idx)}
                       onMouseUp={stopDrag}
-                      className={`w-full mt-1 py-1 rounded select-none
-                  ${d.shifts[s]
-                          ? "bg-green-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300"
-                        }`}
+                      className={`w-full mt-1 py-1 rounded ${
+                        d.shifts[s] ? "bg-green-600 text-white" : "bg-gray-200"
+                      }`}
                     >
                       Shift {si + 1}
                     </button>
@@ -342,16 +306,9 @@ export default function FormDemand() {
         </div>
       ))}
 
-
-      {/* ACTION */}
-      <div className="flex gap-3 mb-4">
-        <button
-          onClick={addItem}
-          className="border px-4 py-2 rounded text-sm"
-        >
-          + Add Item
-        </button>
-      </div>
+      <button onClick={addItem} className="border px-4 py-2 rounded text-sm mb-4">
+        + Add Item
+      </button>
 
       <button
         onClick={handleSubmit}

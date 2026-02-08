@@ -1,52 +1,72 @@
-const db = require("../db");
+const pool = require("../db");
 
-/* ================= CREATE DEMAND ================= */
-exports.createDemand = async (req, res) => {
+/*
+ GET DEMAND PREVIEW FROM SALES ORDER
+*/
+exports.getDemandFromSalesOrder = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { item_code, qty_demand, due_date, demand_type, reference_no } =
-      req.body;
-
-    if (!item_code || !qty_demand || !due_date || !demand_type) {
-      return res.status(400).json({ message: "Data demand belum lengkap" });
-    }
-
-    await db.query(
+    /* ================= HEADER ================= */
+    const soResult = await pool.query(
       `
-      INSERT INTO demand
-      (item_code, qty_demand, due_date, demand_type, reference_no)
-      VALUES ($1,$2,$3,$4,$5)
+      SELECT 
+        so.id,
+        so.so_number,
+        so.so_date,
+        so.delivery_date,
+        c.customer_name
+      FROM sales_orders so
+      LEFT JOIN customers c ON c.id = so.customer_id
+      WHERE so.id = $1
       `,
-      [item_code, qty_demand, due_date, demand_type, reference_no]
+      [id]
     );
 
-    res.json({ message: "Demand berhasil disimpan" });
+    if (!soResult.rows.length) {
+      return res.status(404).json({ error: "Sales Order tidak ditemukan" });
+    }
+
+    const so = soResult.rows[0];
+
+    /* ================= ITEMS ================= */
+    const itemsResult = await pool.query(
+      `
+      SELECT 
+        i.id as item_id,
+        i.item_code,
+        i.description,
+        i.uom,
+        soi.quantity
+      FROM sales_order_items soi
+      INNER JOIN items i ON i.id = soi.item_id
+      WHERE soi.sales_order_id = $1
+      ORDER BY soi.id ASC
+      `,
+      [id]
+    );
+
+    /* ================= BUILD RESPONSE ================= */
+    const response = {
+      header: {
+        soNo: so.so_number,
+        soDate: so.so_date,
+        customer: so.customer_name,
+        deliveryDate: so.delivery_date
+      },
+      items: itemsResult.rows.map(row => ({
+        itemId: row.item_id,
+        itemCode: row.item_code,
+        description: row.description,
+        uom: row.uom,
+        qty: Number(row.quantity)
+      }))
+    };
+
+    res.json(response);
+
   } catch (err) {
-    console.error("CREATE DEMAND ERROR:", err);
-    res.status(500).json({ message: "Gagal menyimpan demand" });
+    console.error("GET DEMAND FROM SO ERROR:", err);
+    res.status(500).json({ error: "Gagal generate demand dari SO" });
   }
 };
-
-/* ================= GET DEMAND ================= */
-exports.getDemand = async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT
-        demand_id,
-        item_code,
-        qty_demand,
-        due_date,
-        demand_type,
-        reference_no,
-        status,
-        created_at
-      FROM demand
-      ORDER BY due_date ASC
-    `);
-
-    res.json(result.rows);
-  } catch (err) {
-    console.error("GET DEMAND ERROR:", err);
-    res.status(500).json({ message: "Gagal mengambil data demand" });
-  }
-};
-
