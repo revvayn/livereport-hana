@@ -37,19 +37,24 @@ exports.getItemRoutingById = async (req, res) => {
 // CREATE item routing
 exports.createItemRouting = async (req, res) => {
   const { item_id, operation_id, machine_id, cycle_time_min, sequence } = req.body;
-  if (!item_id || !operation_id || !machine_id || !sequence) {
-    return res.status(400).json({ error: "Item, Operation, Machine, and Sequence are required" });
+
+  // Cek apakah field wajib ada dan tidak kosong
+  if (!item_id || !operation_id || !machine_id || sequence === undefined || sequence === "") {
+    return res.status(400).json({ 
+      error: "Gagal: Item, Operation, Machine, dan Sequence harus diisi!" 
+    });
   }
+
   try {
     const result = await pool.query(
       `INSERT INTO item_routings(item_id, operation_id, machine_id, cycle_time_min, sequence)
-       VALUES($1,$2,$3,$4,$5) RETURNING *`,
+       VALUES($1, $2, $3, $4, $5) RETURNING *`,
       [item_id, operation_id, machine_id, cycle_time_min || 0, sequence]
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create item routing" });
+    console.error("CREATE ROUTING ERROR:", err.message);
+    res.status(500).json({ error: "Gagal membuat routing: " + err.message });
   }
 };
 
@@ -57,20 +62,30 @@ exports.createItemRouting = async (req, res) => {
 exports.updateItemRouting = async (req, res) => {
   const { id } = req.params;
   const { item_id, operation_id, machine_id, cycle_time_min, sequence } = req.body;
-  if (!item_id || !operation_id || !machine_id || !sequence) {
-    return res.status(400).json({ error: "Item, Operation, Machine, and Sequence are required" });
+
+  // Validasi: Pastikan field utama tetap ada agar data tidak rusak/null di DB
+  if (!item_id || !operation_id || !machine_id || sequence === undefined) {
+    return res.status(400).json({ 
+      error: "Data Item, Operation, Machine, dan Sequence tidak boleh kosong saat update." 
+    });
   }
+
   try {
     const result = await pool.query(
-      `UPDATE item_routings SET item_id=$1, operation_id=$2, machine_id=$3, cycle_time_min=$4, sequence=$5
+      `UPDATE item_routings 
+       SET item_id=$1, operation_id=$2, machine_id=$3, cycle_time_min=$4, sequence=$5
        WHERE id=$6 RETURNING *`,
       [item_id, operation_id, machine_id, cycle_time_min || 0, sequence, id]
     );
-    if (!result.rows.length) return res.status(404).json({ error: "Item routing not found" });
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Data routing tidak ditemukan" });
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update item routing" });
+    console.error("UPDATE ERROR:", err.message);
+    res.status(500).json({ error: "Gagal update: " + err.message });
   }
 };
 
