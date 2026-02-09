@@ -113,62 +113,123 @@ export default function ItemRoutings() {
   };
 
   return (
-    <div className="p-4 border rounded">
-      <h2 className="text-lg font-semibold mb-2">Item Routings</h2>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-6xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Item Routings</h1>
 
-      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2 mb-4">
-        <select value={form.item_id} onChange={e => setForm({...form, item_id: e.target.value})} required className="border p-2 rounded">
+      {/* Form Sederhana - flex-wrap agar aman di layar tanggung */}
+      <form onSubmit={handleSubmit} className="mb-6 flex flex-wrap gap-2">
+        <select
+          value={form.item_id}
+          onChange={e => setForm({ ...form, item_id: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
+        >
           <option value="">-- Pilih Item --</option>
           {items.map(i => <option key={i.id} value={i.id}>{i.item_code}</option>)}
         </select>
-        <select value={form.operation_id} onChange={e => setForm({...form, operation_id: e.target.value})} required className="border p-2 rounded">
+
+        <select
+          value={form.operation_id}
+          onChange={e => setForm({ ...form, operation_id: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
+        >
           <option value="">-- Pilih Operation --</option>
           {operations.map(o => <option key={o.id} value={o.id}>{o.operation_name}</option>)}
         </select>
-        <select value={form.machine_id} onChange={e => setForm({...form, machine_id: e.target.value})} required className="border p-2 rounded">
+
+        <select
+          value={form.machine_id}
+          onChange={e => setForm({ ...form, machine_id: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
+        >
           <option value="">-- Pilih Machine --</option>
           {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
         </select>
-        <input type="number" step="0.01" placeholder="Cycle Time (min)" value={form.cycle_time_min} onChange={e => setForm({...form, cycle_time_min: e.target.value})} required className="border p-2 rounded"/>
-        <input type="number" placeholder="Sequence" value={form.sequence} onChange={e => setForm({...form, sequence: e.target.value})} required className="border p-2 rounded"/>
-        <button type="submit" className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`} disabled={loading}>
-          {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
+
+        <input
+          type="number"
+          step="0.01"
+          placeholder="Cycle Time (min)"
+          value={form.cycle_time_min}
+          onChange={e => setForm({ ...form, cycle_time_min: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm w-32 focus:outline-none focus:border-blue-500"
+        />
+
+        <input
+          type="number"
+          placeholder="Seq"
+          value={form.sequence}
+          onChange={e => setForm({ ...form, sequence: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm w-20 focus:outline-none focus:border-blue-500"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+        >
+          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      <table className="w-full border-collapse border text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Item</th>
-            <th className="border p-2">Operation</th>
-            <th className="border p-2">Machine</th>
-            <th className="border p-2">Cycle Time</th>
-            <th className="border p-2">Sequence</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {routings.length ? routings.map(r => (
-            <tr key={r.id}>
-              <td className="border p-2">{r.id}</td>
-              <td className="border p-2">{r.item_code}</td>
-              <td className="border p-2">{r.operation_name}</td>
-              <td className="border p-2">{r.machine_name}</td>
-              <td className="border p-2">{r.cycle_time_min}</td>
-              <td className="border p-2">{r.sequence}</td>
-              <td className="border p-2 flex gap-2">
-                <button onClick={() => handleEdit(r)} className="bg-yellow-400 px-2 rounded">Edit</button>
-                <button onClick={() => handleDelete(r.id)} className="bg-red-500 text-white px-2 rounded">Delete</button>
-              </td>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-16">ID</th>
+              <th className="border border-gray-200 p-3">Item</th>
+              <th className="border border-gray-200 p-3">Operation</th>
+              <th className="border border-gray-200 p-3">Machine</th>
+              <th className="border border-gray-200 p-3 w-28 text-center">C/T (Min)</th>
+              <th className="border border-gray-200 p-3 w-20 text-center">Seq</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
             </tr>
-          )) : (
-            <tr>
-              <td colSpan="7" className="text-center p-2 text-gray-500">{loading ? "Loading..." : "No routings found"}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {routings.length > 0 ? (
+              routings.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="border border-gray-200 p-3 text-gray-500">{r.id}</td>
+                  <td className="border border-gray-200 p-3 font-semibold text-blue-700">{r.item_code}</td>
+                  <td className="border border-gray-200 p-3 font-medium">{r.operation_name}</td>
+                  <td className="border border-gray-200 p-3 text-gray-600">{r.machine_name}</td>
+                  <td className="border border-gray-200 p-3 text-center">{r.cycle_time_min}</td>
+                  <td className="border border-gray-200 p-3 text-center font-bold">{r.sequence}</td>
+                  <td className="border border-gray-200 p-3">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleEdit(r)}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" className="text-center p-10 text-gray-400">
+                  {loading ? "Memuat data..." : "Belum ada data routing item."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -92,34 +92,34 @@ export default function Items() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full max-w-3xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Items</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Master Data Items</h1>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="mb-6 flex gap-3 flex-wrap">
+      {/* Form Sederhana - Menggunakan Wrap agar rapi di layar kecil */}
+      <form onSubmit={handleSubmit} className="mb-6 flex gap-2 flex-wrap">
         <input
           type="text"
-          className="border p-2 rounded flex-1"
-          placeholder="Item Code"
+          className="border border-gray-300 p-2 rounded text-sm w-40 focus:outline-none focus:border-blue-500"
+          placeholder="Kode Item"
           value={form.item_code}
           onChange={(e) => setForm({ ...form, item_code: e.target.value })}
         />
         <input
           type="text"
-          className="border p-2 rounded flex-1"
-          placeholder="Description"
+          className="border border-gray-300 p-2 rounded flex-1 min-w-[200px] text-sm focus:outline-none focus:border-blue-500"
+          placeholder="Deskripsi Barang"
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
         <input
           type="text"
-          className="border p-2 rounded w-24"
+          className="border border-gray-300 p-2 rounded text-sm w-20 focus:outline-none focus:border-blue-500"
           placeholder="UOM"
           value={form.uom}
           onChange={(e) => setForm({ ...form, uom: e.target.value })}
         />
         <select
-          className="border p-2 rounded w-32"
+          className="border border-gray-300 p-2 rounded text-sm w-28 focus:outline-none focus:border-blue-500 bg-white"
           value={form.item_type}
           onChange={(e) => setForm({ ...form, item_type: e.target.value })}
         >
@@ -127,55 +127,74 @@ export default function Items() {
           <option value="WIP">WIP</option>
           <option value="RM">RM</option>
         </select>
+
         <button
           type="submit"
-          className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`}
           disabled={loading}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+            }`}
         >
-          {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
+          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      {/* Table */}
-      <table className="w-full border-collapse border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Code</th>
-            <th className="border p-2">Description</th>
-            <th className="border p-2">UOM</th>
-            <th className="border p-2">Type</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length ? (
-            items.map((i) => (
-              <tr key={i.id}>
-                <td className="border p-2">{i.id}</td>
-                <td className="border p-2">{i.item_code}</td>
-                <td className="border p-2">{i.description}</td>
-                <td className="border p-2">{i.uom}</td>
-                <td className="border p-2">{i.item_type}</td>
-                <td className="border p-2 flex gap-2">
-                  <button onClick={() => handleEdit(i)} className="bg-yellow-400 px-2 rounded">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(i.id)} className="bg-red-500 text-white px-2 rounded">
-                    Delete
-                  </button>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-16">ID</th>
+              <th className="border border-gray-200 p-3 w-40">Kode</th>
+              <th className="border border-gray-200 p-3">Deskripsi</th>
+              <th className="border border-gray-200 p-3 w-20">UOM</th>
+              <th className="border border-gray-200 p-3 w-24">Tipe</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length > 0 ? (
+              items.map((i) => (
+                <tr key={i.id} className="hover:bg-gray-50">
+                  <td className="border border-gray-200 p-3 text-gray-500">{i.id}</td>
+                  <td className="border border-gray-200 p-3 font-mono font-semibold">{i.item_code}</td>
+                  <td className="border border-gray-200 p-3">{i.description}</td>
+                  <td className="border border-gray-200 p-3 text-center">{i.uom}</td>
+                  <td className="border border-gray-200 p-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${i.item_type === 'FG' ? 'bg-green-100 text-green-700' :
+                        i.item_type === 'WIP' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                      {i.item_type}
+                    </span>
+                  </td>
+                  <td className="border border-gray-200 p-3 text-center">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleEdit(i)}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(i.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="text-center p-10 text-gray-400">
+                  {loading ? "Memuat data..." : "Belum ada data item."}
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="6" className="text-center p-4 text-gray-500">
-                {loading ? "Loading..." : "No items found"}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

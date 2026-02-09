@@ -88,70 +88,82 @@ export default function Customers() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full max-w-3xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Customers</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-4xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Data Customer</h1>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="mb-6 flex gap-3">
+      {/* Form Sederhana */}
+      <form onSubmit={handleSubmit} className="mb-6 flex gap-2">
         <input
           type="text"
-          className="border p-2 rounded flex-1"
-          placeholder="Customer Code"
+          className="border border-gray-300 p-2 rounded text-sm w-40 focus:outline-none focus:border-blue-500"
+          placeholder="Kode Customer"
           value={form.customer_code}
           onChange={(e) => setForm({ ...form, customer_code: e.target.value })}
         />
         <input
           type="text"
-          className="border p-2 rounded flex-1"
-          placeholder="Customer Name"
+          className="border border-gray-300 p-2 rounded flex-1 text-sm focus:outline-none focus:border-blue-500"
+          placeholder="Nama Lengkap Customer"
           value={form.customer_name}
           onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
         />
         <button
           type="submit"
-          className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`}
           disabled={loading}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+            }`}
         >
-          {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
+          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      {/* Table */}
-      <table className="w-full border-collapse border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Code</th>
-            <th className="border p-2">Name</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {customers.length ? (
-            customers.map((c) => (
-              <tr key={c.id}>
-                <td className="border p-2">{c.id}</td>
-                <td className="border p-2">{c.customer_code}</td>
-                <td className="border p-2">{c.customer_name}</td>
-                <td className="border p-2 flex gap-2">
-                  <button onClick={() => handleEdit(c)} className="bg-yellow-400 px-2 rounded">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(c.id)} className="bg-red-500 text-white px-2 rounded">
-                    Delete
-                  </button>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-16">ID</th>
+              <th className="border border-gray-200 p-3 w-40">Kode</th>
+              <th className="border border-gray-200 p-3">Nama Customer</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.length > 0 ? (
+              customers.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50">
+                  <td className="border border-gray-200 p-3 text-gray-500">{c.id}</td>
+                  <td className="border border-gray-200 p-3 font-mono">{c.customer_code}</td>
+                  <td className="border border-gray-200 p-3">{c.customer_name}</td>
+                  <td className="border border-gray-200 p-3">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleEdit(c)}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="text-center p-10 text-gray-400">
+                  {loading ? "Memuat data..." : "Belum ada data customer."}
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="4" className="text-center p-4 text-gray-500">
-                {loading ? "Loading..." : "No customers found"}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

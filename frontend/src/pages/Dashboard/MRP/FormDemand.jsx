@@ -204,13 +204,19 @@ export default function FormDemand() {
     }
   };
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full" onMouseUp={() => setDrag(null)}>
-      <h1 className="text-xl font-semibold mb-4">Demand Planner – Backward Planning</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full" onMouseUp={() => setDrag(null)}>
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
+        Demand Planner – Backward Planning
+      </h1>
 
       {/* Select SO */}
       <div className="mb-6">
-        <label className="text-xs font-medium text-gray-600 mb-1 block">Sales Order</label>
-        <select value={selectedSO} onChange={handleSelectSO} className="border p-2 rounded text-sm w-full">
+        <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">Pilih Sales Order</label>
+        <select
+          value={selectedSO}
+          onChange={handleSelectSO}
+          className="border border-gray-300 p-2 rounded text-sm w-full bg-white focus:outline-none focus:border-blue-500"
+        >
           <option value="">-- Pilih Sales Order --</option>
           {salesOrders.map((so) => (
             <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>
@@ -223,28 +229,33 @@ export default function FormDemand() {
         <div className="grid grid-cols-3 gap-4">
           {["soNo", "soDate", "customer"].map((k) => (
             <div key={k} className="flex flex-col">
-              <label className="text-xs font-medium text-gray-600 mb-1 uppercase">
+              <label className="text-xs font-bold text-gray-500 mb-1 uppercase">
                 {k === "soNo" ? "SO Number" : k === "soDate" ? "Tanggal SO" : "Customer"}
               </label>
               <input
                 type={k === "soDate" ? "date" : "text"}
-                className="border p-2 rounded text-sm bg-gray-50"
+                className="border border-gray-300 p-2 rounded text-sm bg-gray-50 text-gray-600"
                 value={header[k]}
-                readOnly={k !== "productionDate"}
+                readOnly
               />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">Tanggal Kirim (Delivery)</label>
-            <input type="date" className="border p-2 rounded text-sm bg-blue-50 border-blue-200" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-600 mb-1">Tanggal Produksi</label>
+            <label className="text-xs font-bold text-gray-600 mb-1 uppercase">Tanggal Kirim (Delivery)</label>
             <input
               type="date"
-              className="border p-2 rounded text-sm bg-yellow-50 border-yellow-200" // Beri warna beda agar tahu ini bisa diisi
+              className="border border-blue-300 p-2 rounded text-sm bg-white focus:outline-none"
+              value={header.deliveryDate}
+              onChange={(e) => updateHeader("deliveryDate", e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-xs font-bold text-gray-600 mb-1 uppercase">Tanggal Produksi</label>
+            <input
+              type="date"
+              className="border border-orange-300 p-2 rounded text-sm bg-white focus:outline-none"
               value={header.productionDate}
               onChange={(e) => updateHeader("productionDate", e.target.value)}
             />
@@ -254,14 +265,16 @@ export default function FormDemand() {
 
       {/* Items Calendar */}
       {items.map((item, i) => (
-        <div key={i} className="border rounded-xl p-4 mb-6 bg-gray-50">
-          <div className="mb-3 flex justify-between items-center text-sm font-semibold text-gray-700">
-            <div>{item.itemCode || `Item ${i + 1}`} – Total Qty: {item.qty || 0}</div>
+        <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+          <div className="mb-3 flex justify-between items-center text-sm">
+            <div className="font-bold text-gray-700 uppercase italic">
+              {item.itemCode || `Item ${i + 1}`} | Total Qty: {item.qty || 0}
+            </div>
             <button
               onClick={() => setItems(items.filter((_, idx) => idx !== i))}
-              className="text-red-600 text-xs border px-2 py-1 rounded hover:bg-red-50 transition-colors"
+              className="text-red-600 text-xs font-bold hover:underline"
             >
-              Remove
+              [ Hapus Item ]
             </button>
           </div>
 
@@ -270,18 +283,17 @@ export default function FormDemand() {
               {item.calendar.map((d, idx) => {
                 const isShip = header.deliveryDate && d.date.toDateString() === new Date(header.deliveryDate).toDateString();
                 return (
-                  <div key={idx} className={`min-w-[140px] border rounded-lg p-2 text-xs bg-white ${isShip ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
-                    <div className="text-center font-bold mb-1 border-b pb-1">{formatDate(d.date)}</div>
+                  <div key={idx} className={`min-w-[130px] border border-gray-300 rounded p-2 text-[11px] bg-white ${isShip ? 'border-blue-500 bg-blue-50' : ''}`}>
+                    <div className="text-center font-bold mb-1 border-b border-gray-100 pb-1">{formatDate(d.date)}</div>
                     <div className="grid grid-cols-3 gap-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
                         <div
                           key={s}
-                          className={`relative h-8 border rounded flex items-center justify-center transition-colors ${d.shifts[s].active
-                              ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-sm`
-                              : "bg-gray-100 text-gray-300"
+                          className={`relative h-7 border rounded flex items-center justify-center transition-none ${d.shifts[s].active
+                            ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent`
+                            : "bg-gray-100 text-gray-300 border-gray-200"
                             }`}
                         >
-                          {/* Area Klik/Drag (Background) */}
                           <div
                             className="absolute inset-0 cursor-pointer z-0"
                             onMouseDown={(e) => {
@@ -290,14 +302,12 @@ export default function FormDemand() {
                               toggleShift(i, idx, s, mode);
                             }}
                             onMouseEnter={() => {
-                              // Cek drag tidak null DAN i serta s cocok
                               if (drag && drag.i === i && drag.s === s) {
                                 toggleShift(i, idx, drag.s, drag.mode);
                               }
                             }}
                           />
 
-                          {/* Tampilan Angka / Input (Foreground) */}
                           {d.shifts[s].active && (
                             <input
                               type="number"
@@ -308,7 +318,7 @@ export default function FormDemand() {
                                 newItems[i].calendar[idx].shifts[s].qty = newQty;
                                 setItems(newItems);
                               }}
-                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text"
+                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           )}
                         </div>
@@ -323,49 +333,29 @@ export default function FormDemand() {
       ))}
 
       {/* Actions */}
-      <div className="flex flex-col gap-4 mt-6">
-        {/* Tombol Add Manual Item dengan efek hover yang lebih halus */}
+      <div className="flex flex-col gap-3 mt-6">
         <button
           onClick={() => setItems([...items, createItem(new Date())])}
-          className="group flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 py-3 rounded-xl text-sm font-semibold text-gray-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all duration-200"
+          className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
         >
-          <span className="text-lg group-hover:scale-125 transition-transform">+</span>
-          Add Manual Item
+          + TAMBAH ITEM MANUAL
         </button>
 
-        <div className="flex gap-3">
-          {/* Button EXCEL: Warna Emerald/Green dengan shadow khas modern */}
+        <div className="flex gap-2">
           <button
             onClick={handleExportExcel}
             disabled={loading}
-            className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold text-sm border border-emerald-100 hover:bg-emerald-600 hover:text-white hover:shadow-lg hover:shadow-emerald-200 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm hover:bg-green-50 disabled:opacity-50"
           >
-            {loading ? (
-              <span className="animate-pulse">...</span>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                EXCEL REPORT
-              </>
-            )}
+            {loading ? "..." : "EXPORT EXCEL"}
           </button>
 
-          {/* Button SAVE: Warna Indigo/Blue dengan gradient tipis */}
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+            className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50"
           >
-            {loading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                SAVING...
-              </div>
-            ) : (
-              "SAVE PRODUCTION DEMAND"
-            )}
+            {loading ? "MENYIMPAN..." : "SIMPAN PRODUCTION DEMAND"}
           </button>
         </div>
       </div>

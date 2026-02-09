@@ -100,61 +100,122 @@ export default function SalesOrders() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full max-w-4xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Sales Orders</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-6xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Sales Orders</h1>
 
-      {/* Form */}
+      {/* Form Sederhana */}
       <form onSubmit={handleSubmit} className="mb-6 flex flex-wrap gap-2">
-        <input type="text" placeholder="SO Number" value={form.so_number} onChange={e => setForm({...form, so_number: e.target.value})} required className="border p-2 rounded"/>
-        <input type="date" placeholder="SO Date" value={form.so_date} onChange={e => setForm({...form, so_date: e.target.value})} required className="border p-2 rounded"/>
-        <select value={form.customer_id} onChange={e => setForm({...form, customer_id: e.target.value})} required className="border p-2 rounded">
+        <input
+          type="text"
+          placeholder="Nomor SO"
+          value={form.so_number}
+          onChange={e => setForm({ ...form, so_number: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 w-40"
+        />
+
+        <input
+          type="date"
+          value={form.so_date}
+          onChange={e => setForm({ ...form, so_date: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 bg-white"
+        />
+
+        <select
+          value={form.customer_id}
+          onChange={e => setForm({ ...form, customer_id: e.target.value })}
+          required
+          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 flex-1 min-w-[150px]"
+        >
           <option value="">-- Pilih Customer --</option>
           {customers.map(c => <option key={c.id} value={c.id}>{c.customer_name}</option>)}
         </select>
-        <input type="date" placeholder="Delivery Date" value={form.delivery_date} onChange={e => setForm({...form, delivery_date: e.target.value})} className="border p-2 rounded"/>
-        <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="border p-2 rounded">
+
+        <input
+          type="date"
+          title="Delivery Date"
+          value={form.delivery_date}
+          onChange={e => setForm({ ...form, delivery_date: e.target.value })}
+          className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 bg-white"
+        />
+
+        <select
+          value={form.status}
+          onChange={e => setForm({ ...form, status: e.target.value })}
+          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 w-28"
+        >
           <option value="OPEN">OPEN</option>
           <option value="CLOSED">CLOSED</option>
         </select>
-        <button type="submit" className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`} disabled={loading}>
-          {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+        >
+          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      {/* Table */}
-      <table className="w-full border-collapse border text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">SO Number</th>
-            <th className="border p-2">SO Date</th>
-            <th className="border p-2">Customer</th>
-            <th className="border p-2">Delivery Date</th>
-            <th className="border p-2">Status</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {salesOrders.length ? salesOrders.map(so => (
-            <tr key={so.id}>
-              <td className="border p-2">{so.id}</td>
-              <td className="border p-2">{so.so_number}</td>
-              <td className="border p-2">{so.so_date}</td>
-              <td className="border p-2">{so.customer_name}</td>
-              <td className="border p-2">{so.delivery_date}</td>
-              <td className="border p-2">{so.status}</td>
-              <td className="border p-2 flex gap-2">
-                <button onClick={() => handleEdit(so)} className="bg-yellow-400 px-2 rounded">Edit</button>
-                <button onClick={() => handleDelete(so.id)} className="bg-red-500 text-white px-2 rounded">Delete</button>
-              </td>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-16">ID</th>
+              <th className="border border-gray-200 p-3 w-40">Nomor SO</th>
+              <th className="border border-gray-200 p-3 w-32">Tgl SO</th>
+              <th className="border border-gray-200 p-3">Customer</th>
+              <th className="border border-gray-200 p-3 w-32">Tgl Kirim</th>
+              <th className="border border-gray-200 p-3 w-24 text-center">Status</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
             </tr>
-          )) : (
-            <tr>
-              <td colSpan="7" className="text-center p-4 text-gray-500">{loading ? "Loading..." : "No sales orders found"}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {salesOrders.length > 0 ? (
+              salesOrders.map(so => (
+                <tr key={so.id} className="hover:bg-gray-50">
+                  <td className="border border-gray-200 p-3 text-gray-500">{so.id}</td>
+                  <td className="border border-gray-200 p-3 font-mono font-bold">{so.so_number}</td>
+                  <td className="border border-gray-200 p-3">{so.so_date}</td>
+                  <td className="border border-gray-200 p-3 font-medium uppercase">{so.customer_name}</td>
+                  <td className="border border-gray-200 p-3">{so.delivery_date || "-"}</td>
+                  <td className="border border-gray-200 p-3 text-center">
+                    <span className={`font-bold text-[10px] ${so.status === 'OPEN' ? 'text-green-600' : 'text-gray-400'}`}>
+                      {so.status}
+                    </span>
+                  </td>
+                  <td className="border border-gray-200 p-3">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleEdit(so)}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(so.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" className="text-center p-10 text-gray-400">
+                  {loading ? "Memuat data..." : "Belum ada Sales Order."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

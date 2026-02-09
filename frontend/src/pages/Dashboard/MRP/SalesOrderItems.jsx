@@ -32,33 +32,33 @@ export default function SalesOrderItems() {
 
   // 2. Ambil Items milik SO yang dipilih
   // 2. Ambil Items milik SO yang dipilih
-useEffect(() => {
-  if (selectedSOId) {
-    fetchItems(selectedSOId);
-    
-    // Pastikan perbandingan tipe datanya sama (sama-sama Number)
-    const so = allSalesOrders.find((x) => Number(x.id) === Number(selectedSOId));
-    setSoNumber(so?.so_number || "");
-  } else {
-    setItems([]);
-    setSoNumber("");
-  }
-  cancelEdit();
-}, [selectedSOId, allSalesOrders]); // Tambahkan allSalesOrders sebagai dependency
+  useEffect(() => {
+    if (selectedSOId) {
+      fetchItems(selectedSOId);
 
-const fetchItems = async (soId) => {
-  setLoading(true);
-  try {
-    const res = await api.get(`/sales-order-items/${soId}/items`);
-    console.log("Data Items dari Server:", res.data);
-    setItems(Array.isArray(res.data) ? res.data : []);
-  } catch (err) {
-    console.error("Error Fetch Items:", err);
-    setItems([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      // Pastikan perbandingan tipe datanya sama (sama-sama Number)
+      const so = allSalesOrders.find((x) => Number(x.id) === Number(selectedSOId));
+      setSoNumber(so?.so_number || "");
+    } else {
+      setItems([]);
+      setSoNumber("");
+    }
+    cancelEdit();
+  }, [selectedSOId, allSalesOrders]); // Tambahkan allSalesOrders sebagai dependency
+
+  const fetchItems = async (soId) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/sales-order-items/${soId}/items`);
+      console.log("Data Items dari Server:", res.data);
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error Fetch Items:", err);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const cancelEdit = () => {
@@ -72,11 +72,11 @@ const fetchItems = async (soId) => {
 
     setLoading(true);
     try {
-      const payload = { 
-        item_id: parseInt(form.item_id), 
+      const payload = {
+        item_id: parseInt(form.item_id),
         quantity: parseFloat(form.quantity),
 
-        sales_order_id: parseInt(selectedSOId) 
+        sales_order_id: parseInt(selectedSOId)
       };
 
       if (editId) {
@@ -116,16 +116,16 @@ const fetchItems = async (soId) => {
   };
 
   return (
-    <div className="p-6 bg-white shadow rounded-lg text-gray-800">
-      <h2 className="text-2xl font-bold mb-6">
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">
         Items for {soNumber || "Selected Order"}
-      </h2>
+      </h1>
 
-      {/* Dropdown SO */}
-      <div className="mb-6">
-        <label className="block mb-2 font-semibold text-sm text-gray-600">Pilih Sales Order:</label>
+      {/* Filter/Dropdown SO */}
+      <div className="mb-6 p-4 bg-gray-50 rounded border border-gray-200">
+        <label className="block mb-2 font-bold text-xs uppercase text-gray-600">Pilih Sales Order:</label>
         <select
-          className="w-full md:w-1/2 p-2 border rounded bg-white"
+          className="w-full md:w-1/2 p-2 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
           value={selectedSOId}
           onChange={(e) => setSelectedSOId(e.target.value)}
         >
@@ -138,12 +138,12 @@ const fetchItems = async (soId) => {
         </select>
       </div>
 
-      {/* Form Section */}
-      <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 border">
-        <div>
+      {/* Form Tambah/Edit Item */}
+      <form onSubmit={handleSubmit} className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+        <div className="md:col-span-2">
           <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Item</label>
           <select
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
             value={form.item_id}
             onChange={(e) => setForm({ ...form, item_id: e.target.value })}
             required
@@ -156,80 +156,84 @@ const fetchItems = async (soId) => {
             ))}
           </select>
         </div>
+
         <div>
           <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Quantity</label>
           <input
             type="number"
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
             required
             min="1"
             value={form.quantity}
             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
           />
         </div>
-        <div className="flex items-end gap-2">
+
+        <div className="flex gap-2">
           <button
             type="submit"
             disabled={loading}
-            className={`flex-1 p-2 rounded text-white font-semibold transition ${
-              editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
-            }`}
+            className={`flex-1 p-2 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+              }`}
           >
-            {loading ? "Processing..." : editId ? "Update Item" : "Add Item"}
+            {loading ? "..." : editId ? "UPDATE" : "ADD"}
           </button>
           {editId && (
             <button
               type="button"
               onClick={cancelEdit}
-              className="p-2 bg-gray-400 text-white rounded hover:bg-gray-500"
+              className="px-3 p-2 bg-gray-400 text-white text-sm rounded font-bold hover:bg-gray-500"
             >
-              Cancel
+              X
             </button>
           )}
         </div>
       </form>
 
-      {/* Table Section */}
-      <div className="overflow-x-auto border rounded">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100 border-b">
-              <th className="p-3 text-left text-xs font-bold uppercase text-gray-600">Code</th>
-              <th className="p-3 text-left text-xs font-bold uppercase text-gray-600">Description</th>
-              <th className="p-3 text-center text-xs font-bold uppercase text-gray-600">Qty</th>
-              <th className="p-3 text-center text-xs font-bold uppercase text-gray-600">Actions</th>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-40">Item Code</th>
+              <th className="border border-gray-200 p-3">Description</th>
+              <th className="border border-gray-200 p-3 w-24 text-center">Qty</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {items.length > 0 ? (
               items.map((i) => (
-                <tr key={i.id} className="border-b hover:bg-blue-50 transition">
-                  <td className="p-3 font-medium">{i.item_code}</td>
-                  <td className="p-3 text-gray-600">{i.description}</td>
-                  <td className="p-3 text-center font-bold">{i.quantity}</td>
-                  <td className="p-3 text-center">
-                    <button
-                      onClick={() => {
-                        setEditId(i.id);
-                        setForm({ item_id: i.item_id, quantity: i.quantity });
-                      }}
-                      className="text-blue-600 hover:text-blue-800 font-semibold mr-4"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(i.id)}
-                      className="text-red-600 hover:text-red-800 font-semibold"
-                    >
-                      Delete
-                    </button>
+                <tr key={i.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="border border-gray-200 p-3 font-mono font-bold text-blue-700">{i.item_code}</td>
+                  <td className="border border-gray-200 p-3 text-gray-700">{i.description}</td>
+                  <td className="border border-gray-200 p-3 text-center font-bold">{i.quantity}</td>
+                  <td className="border border-gray-200 p-3">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => {
+                          setEditId(i.id);
+                          setForm({ item_id: i.item_id, quantity: i.quantity });
+                        }}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(i.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="text-center p-8 text-gray-400 italic">
-                  {selectedSOId ? (loading ? "Loading data..." : "No items found for this order.") : "Please select a Sales Order first."}
+                <td colSpan="4" className="text-center p-10 text-gray-400">
+                  {selectedSOId ? (loading ? "Memuat data..." : "Belum ada item di SO ini.") : "Silakan pilih Sales Order terlebih dahulu."}
                 </td>
               </tr>
             )}

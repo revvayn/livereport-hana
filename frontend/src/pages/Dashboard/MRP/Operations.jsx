@@ -53,9 +53,9 @@ export default function Operations() {
   };
 
   const handleEdit = (op) => {
-    setForm({ 
-      operation_name: op.operation_name || "", 
-      department: op.department || "" 
+    setForm({
+      operation_name: op.operation_name || "",
+      department: op.department || ""
     });
     setEditId(op.id);
   };
@@ -86,63 +86,83 @@ export default function Operations() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow w-full max-w-3xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Operations</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-4xl mx-auto">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Master Data Operations</h1>
 
-      <form onSubmit={handleSubmit} className="mb-6 flex gap-3">
+      {/* Form Sederhana */}
+      <form onSubmit={handleSubmit} className="mb-6 flex gap-2">
         <input
-          className="border p-2 rounded flex-1"
-          placeholder="Operation Name"
+          type="text"
+          className="border border-gray-300 p-2 rounded flex-1 text-sm focus:outline-none focus:border-blue-500"
+          placeholder="Nama Operasi (Contoh: Cutting, Welding)"
           value={form.operation_name}
           onChange={(e) => setForm({ ...form, operation_name: e.target.value })}
           required
         />
         <input
-          className="border p-2 rounded flex-1"
-          placeholder="Department"
+          type="text"
+          className="border border-gray-300 p-2 rounded flex-1 text-sm focus:outline-none focus:border-blue-500"
+          placeholder="Departemen"
           value={form.department}
           onChange={(e) => setForm({ ...form, department: e.target.value })}
         />
         <button
           type="submit"
-          className={`px-4 rounded text-white ${editId ? "bg-yellow-500" : "bg-blue-600"}`}
           disabled={loading}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+            }`}
         >
-          {loading ? "Menyimpan..." : editId ? "Update" : "Add"}
+          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      <table className="w-full border-collapse border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Operation Name</th>
-            <th className="border p-2">Department</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {operations.length ? (
-            operations.map((op) => (
-              <tr key={op.id}>
-                <td className="border p-2">{op.id}</td>
-                <td className="border p-2">{op.operation_name}</td>
-                <td className="border p-2">{op.department}</td>
-                <td className="border p-2 flex gap-2">
-                  <button onClick={() => handleEdit(op)} className="bg-yellow-400 px-2 rounded">Edit</button>
-                  <button onClick={() => handleDelete(op.id)} className="bg-red-500 text-white px-2 rounded">Delete</button>
+      {/* Tabel Standar */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr className="text-left uppercase text-xs font-bold text-gray-600">
+              <th className="border border-gray-200 p-3 w-16">ID</th>
+              <th className="border border-gray-200 p-3">Nama Operasi</th>
+              <th className="border border-gray-200 p-3 w-48">Departemen</th>
+              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {operations.length > 0 ? (
+              operations.map((op) => (
+                <tr key={op.id} className="hover:bg-gray-50">
+                  <td className="border border-gray-200 p-3 text-gray-500">{op.id}</td>
+                  <td className="border border-gray-200 p-3 font-semibold">{op.operation_name}</td>
+                  <td className="border border-gray-200 p-3 text-gray-600">{op.department || "-"}</td>
+                  <td className="border border-gray-200 p-3">
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleEdit(op)}
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(op.id)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="text-center p-10 text-gray-400">
+                  {loading ? "Memuat data..." : "Belum ada data operasi."}
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="4" className="text-center p-4 text-gray-500">
-                {loading ? "Loading..." : "No operations found"}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
