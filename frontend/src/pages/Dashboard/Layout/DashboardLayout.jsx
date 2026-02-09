@@ -474,8 +474,6 @@ function DemandDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/demand/form",
     "/dashboard/demand/list",
-    "/dashboard/demand/planned-order",
-    "/dashboard/demand/bom-calculation",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
@@ -517,16 +515,6 @@ function DemandDropdown({ collapsed, currentPath }) {
             icon={Form}
             label="List Demand"
           />
-          <SubMenuLink
-            to="/dashboard/demand/planned-order"
-            icon={Form}
-            label="Planned Order"
-          />
-          <SubMenuLink
-            to="/dashboard/demand/bom-calculation"
-            icon={Form}
-            label="BOM Calculation"
-          />
         </div>
       )}
     </div>
@@ -535,8 +523,6 @@ function DemandDropdown({ collapsed, currentPath }) {
 function EntryMRPDropdown({ collapsed, currentPath }) {
   const paths = [
     "/dashboard/bom/entry",
-    "/dashboard/inventory/entry",
-    "/dashboard/master-items/entry",
   ];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
@@ -569,19 +555,9 @@ function EntryMRPDropdown({ collapsed, currentPath }) {
       {!collapsed && open && (
         <div className="mt-2 space-y-1">
           <SubMenuLink
-            to="/dashboard/master-items/entry"
-            icon={Download}
-            label="Master Items"
-          />
-          <SubMenuLink
             to="/dashboard/bom/entry"
             icon={Download}
             label="Bill of Materials"
-          />
-          <SubMenuLink
-            to="/dashboard/inventory/entry"
-            icon={Download}
-            label="Inventory"
           />
 
         </div>

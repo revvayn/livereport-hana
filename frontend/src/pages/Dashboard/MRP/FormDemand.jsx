@@ -90,7 +90,9 @@ export default function FormDemand() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.get("/sales-orders").then(res => setSalesOrders(res.data));
+    api.get("/sales-orders")
+      .then(res => setSalesOrders(res.data))
+      .catch(err => console.error("Gagal load daftar SO", err));
   }, []);
 
   const handleSelectSO = async (e) => {
@@ -99,6 +101,7 @@ export default function FormDemand() {
     if (!soId) return;
 
     try {
+      setLoading(true);
       const res = await api.get(`/demand/from-so/${soId}`);
       const h = res.data.header;
       const dDate = toInputDate(h.deliveryDate);
@@ -115,12 +118,17 @@ export default function FormDemand() {
         ...createItem(new Date()),
         itemId: it.itemId,
         itemCode: it.itemCode,
+        description: it.description,
+        uom: it.uom || 'PCS', // Perbaikan: menggunakan 'it' bukan 'item'
         qty: it.qty,
       }));
 
       setItems(autoPlotGlobalBackward(initialItems, dDate));
-    } catch {
-      Swal.fire("Error", "Gagal load SO", "error");
+    } catch (error) {
+      console.error(error);
+      Swal.fire("Error", "Gagal load data detail SO", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -137,9 +145,15 @@ export default function FormDemand() {
   const toggleShift = useCallback((itemIdx, dayIdx, shift, mode) => {
     setItems(prev => {
       const newList = [...prev];
-      const targetDay = newList[itemIdx].calendar[dayIdx];
+      const targetDay = { ...newList[itemIdx].calendar[dayIdx] };
       const current = targetDay.shifts[shift].active;
-      targetDay.shifts[shift].active = mode === "on" ? true : mode === "off" ? false : !current;
+
+      targetDay.shifts[shift] = {
+        ...targetDay.shifts[shift],
+        active: mode === "on" ? true : mode === "off" ? false : !current
+      };
+
+      newList[itemIdx].calendar[dayIdx] = targetDay;
       return newList;
     });
   }, []);
@@ -170,38 +184,36 @@ export default function FormDemand() {
   };
 
   const handleSubmit = async () => {
-    // 1. Validasi Input Header
     if (!header.soNo) return Swal.fire("Peringatan", "Pilih Sales Order terlebih dahulu", "warning");
     if (!header.deliveryDate) return Swal.fire("Peringatan", "Isi Tanggal Kirim (Delivery)", "warning");
     if (!header.productionDate) return Swal.fire("Peringatan", "Isi Tanggal Produksi sebelum menyimpan", "warning");
-
-    // 2. Validasi Item
     if (items.length === 0) return Swal.fire("Peringatan", "Minimal harus ada 1 item", "warning");
 
     try {
       setLoading(true);
-
-      // Mengirim data ke backend (Pastikan endpoint ini sesuai di Route Express Anda)
       const response = await api.post("/demand", { header, items });
 
       if (response.status === 201 || response.status === 200) {
         Swal.fire({
           title: "Berhasil!",
-          text: "Data Perencanaan Produksi (Demand) telah tersimpan di database.",
+          text: "Data Perencanaan Produksi (Demand) telah tersimpan.",
           icon: "success",
           confirmButtonColor: "#3085d6"
         });
-
-        // Opsional: Reset form atau arahkan ke halaman list
-        // window.location.reload(); 
       }
     } catch (error) {
-      console.error("Submit Error:", error);
       const errorMsg = error.response?.data?.error || error.message;
       Swal.fire("Error", "Gagal simpan ke database: " + errorMsg, "error");
     } finally {
       setLoading(false);
     }
+  };
+  const updateItem = (idx, field, value) => {
+    setItems(prev => {
+      const newList = [...prev];
+      newList[idx] = { ...newList[idx], [field]: value };
+      return newList;
+    });
   };
   return (
     <div className="p-6 bg-white rounded-lg border border-gray-300 w-full" onMouseUp={() => setDrag(null)}>
@@ -215,7 +227,7 @@ export default function FormDemand() {
         <select
           value={selectedSO}
           onChange={handleSelectSO}
-          className="border border-gray-300 p-2 rounded text-sm w-full bg-white focus:outline-none focus:border-blue-500"
+          className="border border-gray-300 p-2 rounded text-sm w-full bg-white focus:outline-none focus:border-blue-500 shadow-sm"
         >
           <option value="">-- Pilih Sales Order --</option>
           {salesOrders.map((so) => (
@@ -227,15 +239,17 @@ export default function FormDemand() {
       {/* Header Info */}
       <div className="space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4">
-          {["soNo", "soDate", "customer"].map((k) => (
-            <div key={k} className="flex flex-col">
-              <label className="text-xs font-bold text-gray-500 mb-1 uppercase">
-                {k === "soNo" ? "SO Number" : k === "soDate" ? "Tanggal SO" : "Customer"}
-              </label>
+          {[
+            { key: "soNo", label: "SO Number", type: "text" },
+            { key: "soDate", label: "Tanggal SO", type: "date" },
+            { key: "customer", label: "Customer", type: "text" }
+          ].map((field) => (
+            <div key={field.key} className="flex flex-col">
+              <label className="text-xs font-bold text-gray-500 mb-1 uppercase">{field.label}</label>
               <input
-                type={k === "soDate" ? "date" : "text"}
-                className="border border-gray-300 p-2 rounded text-sm bg-gray-50 text-gray-600"
-                value={header[k]}
+                type={field.type}
+                className="border border-gray-200 p-2 rounded text-sm bg-gray-50 text-gray-600 outline-none"
+                value={header[field.key]}
                 readOnly
               />
             </div>
@@ -243,19 +257,19 @@ export default function FormDemand() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-bold text-gray-600 mb-1 uppercase">Tanggal Kirim (Delivery)</label>
+            <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Tanggal Kirim (Delivery)</label>
             <input
               type="date"
-              className="border border-blue-300 p-2 rounded text-sm bg-white focus:outline-none"
+              className="border border-blue-200 p-2 rounded text-sm bg-white focus:ring-1 focus:ring-blue-400 outline-none"
               value={header.deliveryDate}
               onChange={(e) => updateHeader("deliveryDate", e.target.value)}
             />
           </div>
           <div className="flex flex-col">
-            <label className="text-xs font-bold text-gray-600 mb-1 uppercase">Tanggal Produksi</label>
+            <label className="text-xs font-bold text-orange-600 mb-1 uppercase">Tanggal Produksi</label>
             <input
               type="date"
-              className="border border-orange-300 p-2 rounded text-sm bg-white focus:outline-none"
+              className="border border-orange-200 p-2 rounded text-sm bg-white focus:ring-1 focus:ring-orange-400 outline-none"
               value={header.productionDate}
               onChange={(e) => updateHeader("productionDate", e.target.value)}
             />
@@ -265,23 +279,78 @@ export default function FormDemand() {
 
       {/* Items Calendar */}
       {items.map((item, i) => (
-        <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
-          <div className="mb-3 flex justify-between items-center text-sm">
-            <div className="flex items-center gap-2">
-              {/* Kotak kecil penanda warna item untuk sinkronisasi dengan Legend */}
-              <div className={`w-3 h-3 rounded-full ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
-              <div className="font-bold text-gray-700 uppercase italic">
-                {item.itemCode || `Item ${i + 1}`} | Total Qty: {item.qty || 0}
+        <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
+
+          {/* Item Info Inputs (Symmetrical Header Style) */}
+          <div className="flex items-end gap-3 mb-4 pb-4 border-b border-gray-100">
+
+            {/* Indikator Nomor/Warna - Fixed Width agar tidak goyang */}
+            <div className="flex-none w-12">
+              <div className={`h-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
+                {i + 1}
               </div>
             </div>
-            <button
-              onClick={() => setItems(items.filter((_, idx) => idx !== i))}
-              className="text-red-600 text-xs font-bold hover:underline"
-            >
-              [ Hapus Item ]
-            </button>
+
+            {/* Item Code - Flex 1 */}
+            <div className="flex-1 min-w-[120px] flex flex-col">
+              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Item Code</label>
+              <input
+                type="text"
+                className="h-10 border border-gray-200 px-3 rounded text-sm bg-gray-50 text-gray-700 font-bold focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+                value={item.itemCode || ""}
+                placeholder="Kode..."
+                onChange={(e) => updateItem(i, "itemCode", e.target.value)}
+              />
+            </div>
+
+            {/* Deskripsi Barang - Flex 3 agar lebih lebar dari yang lain */}
+            <div className="flex-[3] min-w-[200px] flex flex-col">
+              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Deskripsi Barang</label>
+              <input
+                type="text"
+                className="h-10 border border-gray-200 px-3 rounded text-sm bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+                value={item.description || ""}
+                placeholder="Nama barang..."
+                onChange={(e) => updateItem(i, "description", e.target.value)}
+              />
+            </div>
+
+            {/* UoM - Fixed Width */}
+            <div className="w-20 flex flex-col">
+              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">UoM</label>
+              <input
+                type="text"
+                className="h-10 border border-gray-200 rounded text-sm bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 text-center uppercase"
+                value={item.uom || ""}
+                placeholder="Unit"
+                onChange={(e) => updateItem(i, "uom", e.target.value)}
+              />
+            </div>
+
+            {/* Total Qty - Flex 1 */}
+            <div className="flex-1 min-w-[100px] flex flex-col">
+              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Total Qty SO</label>
+              <input
+                type="number"
+                className="h-10 border border-gray-200 px-3 rounded text-sm bg-white text-blue-700 font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                value={item.qty || ""}
+                placeholder="0"
+                onChange={(e) => updateItem(i, "qty", e.target.value)}
+              />
+            </div>
+
+            {/* Tombol Hapus - Fixed Width */}
+            <div className="flex-none">
+              <button
+                onClick={() => setItems(items.filter((_, idx) => idx !== i))}
+                className="h-10 px-4 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase flex items-center justify-center"
+              >
+                Hapus Item
+              </button>
+            </div>
           </div>
 
+          {/* Scrollable Calendar Area (Tetap Sama) */}
           <div className="overflow-x-auto">
             <div className="flex gap-2 pb-4">
               {item.calendar.map((d, idx) => {
@@ -290,21 +359,22 @@ export default function FormDemand() {
                   <div
                     key={idx}
                     className={`min-w-[130px] border rounded p-2 text-[11px] transition-all ${isShip
-                        ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-600 ring-inset' // Warna & Border khusus Delivery
-                        : 'border-gray-300 bg-white'
+                      ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600 ring-inset'
+                      : 'border-gray-200 bg-white shadow-sm'
                       }`}
                   >
-                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'border-blue-300 text-blue-800' : 'border-gray-100'}`}>
+                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'border-blue-300 text-blue-800' : 'border-gray-100 text-gray-400'}`}>
                       {formatDate(d.date)}
                       {isShip && <span className="block text-[9px] uppercase tracking-tighter">[ Delivery ]</span>}
                     </div>
-                    <div className="grid grid-cols-3 gap-1">
+
+                    <div className="grid grid-cols-3 gap-1 pt-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
                         <div
                           key={s}
-                          className={`relative h-7 border rounded flex items-center justify-center transition-none ${d.shifts[s].active
-                              ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent`
-                              : "bg-gray-100 text-gray-300 border-gray-200"
+                          className={`relative h-7 border rounded flex items-center justify-center transition-colors ${d.shifts[s].active
+                            ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner`
+                            : "bg-gray-50 text-gray-300 border-gray-100"
                             }`}
                         >
                           <div
@@ -324,14 +394,14 @@ export default function FormDemand() {
                           {d.shifts[s].active && (
                             <input
                               type="number"
-                              value={d.shifts[s].qty || 50}
+                              value={d.shifts[s].qty || ""}
                               onChange={(e) => {
                                 const newQty = e.target.value;
                                 const newItems = [...items];
                                 newItems[i].calendar[idx].shifts[s].qty = newQty;
                                 setItems(newItems);
                               }}
-                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield]"
+                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none"
                             />
                           )}
                         </div>
@@ -345,43 +415,33 @@ export default function FormDemand() {
         </div>
       ))}
 
-      {/* --- LEGEND SECTION --- */}
-      <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
-        <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Keterangan Warna & Plot:</h3>
-        <div className="flex flex-wrap gap-6">
-          {/* Legend Per Item */}
-          <div className="flex gap-3">
+      {/* Legend & Actions */}
+      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Keterangan:</h3>
+        <div className="flex flex-wrap gap-6 items-center">
+          <div className="flex flex-wrap gap-2">
             {items.map((item, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className={`w-4 h-4 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
-                <span className="text-[11px] font-medium text-gray-600">{item.itemCode || `Item ${i + 1}`}</span>
-              </div>
+              item.itemCode && (
+                <div key={i} className="flex items-center gap-2 bg-white border border-gray-200 px-2 py-1 rounded">
+                  <div className={`w-2.5 h-2.5 rounded-full ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
+                  <span className="text-[10px] font-bold text-gray-600 uppercase">
+                    {item.itemCode} <span className="text-gray-400 font-normal italic">({item.uom})</span>
+                  </span>
+                </div>
+              )
             ))}
           </div>
-
-          {/* Legend Status */}
-          <div className="flex gap-4 border-l pl-6 border-gray-200">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-100 border border-gray-200 rounded"></div>
-              <span className="text-[11px] text-gray-500 italic">Shift Kosong (Off)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-blue-600 bg-blue-100 rounded"></div>
-              <span className="text-[11px] font-bold text-blue-700 uppercase">Jadwal Delivery</span>
-            </div>
+          <div className="flex items-center gap-2 border-l pl-6 border-gray-200">
+            <div className="w-4 h-4 border-2 border-blue-600 bg-blue-100 rounded"></div>
+            <span className="text-[11px] font-bold text-blue-700 uppercase">Target Delivery</span>
           </div>
-        </div>
-
-        <div className="mt-3 text-[10px] text-gray-400">
-          * Gunakan <kbd className="px-1 border rounded bg-gray-50 font-sans">Shift + Klik</kbd> untuk menyalakan, dan <kbd className="px-1 border rounded bg-gray-50 font-sans">Alt + Klik</kbd> untuk mematikan plot secara massal (drag).
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex flex-col gap-3 mt-6">
         <button
           onClick={() => setItems([...items, createItem(new Date())])}
-          className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+          className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
         >
           + TAMBAH ITEM MANUAL
         </button>
@@ -390,7 +450,7 @@ export default function FormDemand() {
           <button
             onClick={handleExportExcel}
             disabled={loading}
-            className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm hover:bg-green-50 disabled:opacity-50"
+            className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm hover:bg-green-50 disabled:opacity-50 transition-colors"
           >
             {loading ? "..." : "EXPORT EXCEL"}
           </button>
@@ -398,7 +458,7 @@ export default function FormDemand() {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50"
+            className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 transition-colors shadow-md"
           >
             {loading ? "MENYIMPAN..." : "SIMPAN PRODUCTION DEMAND"}
           </button>
