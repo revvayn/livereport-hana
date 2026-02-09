@@ -267,8 +267,12 @@ export default function FormDemand() {
       {items.map((item, i) => (
         <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
           <div className="mb-3 flex justify-between items-center text-sm">
-            <div className="font-bold text-gray-700 uppercase italic">
-              {item.itemCode || `Item ${i + 1}`} | Total Qty: {item.qty || 0}
+            <div className="flex items-center gap-2">
+              {/* Kotak kecil penanda warna item untuk sinkronisasi dengan Legend */}
+              <div className={`w-3 h-3 rounded-full ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
+              <div className="font-bold text-gray-700 uppercase italic">
+                {item.itemCode || `Item ${i + 1}`} | Total Qty: {item.qty || 0}
+              </div>
             </div>
             <button
               onClick={() => setItems(items.filter((_, idx) => idx !== i))}
@@ -279,19 +283,28 @@ export default function FormDemand() {
           </div>
 
           <div className="overflow-x-auto">
-            <div className="flex gap-2 pb-2">
+            <div className="flex gap-2 pb-4">
               {item.calendar.map((d, idx) => {
                 const isShip = header.deliveryDate && d.date.toDateString() === new Date(header.deliveryDate).toDateString();
                 return (
-                  <div key={idx} className={`min-w-[130px] border border-gray-300 rounded p-2 text-[11px] bg-white ${isShip ? 'border-blue-500 bg-blue-50' : ''}`}>
-                    <div className="text-center font-bold mb-1 border-b border-gray-100 pb-1">{formatDate(d.date)}</div>
+                  <div
+                    key={idx}
+                    className={`min-w-[130px] border rounded p-2 text-[11px] transition-all ${isShip
+                        ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-600 ring-inset' // Warna & Border khusus Delivery
+                        : 'border-gray-300 bg-white'
+                      }`}
+                  >
+                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'border-blue-300 text-blue-800' : 'border-gray-100'}`}>
+                      {formatDate(d.date)}
+                      {isShip && <span className="block text-[9px] uppercase tracking-tighter">[ Delivery ]</span>}
+                    </div>
                     <div className="grid grid-cols-3 gap-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
                         <div
                           key={s}
                           className={`relative h-7 border rounded flex items-center justify-center transition-none ${d.shifts[s].active
-                            ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent`
-                            : "bg-gray-100 text-gray-300 border-gray-200"
+                              ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent`
+                              : "bg-gray-100 text-gray-300 border-gray-200"
                             }`}
                         >
                           <div
@@ -318,7 +331,7 @@ export default function FormDemand() {
                                 newItems[i].calendar[idx].shifts[s].qty = newQty;
                                 setItems(newItems);
                               }}
-                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield]"
                             />
                           )}
                         </div>
@@ -331,6 +344,38 @@ export default function FormDemand() {
           </div>
         </div>
       ))}
+
+      {/* --- LEGEND SECTION --- */}
+      <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg">
+        <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Keterangan Warna & Plot:</h3>
+        <div className="flex flex-wrap gap-6">
+          {/* Legend Per Item */}
+          <div className="flex gap-3">
+            {items.map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className={`w-4 h-4 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
+                <span className="text-[11px] font-medium text-gray-600">{item.itemCode || `Item ${i + 1}`}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Legend Status */}
+          <div className="flex gap-4 border-l pl-6 border-gray-200">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-100 border border-gray-200 rounded"></div>
+              <span className="text-[11px] text-gray-500 italic">Shift Kosong (Off)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-blue-600 bg-blue-100 rounded"></div>
+              <span className="text-[11px] font-bold text-blue-700 uppercase">Jadwal Delivery</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 text-[10px] text-gray-400">
+          * Gunakan <kbd className="px-1 border rounded bg-gray-50 font-sans">Shift + Klik</kbd> untuk menyalakan, dan <kbd className="px-1 border rounded bg-gray-50 font-sans">Alt + Klik</kbd> untuk mematikan plot secara massal (drag).
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="flex flex-col gap-3 mt-6">

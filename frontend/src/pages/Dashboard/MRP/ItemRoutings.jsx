@@ -113,117 +113,124 @@ export default function ItemRoutings() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-6xl mx-auto">
-      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Item Routings</h1>
+    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-6xl mx-auto shadow-sm">
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">Item Routings</h1>
 
-      {/* Form Sederhana - flex-wrap agar aman di layar tanggung */}
-      <form onSubmit={handleSubmit} className="mb-6 flex flex-wrap gap-2">
-        <select
-          value={form.item_id}
-          onChange={e => setForm({ ...form, item_id: e.target.value })}
-          required
-          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">-- Pilih Item --</option>
-          {items.map(i => <option key={i.id} value={i.id}>{i.item_code}</option>)}
-        </select>
+      {/* Form: Dibuat Grid agar tinggi dan jarak antar elemen konsisten */}
+      <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Item</label>
+          <select
+            value={form.item_id}
+            onChange={e => setForm({ ...form, item_id: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 w-full h-10"
+          >
+            <option value="">-- Pilih Item --</option>
+            {items.map(i => <option key={i.id} value={i.id}>{i.item_code}</option>)}
+          </select>
+        </div>
 
-        <select
-          value={form.operation_id}
-          onChange={e => setForm({ ...form, operation_id: e.target.value })}
-          required
-          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">-- Pilih Operation --</option>
-          {operations.map(o => <option key={o.id} value={o.id}>{o.operation_name}</option>)}
-        </select>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Operation</label>
+          <select
+            value={form.operation_id}
+            onChange={e => setForm({ ...form, operation_id: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 w-full h-10"
+          >
+            <option value="">-- Operation --</option>
+            {operations.map(o => <option key={o.id} value={o.id}>{o.operation_name}</option>)}
+          </select>
+        </div>
 
-        <select
-          value={form.machine_id}
-          onChange={e => setForm({ ...form, machine_id: e.target.value })}
-          required
-          className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500"
-        >
-          <option value="">-- Pilih Machine --</option>
-          {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
-        </select>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Machine</label>
+          <select
+            value={form.machine_id}
+            onChange={e => setForm({ ...form, machine_id: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 w-full h-10"
+          >
+            <option value="">-- Machine --</option>
+            {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
+          </select>
+        </div>
 
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Cycle Time (min)"
-          value={form.cycle_time_min}
-          onChange={e => setForm({ ...form, cycle_time_min: e.target.value })}
-          required
-          className="border border-gray-300 p-2 rounded text-sm w-32 focus:outline-none focus:border-blue-500"
-        />
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">C/T (Min)</label>
+          <input
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={form.cycle_time_min}
+            onChange={e => setForm({ ...form, cycle_time_min: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 w-full h-10 text-center"
+          />
+        </div>
 
-        <input
-          type="number"
-          placeholder="Seq"
-          value={form.sequence}
-          onChange={e => setForm({ ...form, sequence: e.target.value })}
-          required
-          className="border border-gray-300 p-2 rounded text-sm w-20 focus:outline-none focus:border-blue-500"
-        />
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Sequence</label>
+          <input
+            type="number"
+            placeholder="Seq"
+            value={form.sequence}
+            onChange={e => setForm({ ...form, sequence: e.target.value })}
+            required
+            className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 w-full h-10 text-center"
+          />
+        </div>
 
         <button
           type="submit"
           disabled={loading}
-          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+          className={`h-10 rounded text-sm font-bold text-white transition-all shadow-sm ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
             }`}
         >
           {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
       </form>
 
-      {/* Tabel Standar */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-200 text-sm">
-          <thead className="bg-gray-100">
-            <tr className="text-left uppercase text-xs font-bold text-gray-600">
-              <th className="border border-gray-200 p-3 w-16">ID</th>
-              <th className="border border-gray-200 p-3">Item</th>
-              <th className="border border-gray-200 p-3">Operation</th>
-              <th className="border border-gray-200 p-3">Machine</th>
-              <th className="border border-gray-200 p-3 w-28 text-center">C/T (Min)</th>
-              <th className="border border-gray-200 p-3 w-20 text-center">Seq</th>
-              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
+      {/* Tabel Symmetrical Layout */}
+      <div className="overflow-hidden border border-gray-200 rounded-md">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase w-12 text-center">ID</th>
+              <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Item Code</th>
+              <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Operation</th>
+              <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Machine</th>
+              <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-24">C/T</th>
+              <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-20">Seq</th>
+              <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-32">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200">
             {routings.length > 0 ? (
-              routings.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-200 p-3 text-gray-500">{r.id}</td>
-                  <td className="border border-gray-200 p-3 font-semibold text-blue-700">{r.item_code}</td>
-                  <td className="border border-gray-200 p-3 font-medium">{r.operation_name}</td>
-                  <td className="border border-gray-200 p-3 text-gray-600">{r.machine_name}</td>
-                  <td className="border border-gray-200 p-3 text-center">{r.cycle_time_min}</td>
-                  <td className="border border-gray-200 p-3 text-center font-bold">{r.sequence}</td>
-                  <td className="border border-gray-200 p-3">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleEdit(r)}
-                        className="text-blue-600 hover:underline font-medium"
-                      >
-                        Edit
-                      </button>
+              routings.map((r) => (
+                <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
+                  <td className="p-3 text-center text-gray-400 font-mono text-xs">{r.id}</td>
+                  <td className="p-3 font-bold text-blue-700">{r.item_code}</td>
+                  <td className="p-3 text-gray-700">{r.operation_name}</td>
+                  <td className="p-3 text-gray-600 italic">{r.machine_name}</td>
+                  <td className="p-3 text-center font-mono">{parseFloat(r.cycle_time_min).toFixed(2)}</td>
+                  <td className="p-3 text-center font-bold">
+                    <span className="bg-gray-100 px-2 py-1 rounded text-gray-700">{r.sequence}</span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex gap-3 justify-center">
+                      <button onClick={() => handleEdit(r)} className="text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-tighter">Edit</button>
                       <span className="text-gray-300">|</span>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="text-red-600 hover:underline font-medium"
-                      >
-                        Hapus
-                      </button>
+                      <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:text-red-800 font-bold text-xs uppercase tracking-tighter">Hapus</button>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="text-center p-10 text-gray-400">
-                  {loading ? "Memuat data..." : "Belum ada data routing item."}
+                <td colSpan="7" className="text-center p-12 text-gray-400 italic">
+                  {loading ? "Sedang menyelaraskan data..." : "Database routing kosong."}
                 </td>
               </tr>
             )}

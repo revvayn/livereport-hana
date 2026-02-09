@@ -189,7 +189,7 @@ export default function DemandList() {
             </div>
 
             <div className="mt-4 p-4 bg-blue-50 rounded text-[10px] text-blue-700 flex gap-4">
-              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded"></div> Active Production</div>
+              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded"></div> Packing Schedule</div>
               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div> No Schedule</div>
               <div className="ml-auto font-bold uppercase">S1/S2/S3 = Shift 1/2/3</div>
             </div>
