@@ -1,15 +1,9 @@
+// FormDemand.js
 import { useEffect, useState, useCallback } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
-const ITEM_COLORS = [
-  "bg-green-600",
-  "bg-blue-600",
-  "bg-purple-600",
-  "bg-orange-600",
-  "bg-pink-600",
-  "bg-teal-600",
-];
+const ITEM_COLORS = ["bg-green-600", "bg-blue-600", "bg-purple-600", "bg-orange-600", "bg-pink-600", "bg-teal-600"];
 
 /* ================= HELPERS ================= */
 const addDays = (date, d) => {
@@ -18,8 +12,7 @@ const addDays = (date, d) => {
   return n;
 };
 
-const formatDate = (d) =>
-  d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+const formatDate = (d) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
 const toInputDate = (dateStr) => {
   if (!dateStr) return "";
@@ -52,7 +45,7 @@ const autoPlotGlobalBackward = (items, deliveryDate) => {
   if (!deliveryDate || items.length === 0) return items;
 
   const delivery = new Date(deliveryDate);
-  const startDate = addDays(delivery, -13); 
+  const startDate = addDays(delivery, -13);
   const h1DateStr = addDays(delivery, -1).toDateString();
 
   const cleanedItems = items.map((it) => ({
@@ -70,7 +63,7 @@ const autoPlotGlobalBackward = (items, deliveryDate) => {
   });
 
   const h1Index = cleanedItems[0].calendar.findIndex(d => d.date.toDateString() === h1DateStr);
-  
+
   if (h1Index !== -1) {
     let qIdx = 0;
     for (let d = h1Index; d >= 0; d--) {
@@ -86,14 +79,12 @@ const autoPlotGlobalBackward = (items, deliveryDate) => {
   return cleanedItems;
 };
 
-/* ================= COMPONENT ================= */
 export default function FormDemand() {
   const [salesOrders, setSalesOrders] = useState([]);
   const [selectedSO, setSelectedSO] = useState("");
   const [header, setHeader] = useState({
     soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "",
   });
-  const [anchorDate, setAnchorDate] = useState(new Date());
   const [items, setItems] = useState([createItem(new Date())]);
   const [drag, setDrag] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -117,7 +108,7 @@ export default function FormDemand() {
         soDate: toInputDate(h.soDate),
         customer: h.customer || "",
         deliveryDate: dDate,
-        productionDate: "", 
+        productionDate: "",
       });
 
       const initialItems = res.data.items.map(it => ({
@@ -143,14 +134,6 @@ export default function FormDemand() {
     });
   };
 
-  const updateItem = (i, changes) => {
-    setItems(prev => {
-      const newList = [...prev];
-      newList[i] = { ...newList[i], ...changes };
-      return autoPlotGlobalBackward(newList, header.deliveryDate);
-    });
-  };
-
   const toggleShift = useCallback((itemIdx, dayIdx, shift, mode) => {
     setItems(prev => {
       const newList = [...prev];
@@ -161,25 +144,30 @@ export default function FormDemand() {
     });
   }, []);
 
-  const startDrag = (i, d, s, e) => {
-    const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
-    setDrag({ i, s, mode });
-    toggleShift(i, d, s, mode);
-  };
+  const handleExportExcel = async () => {
+    if (items.length === 0 || !header.soNo) {
+      return Swal.fire("Peringatan", "Pilih SO dan pastikan item tersedia", "warning");
+    }
 
-  const enterDrag = (i, d) => {
-    if (drag && drag.i === i) toggleShift(i, d, drag.s, drag.mode);
-  };
+    try {
+      setLoading(true);
+      const response = await api.post("/demand/export-excel", { header, items }, {
+        responseType: 'blob',
+      });
 
-  const clearDay = (i, d) => {
-    setItems(prev => {
-      const newList = [...prev];
-      newList[i].calendar[d].shifts = { shift1: {active:false, qty:50}, shift2: {active:false, qty:50}, shift3: {active:false, qty:50} };
-      return newList;
-    });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Demand_${header.soNo}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      Swal.fire("Error", "Gagal export Excel", "error");
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
 
   const handleSubmit = async () => {
     if (!header.deliveryDate) return Swal.fire("Error", "Isi Tanggal Kirim", "warning");
@@ -196,10 +184,9 @@ export default function FormDemand() {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow w-full" onMouseUp={() => setDrag(null)}>
-      <h1 className="text-xl font-semibold mb-4">
-        Demand Planner – Backward Planning
-      </h1>
+      <h1 className="text-xl font-semibold mb-4">Demand Planner – Backward Planning</h1>
 
+      {/* Select SO */}
       <div className="mb-6">
         <label className="text-xs font-medium text-gray-600 mb-1 block">Sales Order</label>
         <select value={selectedSO} onChange={handleSelectSO} className="border p-2 rounded text-sm w-full">
@@ -210,18 +197,23 @@ export default function FormDemand() {
         </select>
       </div>
 
+      {/* Header Info */}
       <div className="space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4">
-          {["soNo", "soDate", "customer"].map((k, i) => (
-            <div key={i} className="flex flex-col">
-              <label className="text-xs font-medium text-gray-600 mb-1">
+          {["soNo", "soDate", "customer"].map((k) => (
+            <div key={k} className="flex flex-col">
+              <label className="text-xs font-medium text-gray-600 mb-1 uppercase">
                 {k === "soNo" ? "SO Number" : k === "soDate" ? "Tanggal SO" : "Customer"}
               </label>
-              <input type={k === "soDate" ? "date" : "text"} className="border p-2 rounded text-sm" value={header[k]} onChange={(e) => updateHeader(k, e.target.value)} />
+              <input
+                type={k === "soDate" ? "date" : "text"}
+                className="border p-2 rounded text-sm bg-gray-50"
+                value={header[k]}
+                readOnly={k !== "productionDate"}
+              />
             </div>
           ))}
         </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
             <label className="text-xs font-medium text-gray-600 mb-1">Tanggal Kirim (Delivery)</label>
@@ -229,16 +221,22 @@ export default function FormDemand() {
           </div>
           <div className="flex flex-col">
             <label className="text-xs font-medium text-gray-600 mb-1">Tanggal Produksi</label>
-            <input type="date" className="border p-2 rounded text-sm" value={header.productionDate} onChange={(e) => updateHeader("productionDate", e.target.value)} />
+            <input
+              type="date"
+              className="border p-2 rounded text-sm bg-yellow-50 border-yellow-200" // Beri warna beda agar tahu ini bisa diisi
+              value={header.productionDate}
+              onChange={(e) => updateHeader("productionDate", e.target.value)}
+            />
           </div>
         </div>
       </div>
 
+      {/* Items Calendar */}
       {items.map((item, i) => (
         <div key={i} className="border rounded-xl p-4 mb-6 bg-gray-50">
           <div className="mb-3 flex justify-between items-center text-sm font-semibold text-gray-700">
-            <div>{item.itemCode || `Item ${i + 1}`} – Qty: {item.qty || 0}</div>
-            <button onClick={() => removeItem(i)} className="text-red-600 text-xs border px-2 py-1 rounded hover:bg-red-50">Remove</button>
+            <div>{item.itemCode || `Item ${i + 1}`} – Total Qty: {item.qty || 0}</div>
+            <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="text-red-600 text-xs border px-2 py-1 rounded hover:bg-red-50">Remove</button>
           </div>
 
           <div className="overflow-x-auto">
@@ -246,20 +244,19 @@ export default function FormDemand() {
               {item.calendar.map((d, idx) => {
                 const isShip = header.deliveryDate && d.date.toDateString() === new Date(header.deliveryDate).toDateString();
                 return (
-                  <div key={idx} onDoubleClick={() => clearDay(i, idx)} className={`min-w-[140px] border rounded-lg p-2 text-xs bg-white transition-all ${isShip ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}>
-                    <div className="text-center font-semibold mb-1">
-                      {formatDate(d.date)}
-                      {isShip && <div className="text-[10px] text-blue-700 font-bold mt-1 uppercase">🚚 Delivery</div>}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-[9px] text-center mb-1 text-gray-400 font-bold uppercase">
-                      <div>S1</div><div>S2</div><div>S3</div>
-                    </div>
+                  <div key={idx} className={`min-w-[140px] border rounded-lg p-2 text-xs bg-white ${isShip ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
+                    <div className="text-center font-bold mb-1">{formatDate(d.date)}</div>
                     <div className="grid grid-cols-3 gap-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
-                        <div key={s} onMouseDown={(e) => startDrag(i, idx, s, e)} onMouseEnter={() => enterDrag(i, idx)}
-                          className={`w-full h-7 text-center rounded border flex items-center justify-center font-bold transition-all cursor-pointer ${
-                            d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent` : "bg-gray-100 text-transparent border-gray-100"
-                          }`}
+                        <div
+                          key={s}
+                          onMouseDown={(e) => {
+                            const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
+                            setDrag({ i, s, mode });
+                            toggleShift(i, idx, s, mode);
+                          }}
+                          onMouseEnter={() => drag && drag.i === i && toggleShift(i, idx, drag.s, drag.mode)}
+                          className={`h-8 border rounded flex items-center justify-center cursor-pointer transition-colors ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent` : "bg-gray-100 text-gray-300"}`}
                         >
                           {d.shifts[s].active ? "50" : ""}
                         </div>
@@ -273,13 +270,21 @@ export default function FormDemand() {
         </div>
       ))}
 
-      <button onClick={() => setItems([...items, createItem(anchorDate)])} className="border px-4 py-2 rounded text-sm mb-4 hover:bg-gray-50">
-        + Add Item
-      </button>
+      {/* Actions */}
+      <div className="flex flex-col gap-3">
+        <button onClick={() => setItems([...items, createItem(new Date())])} className="border-2 border-dashed border-gray-300 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50">
+          + Add Manual Item
+        </button>
 
-      <button onClick={handleSubmit} disabled={loading} className="bg-blue-600 text-white py-3 rounded w-full hover:bg-blue-700 disabled:bg-gray-400">
-        {loading ? "Saving..." : "Save Demand"}
-      </button>
+        <div className="flex gap-3">
+          <button onClick={handleExportExcel} disabled={loading} className="bg-green-600 text-white py-3 rounded-xl w-1/3 hover:bg-green-700 font-bold flex items-center justify-center gap-2">
+            {loading ? "..." : "📊 EXCEL"}
+          </button>
+          <button onClick={handleSubmit} disabled={loading} className="bg-blue-600 text-white py-3 rounded-xl w-2/3 hover:bg-blue-700 font-bold">
+            {loading ? "SAVING..." : "SAVE DEMAND"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
