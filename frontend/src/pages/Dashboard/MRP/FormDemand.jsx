@@ -174,16 +174,16 @@ export default function FormDemand() {
     if (!header.soNo) return Swal.fire("Peringatan", "Pilih Sales Order terlebih dahulu", "warning");
     if (!header.deliveryDate) return Swal.fire("Peringatan", "Isi Tanggal Kirim (Delivery)", "warning");
     if (!header.productionDate) return Swal.fire("Peringatan", "Isi Tanggal Produksi sebelum menyimpan", "warning");
-    
+
     // 2. Validasi Item
     if (items.length === 0) return Swal.fire("Peringatan", "Minimal harus ada 1 item", "warning");
 
     try {
       setLoading(true);
-      
+
       // Mengirim data ke backend (Pastikan endpoint ini sesuai di Route Express Anda)
       const response = await api.post("/demand", { header, items });
-      
+
       if (response.status === 201 || response.status === 200) {
         Swal.fire({
           title: "Berhasil!",
@@ -191,7 +191,7 @@ export default function FormDemand() {
           icon: "success",
           confirmButtonColor: "#3085d6"
         });
-        
+
         // Opsional: Reset form atau arahkan ke halaman list
         // window.location.reload(); 
       }
@@ -257,29 +257,60 @@ export default function FormDemand() {
         <div key={i} className="border rounded-xl p-4 mb-6 bg-gray-50">
           <div className="mb-3 flex justify-between items-center text-sm font-semibold text-gray-700">
             <div>{item.itemCode || `Item ${i + 1}`} – Total Qty: {item.qty || 0}</div>
-            <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="text-red-600 text-xs border px-2 py-1 rounded hover:bg-red-50">Remove</button>
+            <button
+              onClick={() => setItems(items.filter((_, idx) => idx !== i))}
+              className="text-red-600 text-xs border px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            >
+              Remove
+            </button>
           </div>
 
           <div className="overflow-x-auto">
-            <div className="flex gap-2">
+            <div className="flex gap-2 pb-2">
               {item.calendar.map((d, idx) => {
                 const isShip = header.deliveryDate && d.date.toDateString() === new Date(header.deliveryDate).toDateString();
                 return (
                   <div key={idx} className={`min-w-[140px] border rounded-lg p-2 text-xs bg-white ${isShip ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
-                    <div className="text-center font-bold mb-1">{formatDate(d.date)}</div>
+                    <div className="text-center font-bold mb-1 border-b pb-1">{formatDate(d.date)}</div>
                     <div className="grid grid-cols-3 gap-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
                         <div
                           key={s}
-                          onMouseDown={(e) => {
-                            const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
-                            setDrag({ i, s, mode });
-                            toggleShift(i, idx, s, mode);
-                          }}
-                          onMouseEnter={() => drag && drag.i === i && toggleShift(i, idx, drag.s, drag.mode)}
-                          className={`h-8 border rounded flex items-center justify-center cursor-pointer transition-colors ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent` : "bg-gray-100 text-gray-300"}`}
+                          className={`relative h-8 border rounded flex items-center justify-center transition-colors ${d.shifts[s].active
+                              ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-sm`
+                              : "bg-gray-100 text-gray-300"
+                            }`}
                         >
-                          {d.shifts[s].active ? "50" : ""}
+                          {/* Area Klik/Drag (Background) */}
+                          <div
+                            className="absolute inset-0 cursor-pointer z-0"
+                            onMouseDown={(e) => {
+                              const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
+                              setDrag({ i, s, mode });
+                              toggleShift(i, idx, s, mode);
+                            }}
+                            onMouseEnter={() => {
+                              // Cek drag tidak null DAN i serta s cocok
+                              if (drag && drag.i === i && drag.s === s) {
+                                toggleShift(i, idx, drag.s, drag.mode);
+                              }
+                            }}
+                          />
+
+                          {/* Tampilan Angka / Input (Foreground) */}
+                          {d.shifts[s].active && (
+                            <input
+                              type="number"
+                              value={d.shifts[s].qty || 50}
+                              onChange={(e) => {
+                                const newQty = e.target.value;
+                                const newItems = [...items];
+                                newItems[i].calendar[idx].shifts[s].qty = newQty;
+                                setItems(newItems);
+                              }}
+                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text"
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -292,17 +323,49 @@ export default function FormDemand() {
       ))}
 
       {/* Actions */}
-      <div className="flex flex-col gap-3">
-        <button onClick={() => setItems([...items, createItem(new Date())])} className="border-2 border-dashed border-gray-300 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50">
-          + Add Manual Item
+      <div className="flex flex-col gap-4 mt-6">
+        {/* Tombol Add Manual Item dengan efek hover yang lebih halus */}
+        <button
+          onClick={() => setItems([...items, createItem(new Date())])}
+          className="group flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 py-3 rounded-xl text-sm font-semibold text-gray-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all duration-200"
+        >
+          <span className="text-lg group-hover:scale-125 transition-transform">+</span>
+          Add Manual Item
         </button>
 
         <div className="flex gap-3">
-          <button onClick={handleExportExcel} disabled={loading} className="bg-green-600 text-white py-3 rounded-xl w-1/3 hover:bg-green-700 font-bold flex items-center justify-center gap-2">
-            {loading ? "..." : "📊 EXCEL"}
+          {/* Button EXCEL: Warna Emerald/Green dengan shadow khas modern */}
+          <button
+            onClick={handleExportExcel}
+            disabled={loading}
+            className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold text-sm border border-emerald-100 hover:bg-emerald-600 hover:text-white hover:shadow-lg hover:shadow-emerald-200 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="animate-pulse">...</span>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                EXCEL REPORT
+              </>
+            )}
           </button>
-          <button onClick={handleSubmit} disabled={loading} className="bg-blue-600 text-white py-3 rounded-xl w-2/3 hover:bg-blue-700 font-bold">
-            {loading ? "SAVING..." : "SAVE DEMAND"}
+
+          {/* Button SAVE: Warna Indigo/Blue dengan gradient tipis */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all duration-200 disabled:opacity-50"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                SAVING...
+              </div>
+            ) : (
+              "SAVE PRODUCTION DEMAND"
+            )}
           </button>
         </div>
       </div>
