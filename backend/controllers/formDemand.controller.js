@@ -167,3 +167,88 @@ exports.exportToExcel = async (req, res) => {
     res.status(500).send("Gagal membuat file Excel");
   }
 };
+
+exports.saveDemand = async (req, res) => {
+  const { header, items } = req.body;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Simpan ke tabel demands
+    const demandRes = await client.query(
+      `INSERT INTO demands (so_number, so_date, customer_name, delivery_date, production_date) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [header.soNo, header.soDate, header.customer, header.deliveryDate, header.productionDate]
+    );
+
+    const demandId = demandRes.rows[0].id;
+
+    // 2. Simpan setiap item
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO demand_items (demand_id, item_id, item_code, total_qty, production_schedule) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [demandId, item.itemId, item.itemCode, item.qty, JSON.stringify(item.calendar)]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: "Demand saved successfully" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+exports.getAllDemands = async (req, res) => {
+  try {
+    // Ambil Header SO saja, tapi kita hitung jumlah item di dalamnya
+    const query = `
+      SELECT 
+        d.id as demand_id,
+        d.so_number as reference_no,
+        d.so_date,
+        d.customer_name,
+        d.delivery_date,
+        d.production_date,
+        COUNT(di.id) as total_items,
+        'NEW' as status
+      FROM demands d
+      LEFT JOIN demand_items di ON d.id = di.demand_id
+      GROUP BY d.id
+      ORDER BY d.created_at DESC;
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Gagal memuat data SO" });
+  }
+};
+
+// Tambahkan fungsi untuk ambil item berdasarkan ID Demand
+exports.getDemandItems = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      "SELECT * FROM demand_items WHERE demand_id = $1", 
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Gagal memuat item" });
+  }
+};
+
+// Placeholder untuk Run MRP
+exports.runMRP = async (req, res) => {
+  const { demand_item_id } = req.body;
+  try {
+    // Di sini nanti tempat logic MRP (meledakkan BOM ke Planned Order)
+    res.json({ message: `Item ID ${demand_item_id} sedang diproses oleh sistem MRP!` });
+  } catch (err) {
+    res.status(500).json({ message: "Sistem MRP gagal memproses item ini" });
+  }
+};

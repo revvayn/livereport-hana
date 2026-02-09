@@ -170,18 +170,39 @@ export default function FormDemand() {
   };
 
   const handleSubmit = async () => {
-    if (!header.deliveryDate) return Swal.fire("Error", "Isi Tanggal Kirim", "warning");
+    // 1. Validasi Input Header
+    if (!header.soNo) return Swal.fire("Peringatan", "Pilih Sales Order terlebih dahulu", "warning");
+    if (!header.deliveryDate) return Swal.fire("Peringatan", "Isi Tanggal Kirim (Delivery)", "warning");
+    if (!header.productionDate) return Swal.fire("Peringatan", "Isi Tanggal Produksi sebelum menyimpan", "warning");
+    
+    // 2. Validasi Item
+    if (items.length === 0) return Swal.fire("Peringatan", "Minimal harus ada 1 item", "warning");
+
     try {
       setLoading(true);
-      await api.post("/demand", { header, items });
-      Swal.fire("Success", "Data Tersimpan", "success");
-    } catch {
-      Swal.fire("Error", "Gagal Simpan", "error");
+      
+      // Mengirim data ke backend (Pastikan endpoint ini sesuai di Route Express Anda)
+      const response = await api.post("/demand", { header, items });
+      
+      if (response.status === 201 || response.status === 200) {
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Data Perencanaan Produksi (Demand) telah tersimpan di database.",
+          icon: "success",
+          confirmButtonColor: "#3085d6"
+        });
+        
+        // Opsional: Reset form atau arahkan ke halaman list
+        // window.location.reload(); 
+      }
+    } catch (error) {
+      console.error("Submit Error:", error);
+      const errorMsg = error.response?.data?.error || error.message;
+      Swal.fire("Error", "Gagal simpan ke database: " + errorMsg, "error");
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="p-6 bg-white rounded-xl shadow w-full" onMouseUp={() => setDrag(null)}>
       <h1 className="text-xl font-semibold mb-4">Demand Planner – Backward Planning</h1>
