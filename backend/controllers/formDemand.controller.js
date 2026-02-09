@@ -78,7 +78,6 @@ exports.exportToExcel = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Production Plan");
 
-    // Styling Konfigurasi
     const borderStyle = {
       top: { style: 'thin' },
       left: { style: 'thin' },
@@ -93,67 +92,79 @@ exports.exportToExcel = async (req, res) => {
     worksheet.addRow(["Customer", header.customer || "-"]);
     worksheet.addRow(["Production Date", header.productionDate || "-"]);
     worksheet.addRow(["Delivery Date", header.deliveryDate || "-"]);
-    worksheet.addRow([]); // Baris Kosong
+    worksheet.addRow([]); 
 
-    // 2. GENERATE HEADER TABEL (TANGGAL)
     if (!items || items.length === 0) {
       return res.status(400).send("No items to export");
     }
 
-    // Ambil tanggal dari item pertama sebagai acuan kolom
-    const dateHeaders = items[0].calendar.map(c => {
-      const d = new Date(c.date);
-      return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    // 2. GENERATE HEADER TABEL (DOUBLE HEADER)
+    const firstHeader = ["Item Code", "Total Qty"];
+    const secondHeader = ["", ""];
+    
+    // Gunakan item pertama sebagai referensi tanggal
+    const refCalendar = items[0].calendar || [];
+
+    refCalendar.forEach(day => {
+      const d = new Date(day.date);
+      const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
+      
+      // Baris 1: Tanggal (Akan di merge nanti)
+      firstHeader.push(dateStr, "", ""); 
+      // Baris 2: Shift
+      secondHeader.push("S1", "S2", "S3");
     });
 
-    const headerRowValues = ["Item Code", "Total Qty", ...dateHeaders];
-    const headerRow = worksheet.addRow(headerRowValues);
+    const row1 = worksheet.addRow(firstHeader);
+    const row2 = worksheet.addRow(secondHeader);
 
-    // Styling Header Row
-    headerRow.eachCell((cell) => {
-      cell.font = { bold: true };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-      cell.border = borderStyle;
-      cell.alignment = { horizontal: 'center' };
+    // Styling & Merging Headers
+    worksheet.mergeCells('A8:A9'); // Merge Item Code
+    worksheet.mergeCells('B8:B9'); // Merge Total Qty
+
+    let colIndex = 3;
+    refCalendar.forEach(() => {
+      // Merge sel tanggal untuk menaungi 3 kolom shift (S1, S2, S3)
+      worksheet.mergeCells(8, colIndex, 8, colIndex + 2);
+      colIndex += 3;
     });
 
-    // 3. LOGIK PENYUSUNAN DATA ITEM & QUANTITY
+    [row1, row2].forEach(row => {
+      row.eachCell(cell => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        cell.border = borderStyle;
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+    });
+
+    // 3. LOGIK PENYUSUNAN DATA PER SHIFT
     items.forEach(item => {
-      const rowData = [
-        item.itemCode,
-        Number(item.qty) || 0
-      ];
+      const rowData = [item.itemCode, Number(item.qty) || 0];
 
-      // Iterasi setiap hari di kalender item tersebut
       item.calendar.forEach(day => {
-        let dailyTotal = 0;
-
-        // Cek shift1, shift2, dan shift3
-        if (day.shifts) {
-          // Pastikan menjumlahkan HANYA jika 'active' bernilai true
-          if (day.shifts.shift1?.active) dailyTotal += Number(day.shifts.shift1.qty || 0);
-          if (day.shifts.shift2?.active) dailyTotal += Number(day.shifts.shift2.qty || 0);
-          if (day.shifts.shift3?.active) dailyTotal += Number(day.shifts.shift3.qty || 0);
-        }
-
-        // Jika total 0, tampilkan "-" agar sesuai dengan gambar Anda, jika ada isinya tampilkan angka
-        rowData.push(dailyTotal > 0 ? dailyTotal : "-");
+        // Ambil Qty masing-masing shift jika active, jika tidak tampilkan "-"
+        rowData.push(day.shifts?.shift1?.active ? (Number(day.shifts.shift1.qty) || 0) : "-");
+        rowData.push(day.shifts?.shift2?.active ? (Number(day.shifts.shift2.qty) || 0) : "-");
+        rowData.push(day.shifts?.shift3?.active ? (Number(day.shifts.shift3.qty) || 0) : "-");
       });
 
       const row = worksheet.addRow(rowData);
       
-      // Styling Baris Data
       row.eachCell((cell, colNumber) => {
         cell.border = borderStyle;
-        if (colNumber > 1) { // Kolom angka dibuat rata tengah
-          cell.alignment = { horizontal: 'center' };
+        cell.alignment = { horizontal: 'center' };
+        
+        // Beri warna hijau (Emerald) jika cell berisi angka (Shift Active)
+        if (colNumber > 2 && typeof cell.value === 'number') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
+          cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
         }
       });
     });
 
-    // Atur Lebar Kolom
-    worksheet.getColumn(1).width = 20; // Item Code
-    worksheet.getColumn(2).width = 10; // Total Qty
+    worksheet.getColumn(1).width = 20;
+    worksheet.getColumn(2).width = 12;
 
     // 4. KIRIM RESPONSE
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
