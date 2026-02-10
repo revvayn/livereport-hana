@@ -145,13 +145,31 @@ export default function FormDemand() {
   const toggleShift = useCallback((itemIdx, dayIdx, shift, mode) => {
     setItems(prev => {
       const newList = [...prev];
-      const targetDay = { ...newList[itemIdx].calendar[dayIdx] };
-      const current = targetDay.shifts[shift].active;
+      const item = newList[itemIdx];
+      const targetDay = { ...item.calendar[dayIdx] };
+      const currentActive = targetDay.shifts[shift].active;
 
-      targetDay.shifts[shift] = {
-        ...targetDay.shifts[shift],
-        active: mode === "on" ? true : mode === "off" ? false : !current
-      };
+      // Tentukan status aktif baru
+      const nextActive = mode === "on" ? true : mode === "off" ? false : !currentActive;
+
+      // Jika mau mengaktifkan, cek dulu apakah total sudah terpenuhi
+      if (nextActive && !currentActive) {
+        const currentTotal = getTotalPlottedQty(item.calendar);
+        if (currentTotal >= Number(item.qty)) {
+          // Jika sudah penuh, jangan aktifkan atau set qty ke 0
+          targetDay.shifts[shift] = { ...targetDay.shifts[shift], active: true, qty: 0 };
+        } else {
+          // Jika masih ada sisa, isi dengan default 50 atau sisa qty
+          const remaining = Number(item.qty) - currentTotal;
+          targetDay.shifts[shift] = {
+            ...targetDay.shifts[shift],
+            active: true,
+            qty: remaining < 50 ? remaining : 50
+          };
+        }
+      } else {
+        targetDay.shifts[shift].active = nextActive;
+      }
 
       newList[itemIdx].calendar[dayIdx] = targetDay;
       return newList;
@@ -214,6 +232,17 @@ export default function FormDemand() {
       newList[idx] = { ...newList[idx], [field]: value };
       return newList;
     });
+  };
+  const getTotalPlottedQty = (calendar) => {
+    let total = 0;
+    calendar.forEach((day) => {
+      Object.values(day.shifts).forEach((shift) => {
+        if (shift.active) {
+          total += Number(shift.qty) || 0;
+        }
+      });
+    });
+    return total;
   };
   return (
     <div className="p-6 bg-white rounded-lg border border-gray-300 w-full" onMouseUp={() => setDrag(null)}>
@@ -349,7 +378,11 @@ export default function FormDemand() {
               </button>
             </div>
           </div>
-
+          <div className="text-[10px] mt-1 font-bold">
+            Sisa: <span className={Number(item.qty) - getTotalPlottedQty(item.calendar) < 0 ? "text-red-500" : "text-green-600"}>
+              {Number(item.qty) - getTotalPlottedQty(item.calendar)}
+            </span>
+          </div>
           {/* Scrollable Calendar Area (Tetap Sama) */}
           <div className="overflow-x-auto">
             <div className="flex gap-2 pb-4">
@@ -390,15 +423,36 @@ export default function FormDemand() {
                               }
                             }}
                           />
-
                           {d.shifts[s].active && (
                             <input
                               type="number"
                               value={d.shifts[s].qty || ""}
                               onChange={(e) => {
-                                const newQty = e.target.value;
+                                const newQtyValue = Number(e.target.value);
+                                const totalSoQty = Number(item.qty) || 0;
+
+                                // Salin items untuk simulasi perhitungan
                                 const newItems = [...items];
-                                newItems[i].calendar[idx].shifts[s].qty = newQty;
+                                const oldQty = Number(newItems[i].calendar[idx].shifts[s].qty) || 0;
+
+                                // Hitung total saat ini (tanpa qty shift ini yang lama) + qty baru
+                                const currentTotal = getTotalPlottedQty(newItems[i].calendar) - oldQty + newQtyValue;
+
+                                if (currentTotal > totalSoQty) {
+                                  Swal.fire({
+                                    title: "Qty Melebihi Batas",
+                                    text: `Total qty yang diplot (${currentTotal}) tidak boleh melebihi Qty SO (${totalSoQty})`,
+                                    icon: "warning",
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                  });
+                                  // Jika melebihi, kita set ke maksimal sisa yang dibolehkan
+                                  const maxAllowed = totalSoQty - (getTotalPlottedQty(newItems[i].calendar) - oldQty);
+                                  newItems[i].calendar[idx].shifts[s].qty = maxAllowed > 0 ? maxAllowed : 0;
+                                } else {
+                                  newItems[i].calendar[idx].shifts[s].qty = e.target.value;
+                                }
+
                                 setItems(newItems);
                               }}
                               className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none"

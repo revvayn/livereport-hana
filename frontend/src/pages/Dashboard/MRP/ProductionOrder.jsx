@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
-export default function DemandList() {
+export default function ProductionOrder() {
   const [demands, setDemands] = useState([]);
   const [loading, setLoading] = useState(true);
 

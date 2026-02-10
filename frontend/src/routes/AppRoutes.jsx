@@ -28,9 +28,10 @@ import SalesOrders from "../pages/Dashboard/MRP/SalesOrders";
 import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
 import DemandList from "../pages/Dashboard/MRP/DemandList";
-import PlannedOrder from "../pages/Dashboard/MRP/PlannedOrder";
+import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
+import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
 
 function AppRoutes() {
   return (
@@ -77,7 +78,7 @@ function AppRoutes() {
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="demand/list"element={<DemandList />}/>
-          <Route path="demand/planned-order" element={<PlannedOrder />} />
+          <Route path="production/order" element={<ProductionOrder />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
           <Route path="profile" element={<Profile />} />

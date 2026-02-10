@@ -408,7 +408,7 @@ function DemandDropdown({ collapsed, currentPath }) {
 }
 
 function ProductionDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/production/orders"];
+  const paths = ["/dashboard/production/order"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
@@ -428,7 +428,7 @@ function ProductionDropdown({ collapsed, currentPath }) {
       </button>
       {!collapsed && open && (
         <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/production/orders" icon={Form} label="Order Production" />
+          <SubMenuLink to="/dashboard/production/order" icon={Form} label="Order Production" />
         </div>
       )}
     </div>
