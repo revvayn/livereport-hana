@@ -1,8 +1,10 @@
+// backend/routes/bomCalculation.routes.js
 const express = require("express");
 const router = express.Router();
-const { getBOMCalculation } = require("../controllers/bomCalculation.controller");
+const demandController = require("../controllers/bomCalculation.controller");
 
-// Endpoint GET BOM Calculation
-router.get("/", getBOMCalculation);
+// Pastikan endpoint ini ada untuk melayani handleShowDetail di frontend
+router.get("/:id/items", demandController.getDemandItems); //
+router.get("/:id/bom-calc", demandController.calculateDemandBOM); //
 
 module.exports = router;

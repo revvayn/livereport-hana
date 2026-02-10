@@ -31,7 +31,6 @@ import DemandList from "../pages/Dashboard/MRP/DemandList";
 import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
-import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
 
 function AppRoutes() {
   return (

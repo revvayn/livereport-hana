@@ -43,7 +43,7 @@ app.use("/api/item-routings", require("./routes/itemRoutings.routes"));
 app.use("/api/sales-orders", require("./routes/salesOrders.routes"));
 app.use("/api/sales-order-items", require("./routes/salesOrderItems.routes"));
 app.use("/api/demand", require("./routes/formDemand.routes"));
-
+app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
 
 
 app.use("/api/mrp", require("./routes/mrp.routes"));
