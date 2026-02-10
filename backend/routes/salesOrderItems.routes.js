@@ -1,17 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const controller = require("../controllers/salesOrderItems.controller");
+const salesOrderItemController = require("../controllers/salesOrderItems.controller");
 
-// Route untuk mengambil items berdasarkan ID Sales Order (PENTING!)
-// Ini yang dipanggil oleh Frontend: api.get(`/sales-orders/${soId}/items`)
-router.get("/:id/items", controller.getItemsBySalesOrder);
-
- 
-
-// Route lainnya
-router.get("/", controller.getAllSalesOrderItems);
-router.post("/", controller.createItem);
-router.put("/:id", controller.updateItem);
-router.delete("/:id", controller.deleteItem);
+// Perhatikan nama fungsinya, harus sama dengan yang ada di controller
+router.get("/master-items", salesOrderItemController.getMasterItemsWithRatio); 
+router.get("/:id/items", salesOrderItemController.getItemsBySalesOrder);
+router.post("/", salesOrderItemController.createItem);
+router.put("/:id", salesOrderItemController.updateItem);
+router.delete("/:id", salesOrderItemController.deleteItem);
 
 module.exports = router;

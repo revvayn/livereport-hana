@@ -54,25 +54,28 @@ exports.calculateDemandBOM = async (req, res) => {
           WITH demand_base AS (
               SELECT 
                   di.item_code as fg_code,
+                  b.linenum, 
                   b.component_code, 
                   b.component_description,
-                  -- Rumus: (Qty BOM / Qty Pcs) * Total Qty Demand / Ratio
+                  b.uom_component, 
+                  -- Ambil ratio_component agar sesuai dengan kolom 'Ratio' di gambar Master
+                  b.ratio_component as qty_ratio, 
+                  -- Kalkulasi Total Required tetap menggunakan logika pembagian qty/pcs
                   ROUND(
                       (CAST(b.quantity AS NUMERIC) / NULLIF(CAST(b.qtypcs_item AS NUMERIC), 0)) 
                       * CAST(di.total_qty AS NUMERIC) 
                       / COALESCE(NULLIF(CAST(b.ratio_component AS NUMERIC), 0), 1), 
-                  6) AS required_qty
+                      6) AS required_qty
               FROM demand_items di
               JOIN bill_of_materials b ON di.item_code = b.product_item
               WHERE di.demand_id = $1
           )
           SELECT * FROM demand_base 
-          ORDER BY fg_code ASC;
+          ORDER BY fg_code ASC, linenum ASC;
       `;
 
       const result = await pool.query(query, [id]);
 
-      // Mengelompokkan hasil berdasarkan Finished Good (FG) Code
       const grouped = result.rows.reduce((acc, row) => {
           if (!acc[row.fg_code]) acc[row.fg_code] = [];
           acc[row.fg_code].push(row);
@@ -84,7 +87,7 @@ exports.calculateDemandBOM = async (req, res) => {
       console.error("SQL ERROR:", err.message);
       res.status(500).json({ error: "Gagal menghitung BOM: " + err.message });
   }
-};
+};;
 
 // 5. Simpan Demand Baru
 exports.saveDemand = async (req, res) => {

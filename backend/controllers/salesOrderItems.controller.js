@@ -1,95 +1,73 @@
 const pool = require("../db");
 
-// 1. Ambil SEMUA item dari semua SO (untuk list utama)
-exports.getAllSalesOrderItems = async (req, res) => {
+// salesOrderItems.controller.js
+
+exports.getMasterItemsWithRatio = async (req, res) => {
     try {
+        // Menggunakan GROUP BY agar item_code unik 
+        // dan mengambil MAX quantity sebagai ratio standar
         const result = await pool.query(`
-            SELECT soi.id, so.so_number, i.item_code, i.description, soi.quantity
-            FROM sales_order_items soi
-            JOIN sales_orders so ON so.id = soi.sales_order_id
-            JOIN items i ON i.id = soi.item_id
-            ORDER BY soi.id DESC
+            SELECT 
+                i.id, 
+                i.item_code, 
+                i.description, 
+                MAX(COALESCE(b.quantity, 0)) as ratio_bom
+            FROM items i
+            LEFT JOIN bill_of_materials b ON i.item_code = b.product_item
+            GROUP BY i.id, i.item_code, i.description
+            ORDER BY i.item_code ASC
         `);
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Gagal mengambil data items" });
+        res.status(500).json({ error: "Gagal mengambil master item" });
     }
 };
 
-// 2. Ambil item berdasarkan ID Sales Order tertentu
-// controllers/salesOrderItems.controller.js
+// Ambil item berdasarkan Sales Order ID
 exports.getItemsBySalesOrder = async (req, res) => {
     const { id } = req.params;
     try {
         const result = await pool.query(`
-            SELECT 
-                soi.id, 
-                soi.quantity,  -- Ini akan terbaca string jika desimal
-                soi.item_id, 
-                i.item_code, 
-                i.description
+            SELECT soi.*, i.item_code, i.description
             FROM sales_order_items soi
-            INNER JOIN items i ON i.id = soi.item_id 
+            JOIN items i ON i.id = soi.item_id 
             WHERE soi.sales_order_id = $1
-            ORDER BY soi.id ASC`, 
-            [id]
-        );
+            ORDER BY soi.id ASC`, [id]);
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Database error saat mengambil items" });
+        res.status(500).json({ error: "Gagal mengambil items" });
     }
 };
-
-// 3. Tambah Item ke SO (Logika: Jika item sama sudah ada, maka update quantity)
+// Endpoint: POST /api/sales-order-items
 exports.createItem = async (req, res) => {
-    const { sales_order_id, item_id, quantity } = req.body;
-    if (!sales_order_id || !item_id || !quantity) return res.status(400).json({ error: "Data tidak lengkap" });
-
+    const { sales_order_id, item_id, quantity, pcs } = req.body;
     try {
-        // Cek duplikasi item dalam satu SO
-        const check = await pool.query(
-            "SELECT id, quantity FROM sales_order_items WHERE sales_order_id=$1 AND item_id=$2",
-            [sales_order_id, item_id]
-        );
-
-        if (check.rows.length > 0) {
-            const newQty = parseInt(check.rows[0].quantity) + parseInt(quantity);
-            const update = await pool.query(
-                "UPDATE sales_order_items SET quantity=$1 WHERE id=$2 RETURNING *",
-                [newQty, check.rows[0].id]
-            );
-            return res.json(update.rows[0]);
-        }
-
         const result = await pool.query(
-            "INSERT INTO sales_order_items (sales_order_id, item_id, quantity) VALUES ($1, $2, $3) RETURNING *",
-            [sales_order_id, item_id, quantity]
+            "INSERT INTO sales_order_items (sales_order_id, item_id, quantity, pcs) VALUES ($1, $2, $3, $4) RETURNING *",
+            [sales_order_id, item_id, quantity, pcs]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: "Gagal menambah item" });
+        res.status(500).json({ error: "Gagal simpan item" });
     }
 };
 
-// 4. Update Item
+// Endpoint: PUT /api/sales-order-items/:id
 exports.updateItem = async (req, res) => {
     const { id } = req.params;
-    const { item_id, quantity } = req.body;
+    const { item_id, quantity, pcs } = req.body;
     try {
         const result = await pool.query(
-            "UPDATE sales_order_items SET item_id=$1, quantity=$2 WHERE id=$3 RETURNING *",
-            [item_id, quantity, id]
+            "UPDATE sales_order_items SET item_id=$1, quantity=$2, pcs=$3 WHERE id=$4 RETURNING *",
+            [item_id, quantity, pcs, id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ error: "Data tidak ditemukan" });
         res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: "Gagal update item" });
     }
 };
 
-// 5. Delete Item
+// 5. Delete Item (Tetap sama)
 exports.deleteItem = async (req, res) => {
     const { id } = req.params;
     try {

@@ -20,7 +20,7 @@ export default function ProductionOrder() {
   const fetchDemands = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/demand"); 
+      const res = await api.get("/demand");
       setDemands(res.data);
     } catch (err) {
       console.error("Fetch Demands Error:", err);
@@ -34,13 +34,13 @@ export default function ProductionOrder() {
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-      
+
       // 1. Ambil Item Demand (Matrix) - Sesuai rute /api/demand/:id/items
       const resItems = await api.get(`/demand/${so.demand_id}/items`);
-      
+
       // 2. Ambil Kalkulasi BOM - Sesuai rute /api/bom-calculation/:id/bom-calc di server.js
       const resBOM = await api.get(`/bom-calculation/${so.demand_id}/bom-calc`);
-      
+
       setSoItems(resItems.data);
       setBomData(resBOM.data || {});
       setSelectedSO(so);
@@ -56,165 +56,247 @@ export default function ProductionOrder() {
 
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen">
-      {/* TAMPILAN 1: DAFTAR SO */}
-      {view === "so" && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Production Order List</h2>
-            <button 
-              onClick={fetchDemands} 
-              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+
+        {/* HEADER / BREADCRUMB */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <button
+              onClick={() => setView("so")}
+              className={view === "so" ? "text-indigo-600" : "text-gray-400 hover:text-gray-600 transition-colors"}
             >
-              Refresh Data
+              DEMAND LIST
             </button>
+            {view === "detail" && (
+              <>
+                <span className="text-gray-300">/</span>
+                <span className="text-indigo-600 uppercase tracking-tight">Detail: {selectedSO?.reference_no}</span>
+              </>
+            )}
           </div>
-          
+
+          {view === "detail" && (
+            <div className="flex gap-2 items-center">
+              <div className="flex bg-gray-100 p-0.5 rounded-md mr-2">
+                <button
+                  className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${activeTab === 'matrix' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setActiveTab('matrix')}
+                >
+                  MATRIX JADWAL
+                </button>
+                <button
+                  className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${activeTab === 'bom' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => setActiveTab('bom')}
+                >
+                  KEBUTUHAN MATERIAL (BOM)
+                </button>
+              </div>
+              <button
+                onClick={() => setView("so")}
+                className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase"
+              >
+                Kembali
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* --- TAMPILAN 1: DAFTAR SO --- */}
+        {view === "so" && (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-100 text-left text-sm uppercase">
-                  <th className="p-3 border">SO Number</th>
-                  <th className="p-3 border">Customer</th>
-                  <th className="p-3 border text-center">Action</th>
+                <tr className="text-gray-400 border-b uppercase text-[11px] text-left font-semibold">
+                  <th className="pb-3">SO Number</th>
+                  <th className="pb-3">SO Date</th>
+                  <th className="pb-3">Customer</th>
+                  <th className="pb-3 text-center">Items</th>
+                  <th className="pb-3 text-center">Prod. Date</th>
+                  <th className="pb-3 text-center">Deliv. Date</th>
+                  <th className="pb-3 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody>
-                {loading && demands.length === 0 ? (
-                  <tr><td colSpan="3" className="p-10 text-center text-gray-500">Memuat data...</td></tr>
-                ) : demands.length > 0 ? (
-                  demands.map((d) => (
-                    <tr key={d.demand_id} className="hover:bg-gray-50 transition">
-                      <td className="p-3 border font-medium">{d.reference_no}</td>
-                      <td className="p-3 border text-gray-600">{d.customer_name}</td>
-                      <td className="p-3 border text-center">
-                        <button
-                          onClick={() => handleShowDetail(d)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-md text-sm transition shadow-sm"
-                        >
-                          Detail & MRP
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan="3" className="p-10 text-center text-gray-500">Tidak ada data demand ditemukan.</td></tr>
-                )}
+              <tbody className="divide-y divide-gray-50">
+                {demands.map((so) => (
+                  <tr key={so.demand_id} className="hover:bg-gray-50/50 group transition-colors">
+                    <td className="py-4 font-bold text-indigo-600">{so.reference_no}</td>
+                    <td className="py-4 text-gray-500 text-xs">{so.so_date ? new Date(so.so_date).toLocaleDateString("id-ID") : "-"}</td>
+                    <td className="py-4 text-gray-600 font-medium">{so.customer_name}</td>
+                    <td className="py-4 text-center">
+                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                        {so.total_items} Items
+                      </span>
+                    </td>
+                    <td className="py-4 text-center text-gray-500 font-medium text-xs">
+                      {so.production_date ? new Date(so.production_date).toLocaleDateString("id-ID") : "-"}
+                    </td>
+                    <td className="py-4 text-center text-gray-500 text-xs">
+                      {new Date(so.delivery_date).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="py-4 text-right">
+                      <button
+                        onClick={() => handleShowDetail(so)}
+                        className="bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold hover:bg-indigo-700 shadow-sm transition-all"
+                      >
+                        VIEW DETAIL
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAMPILAN 2: DETAIL */}
-      {view === "detail" && (
-        <div className="space-y-4 animate-in fade-in duration-300">
-          <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
-            <button
-              onClick={() => setView("so")}
-              className="text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-2"
-            >
-              <span>←</span> Kembali ke Daftar
-            </button>
-            <h2 className="text-lg font-bold text-gray-800">
-              Demand: <span className="text-indigo-600">{selectedSO?.reference_no}</span>
-            </h2>
-          </div>
+        {/* --- TAMPILAN 2: DETAIL --- */}
+        {view === "detail" && (
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300">
 
-          <div className="flex border-b bg-white rounded-t-lg overflow-hidden">
-            <button
-              className={`flex-1 px-6 py-3 font-semibold transition ${activeTab === 'matrix' ? 'border-b-4 border-indigo-600 text-indigo-600 bg-indigo-50/30' : 'text-gray-500 hover:bg-gray-50'}`}
-              onClick={() => setActiveTab('matrix')}
-            >
-              JADWAL PRODUKSI (MATRIX)
-            </button>
-            <button
-              className={`flex-1 px-6 py-3 font-semibold transition ${activeTab === 'bom' ? 'border-b-4 border-indigo-600 text-indigo-600 bg-indigo-50/30' : 'text-gray-500 hover:bg-gray-50'}`}
-              onClick={() => setActiveTab('bom')}
-            >
-              KEBUTUHAN MATERIAL (BOM)
-            </button>
-          </div>
-
-          {/* TAB CONTENT: JADWAL PRODUKSI */}
-          {activeTab === "matrix" && (
-            <div className="bg-white p-6 shadow rounded-b-lg overflow-x-auto border-t-0">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border p-3 text-left">Item Code</th>
-                    <th className="border p-3 text-center">Total Qty</th>
-                    <th className="border p-3 text-left">Production Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {soItems.length > 0 ? soItems.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="border p-3 font-mono text-indigo-700">{item.item_code}</td>
-                      <td className="border p-3 text-center font-bold text-lg">{item.total_qty}</td>
-                      <td className="border p-3">
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold uppercase">
-                          {item.production_schedule ? 'Scheduled' : 'Draft'}
-                        </span>
-                      </td>
+            {/* TAB 1: MATRIX JADWAL */}
+            {activeTab === 'matrix' && (
+              <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50">
+                <table className="w-full text-[10px] border-collapse bg-white">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-600 font-bold uppercase">
+                      <th className="border p-2 sticky left-0 bg-gray-100 z-20 min-w-[120px] text-left">Item Code</th>
+                      <th className="border p-2 min-w-[150px] text-left">Description</th>
+                      <th className="border p-2 w-12 text-center">UoM</th>
+                      <th className="border p-2 w-16 text-center">Total</th>
+                      {/* Header Tanggal */}
+                      {soItems[0]?.production_schedule?.map((day, i) => (
+                        <th key={i} className="border p-1 text-center min-w-[90px]" colSpan="3">
+                          {new Date(day.date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+                        </th>
+                      ))}
                     </tr>
-                  )) : (
-                    <tr><td colSpan="3" className="p-5 text-center text-gray-400 italic">Data item tidak tersedia.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* TAB CONTENT: BOM CALCULATION (MRP) */}
-          {activeTab === "bom" && (
-            <div className="space-y-6">
-              {Object.keys(bomData).length > 0 ? Object.keys(bomData).map((fgCode) => (
-                <div key={fgCode} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-                  <div className="bg-indigo-600 p-3 flex justify-between items-center">
-                    <span className="font-bold text-white uppercase tracking-wider text-sm">Finished Good: {fgCode}</span>
-                    <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded">MRP Logic Active</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 text-left text-gray-600">
-                          <th className="p-3 border-b">Component Material</th>
-                          <th className="p-3 border-b text-right">Required</th>
-                          <th className="p-3 border-b text-right">Stock (Main)</th>
-                          <th className="p-3 border-b text-right">Shortage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bomData[fgCode].map((comp, cIdx) => (
-                          <tr key={cIdx} className="border-b last:border-0 hover:bg-gray-50 transition">
-                            <td className="p-3">
-                              <div className="font-bold text-gray-700">{comp.component_code}</div>
-                              <div className="text-xs text-gray-400">{comp.component_description}</div>
-                            </td>
-                            <td className="p-3 text-right font-mono font-medium">
-                              {Number(comp.required_qty).toLocaleString('id-ID')}
-                            </td>
-                            <td className="p-3 text-right font-mono text-blue-600">
-                              {Number(comp.on_hand_qty).toLocaleString('id-ID')}
-                            </td>
-                            <td className={`p-3 text-right font-bold font-mono ${comp.shortage > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {comp.shortage > 0 ? `-${Number(comp.shortage).toLocaleString('id-ID')}` : 'Sufficient'}
-                            </td>
-                          </tr>
+                    <tr className="bg-gray-50 text-[8px] text-gray-400">
+                      <th className="border p-1 sticky left-0 bg-gray-50 z-20"></th>
+                      <th className="border p-1"></th><th className="border p-1"></th><th className="border p-1"></th>
+                      {soItems[0]?.production_schedule?.map((_, i) => (
+                        <React.Fragment key={i}>
+                          <th className="border p-1">S1</th>
+                          <th className="border p-1">S2</th>
+                          <th className="border p-1">S3</th>
+                        </React.Fragment>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {soItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="border p-2 font-bold sticky left-0 bg-white z-10 text-indigo-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          {item.item_code}
+                        </td>
+                        <td className="border p-2 text-gray-600 italic">{item.description || "-"}</td>
+                        <td className="border p-2 text-center font-medium text-gray-500 uppercase">{item.uom || "PCS"}</td>
+                        <td className="border p-2 text-center font-bold text-gray-900 bg-gray-50/50">{item.total_qty}</td>
+                        {/* Data Shift per Hari */}
+                        {item.production_schedule?.map((day, dIdx) => (
+                          <React.Fragment key={dIdx}>
+                            {["shift1", "shift2", "shift3"].map((s) => (
+                              <td
+                                key={s}
+                                className={`border p-1 text-center font-bold ${day.shifts[s].active ? 'bg-emerald-500 text-white' : 'text-gray-200'}`}
+                              >
+                                {day.shifts[s].active ? day.shifts[s].qty : "-"}
+                              </td>
+                            ))}
+                          </React.Fragment>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )) : (
-                <div className="bg-white p-10 text-center rounded-lg shadow italic text-gray-400">
-                  Tidak ada data BOM untuk demand ini. Periksa pengaturan Bill of Materials.
-                </div>
-              )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB 2: KEBUTUHAN MATERIAL (BOM) */}
+            {/* TAB 2: KEBUTUHAN MATERIAL (BOM) */}
+{activeTab === 'bom' && (
+  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    {Object.keys(bomData).length > 0 ? Object.keys(bomData).map((fgCode) => (
+      <div key={fgCode} className="border rounded-lg overflow-hidden bg-white shadow-sm border-gray-200">
+        
+        {/* Header Finished Good */}
+        <div className="bg-indigo-600 px-4 py-3 flex justify-between items-center text-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-1.5 rounded">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
             </div>
-          )}
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.2em] opacity-80 leading-none mb-1">Finished Good Item</p>
+              <h3 className="text-sm font-black uppercase leading-none">{fgCode}</h3>
+            </div>
+          </div>
+          <span className="text-[10px] bg-black/20 px-3 py-1 rounded-full font-bold">
+            {bomData[fgCode].length} Components
+          </span>
         </div>
-      )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-[10px] border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-gray-400 uppercase text-[9px] font-black border-b tracking-wider">
+                {/* Kolom Component Code */}
+                <th className="px-4 py-3 text-left border-r w-[180px]">Component Code</th>
+                {/* Kolom Description */}
+                <th className="px-4 py-3 text-left border-r">Description</th>
+                {/* Kolom UoM */}
+                <th className="px-4 py-3 text-center border-r w-[70px]">UoM</th>
+                {/* Kolom Line (Menggunakan data linenum) */}
+                <th className="px-4 py-3 text-center border-r w-[80px]">Line</th>
+                {/* Kolom Total Required */}
+                <th className="px-4 py-3 text-right bg-indigo-50/50 w-[150px] text-indigo-700 font-bold">Total Required</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {bomData[fgCode].map((comp, cIdx) => (
+                <tr key={cIdx} className="hover:bg-gray-50/80 transition-colors group">
+                  <td className="px-4 py-3 font-bold text-gray-800 border-r uppercase tracking-tighter">
+                    {comp.component_code}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 italic border-r">
+                    {comp.component_description}
+                  </td>
+                  <td className="px-4 py-3 text-center border-r">
+                    <span className="bg-gray-100 px-2 py-0.5 rounded text-[9px] font-bold border border-gray-200 uppercase">
+                      {comp.uom_component || "PCS"}
+                    </span>
+                  </td>
+                  {/* Di sini kita menampilkan Linenum di kolom Line */}
+                  <td className="px-4 py-3 text-center border-r font-bold text-gray-600">
+                    {comp.linenum}
+                  </td>
+                  <td className="px-4 py-3 text-right bg-indigo-50/20 group-hover:bg-indigo-50/40 transition-colors">
+                    <span className="text-indigo-600 font-black font-mono text-[13px]">
+                      {Number(comp.required_qty).toLocaleString('id-ID')}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )) : (
+      <div className="py-20 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 text-xs italic">
+        Data BOM tidak tersedia.
+      </div>
+    )}
+  </div>
+)}
+
+            {/* KETERANGAN FOOTER (Akan selalu muncul di tab matrix maupun bom) */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100 text-[9px] text-gray-500 flex gap-4 items-center uppercase font-bold">
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></div> Scheduled</div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 bg-white border border-gray-300 rounded-sm"></div> No Schedule</div>
+              <div className="ml-auto text-indigo-600 font-black italic">S1/S2/S3 = Shift 1, 2, 3</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
