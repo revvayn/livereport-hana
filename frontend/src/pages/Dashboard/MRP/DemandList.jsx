@@ -154,7 +154,7 @@ export default function DemandList() {
           </div>
         )}
 
-        {/* --- TAMPILAN 2: DETAIL MATRIX (SEMUA ITEM JADI SATU) --- */}
+        {/* --- TAMPILAN 2: DETAIL MATRIX --- */}
         {view === "detail" && (
           <div className="animate-in fade-in duration-300">
             <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50">
@@ -162,11 +162,13 @@ export default function DemandList() {
                 <thead>
                   {/* BARIS 1: TANGGAL */}
                   <tr className="bg-gray-100 text-gray-600 font-bold">
-                    {/* Tambah Header Deskripsi & UoM */}
                     <th className="border p-2 sticky left-0 bg-gray-100 z-20 min-w-[120px]">Item Code</th>
                     <th className="border p-2 min-w-[150px] bg-gray-100">Description</th>
                     <th className="border p-2 w-12 text-center bg-gray-100">UoM</th>
-                    <th className="border p-2 w-16 text-center bg-gray-100">Total</th>
+
+                    {/* KOLOM BARU: QTY & PCS */}
+                    <th className="border p-2 w-16 text-center bg-gray-100 text-gray-500">Qty (m3)</th>
+                    <th className="border p-2 w-16 text-center bg-gray-100 text-indigo-600">Total Pcs</th>
 
                     {soItems[0]?.production_schedule.map((day, i) => (
                       <th key={i} className="border p-1 text-center min-w-[100px]" colSpan="3">
@@ -174,12 +176,14 @@ export default function DemandList() {
                       </th>
                     ))}
                   </tr>
+
                   {/* BARIS 2: SHIFT */}
-                  <tr className="bg-gray-50 text-[8px] text-gray-400">
+                  <tr className="bg-gray-50 text-[8px] text-gray-400 text-center">
                     <th className="border p-1 sticky left-0 bg-gray-50 z-20"></th>
-                    <th className="border p-1"></th> {/* Placeholder Deskripsi */}
-                    <th className="border p-1"></th> {/* Placeholder UoM */}
-                    <th className="border p-1"></th> {/* Placeholder Total */}
+                    <th className="border p-1"></th>
+                    <th className="border p-1"></th>
+                    <th className="border p-1"></th> {/* Placeholder Qty */}
+                    <th className="border p-1"></th> {/* Placeholder Pcs */}
                     {soItems[0]?.production_schedule.map((_, i) => (
                       <React.Fragment key={i}>
                         <th className="border p-1">S1</th>
@@ -192,26 +196,27 @@ export default function DemandList() {
                 <tbody>
                   {soItems.map((item) => (
                     <tr key={item.id} className="hover:bg-blue-50/50">
-                      {/* Item Code tetap Sticky */}
                       <td className="border p-2 font-bold sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         {item.item_code}
                       </td>
-
-                      {/* Kolom Deskripsi Baru */}
                       <td className="border p-2 text-gray-600 italic">
                         {item.description || "-"}
                       </td>
-
-                      {/* Kolom UoM Baru */}
                       <td className="border p-2 text-center font-medium text-gray-500 uppercase">
                         {item.uom || "PCS"}
                       </td>
 
-                      <td className="border p-2 text-center font-bold text-indigo-600 bg-gray-50">
+                      {/* Tampilkan Volume (m3) */}
+                      <td className="border p-2 text-center text-gray-500 bg-gray-50/30">
                         {item.total_qty}
                       </td>
 
-                      {/* Mapping Jadwal per Item */}
+                      {/* Tampilkan Total Pcs (Indigo) */}
+                      <td className="border p-2 text-center font-bold text-indigo-600 bg-indigo-50/30">
+                        {item.pcs || 0}
+                      </td>
+
+                      {/* Mapping Jadwal: Plotting menggunakan angka dari PCS */}
                       {item.production_schedule.map((day, dIdx) => (
                         <React.Fragment key={dIdx}>
                           {["shift1", "shift2", "shift3"].map((s) => (
@@ -222,6 +227,7 @@ export default function DemandList() {
                                 : 'text-gray-300'
                                 }`}
                             >
+                              {/* Pastikan di sini menampilkan angka Pcs yang sudah di-plot */}
                               {day.shifts[s].active ? day.shifts[s].qty : "-"}
                             </td>
                           ))}
@@ -234,10 +240,14 @@ export default function DemandList() {
             </div>
 
             {/* Keterangan UI */}
-            <div className="mt-4 p-4 bg-blue-50 rounded text-[10px] text-blue-700 flex gap-4">
-              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded"></div> Production Schedule</div>
-              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div> No Schedule</div>
-              <div className="ml-auto font-bold uppercase">S1/S2/S3 = Shift 1/2/3</div>
+            <div className="mt-4 p-4 bg-blue-50 rounded text-[10px] text-blue-700 flex flex-wrap gap-4">
+              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded"></div> Production Plotting (Pcs)</div>
+              <div className="flex items-center gap-1"><div className="w-3 h-3 bg-gray-100 border border-gray-300 rounded"></div> No Schedule</div>
+              <div className="ml-auto font-bold uppercase flex gap-3">
+                <span>S1/S2/S3 = Shift 1/2/3</span>
+                <span className="text-gray-400">|</span>
+                <span>Qty = Volume (m3)</span>
+              </div>
             </div>
           </div>
         )}

@@ -346,18 +346,42 @@ export default function FormDemand() {
         <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
           <div className="flex items-end gap-3 mb-2 pb-4 border-b border-gray-100">
             <div className={`h-10 w-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>{i + 1}</div>
+
+            {/* Item Code */}
             <div className="flex-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Item Code</label>
               <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50 font-bold" value={item.itemCode || ""} readOnly />
             </div>
-            <div className="flex-[2]">
+
+            {/* Deskripsi */}
+            <div className="flex-[1.5]">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Deskripsi</label>
               <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50" value={item.description || ""} readOnly />
             </div>
+
+            {/* INPUT QUANTITY (Volume/m3) */}
+            <div className="w-24">
+              <label className="text-[10px] font-bold text-gray-500 uppercase">Qty (m3)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="h-10 w-full border border-gray-200 px-2 rounded text-sm text-center bg-gray-50"
+                value={item.qty || ""}
+                onChange={(e) => updateItem(i, "qty", e.target.value)}
+              />
+            </div>
+
+            {/* INPUT TOTAL PCS (Untuk Plotting) */}
             <div className="w-24">
               <label className="text-[10px] font-bold text-blue-600 uppercase">Total Pcs</label>
-              <input type="number" className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold" value={item.pcs || ""} onChange={(e) => updateItem(i, "pcs", e.target.value)} />
+              <input
+                type="number"
+                className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold"
+                value={item.pcs || ""}
+                onChange={(e) => updateItem(i, "pcs", e.target.value)}
+              />
             </div>
+
             <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="h-10 px-3 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase">Hapus</button>
           </div>
 

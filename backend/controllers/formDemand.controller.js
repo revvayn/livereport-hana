@@ -17,7 +17,7 @@ exports.getDemandFromSalesOrder = async (req, res) => {
                 so.delivery_date 
              FROM sales_orders so
              LEFT JOIN customers c ON so.customer_id = c.id
-             WHERE so.id = $1`, 
+             WHERE so.id = $1`,
             [id]
         );
 
@@ -53,6 +53,7 @@ exports.getDemandFromSalesOrder = async (req, res) => {
  * 2. SAVE DEMAND
  * Menyimpan data demand dan item (termasuk description & uom) ke database
  */
+// Di controllers/formDemand.controller.js
 exports.saveDemand = async (req, res) => {
     const { header, items } = req.body;
     const client = await pool.connect();
@@ -68,19 +69,20 @@ exports.saveDemand = async (req, res) => {
 
         const demandId = demandRes.rows[0].id;
 
-        // Tambahkan total_pcs dalam proses INSERT
+        // Di controllers/formDemand.controller.js
         for (const item of items) {
             await client.query(
-                `INSERT INTO demand_items (demand_id, item_id, item_code, description, uom, total_qty, total_pcs, production_schedule) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                `INSERT INTO demand_items (
+            demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
                 [
                     demandId,
                     item.itemId,
                     item.itemCode,
                     item.description,
                     item.uom,
-                    item.qty,
-                    item.pcs, // Tambahkan ini
+                    parseFloat(item.qty) || 0, // Pastikan jadi Float/Decimal
+                    parseFloat(item.pcs) || 0, // Pastikan jadi Float/Decimal
                     JSON.stringify(item.calendar)
                 ]
             );
@@ -90,7 +92,7 @@ exports.saveDemand = async (req, res) => {
         res.json({ message: "Demand saved successfully", demandId });
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("SAVE DEMAND ERROR:", err);
+        console.error("SAVE ERROR:", err.message);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
@@ -131,8 +133,9 @@ exports.getAllDemands = async (req, res) => {
 exports.getDemandItems = async (req, res) => {
     const { id } = req.params;
     try {
+        // Mengambil semua kolom termasuk 'pcs'
         const result = await pool.query(
-            "SELECT * FROM demand_items WHERE demand_id = $1 ORDER BY id ASC",
+            "SELECT id, item_code, description, uom, total_qty, pcs, production_schedule FROM demand_items WHERE demand_id = $1 ORDER BY id ASC",
             [id]
         );
         res.json(result.rows);
@@ -189,8 +192,8 @@ exports.exportToExcel = async (req, res) => {
         const headerRowIndex = 8;
 
         // 3. Double Header Logic
-        const firstHeader = ["Item Code", "Description", "UoM", "Total Qty"];
-        const secondHeader = ["", "", "", ""];
+        const firstHeader = ["Item Code", "Description", "UoM", "Qty (m3)", "Pcs"]; // Header diubah
+        const secondHeader = ["", "", "", "", ""];
 
         // Cek sumber kalender (dari frontend 'calendar' atau DB 'production_schedule')
         const refCalendar = items[0].calendar ||
@@ -240,7 +243,8 @@ exports.exportToExcel = async (req, res) => {
                 item.itemCode || item.item_code,
                 item.description,
                 item.uom,
-                Number(item.qty || item.total_qty)
+                Number(item.qty || item.total_qty || 0),
+                Number(item.pcs || 0) // Menggunakan nilai pcs
             ];
 
             cal.forEach(day => {
