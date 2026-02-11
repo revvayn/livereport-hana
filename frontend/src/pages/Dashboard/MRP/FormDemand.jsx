@@ -12,20 +12,30 @@ const addDays = (date, d) => {
   return n;
 };
 
+const isSameDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  return date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate();
+};
+
 const formatDate = (d) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
 const toInputDate = (dateStr) => {
   if (!dateStr) return "";
-  return new Date(dateStr).toISOString().split("T")[0];
+  const d = new Date(dateStr);
+  return d.toISOString().split("T")[0];
 };
 
 const buildCalendar = (startDate, days = 14) => {
   return Array.from({ length: days }, (_, i) => ({
     date: addDays(startDate, i),
     shifts: {
-      shift1: { active: false, qty: 50 },
-      shift2: { active: false, qty: 50 },
-      shift3: { active: false, qty: 50 },
+      shift1: { active: false, qty: 0 }, // Default qty 0 agar bersih
+      shift2: { active: false, qty: 0 },
+      shift3: { active: false, qty: 0 },
     },
   }));
 };
@@ -36,49 +46,70 @@ const createItem = (start) => ({
   description: "",
   uom: "",
   qty: "",
+  pcs: "",
   calendarStart: start,
   calendar: buildCalendar(start),
 });
 
-/* ================= LOGIC: GLOBAL BACKWARD PLOTTING ================= */
+const getTotalPlottedQty = (calendar) => {
+  let total = 0;
+  calendar.forEach((day) => {
+    Object.values(day.shifts).forEach((shift) => {
+      if (shift.active) {
+        total += Number(shift.qty) || 0;
+      }
+    });
+  });
+  return total;
+};
+
+/* ================= LOGIC: CUMULATIVE BACKWARD PLOTTING ================= */
 const autoPlotGlobalBackward = (items, deliveryDate) => {
   if (!deliveryDate || items.length === 0) return items;
 
-  const delivery = new Date(deliveryDate);
+  const delivery = new Date(deliveryDate + "T00:00:00");
   const startDate = addDays(delivery, -13);
-  const h1DateStr = addDays(delivery, -1).toDateString();
 
-  const cleanedItems = items.map((it) => ({
+  // Inisialisasi kalender kosong untuk semua item
+  let updatedItems = items.map((it) => ({
     ...it,
     calendarStart: startDate,
     calendar: buildCalendar(startDate, 14),
   }));
 
-  const taskQueue = [];
-  cleanedItems.forEach((it, idx) => {
-    const shiftsNeeded = Math.ceil((Number(it.qty) || 0) / 50);
-    for (let n = 0; n < shiftsNeeded; n++) {
-      taskQueue.push({ itemIdx: idx });
+  // Tracker untuk posisi plotting terakhir (Mulai dari H-1, Shift 3)
+  let currentDayIdx = 12;
+  let currentShift = 3;
+
+  updatedItems.forEach((item) => {
+    let targetPcs = Number(item.pcs) || 0;
+    if (targetPcs <= 0) return;
+
+    let currentPlotted = 0;
+
+    // Lanjutkan plotting dari posisi tracker terakhir
+    while (currentPlotted < targetPcs && currentDayIdx >= 0) {
+      const sKey = `shift${currentShift}`;
+      const remaining = targetPcs - currentPlotted;
+      const amountToPlot = remaining < 50 ? remaining : 50;
+
+      item.calendar[currentDayIdx].shifts[sKey].active = true;
+      item.calendar[currentDayIdx].shifts[sKey].qty = amountToPlot;
+      currentPlotted += amountToPlot;
+
+      // Geser tracker mundur
+      currentShift--;
+      if (currentShift < 1) {
+        currentShift = 3;
+        currentDayIdx--;
+      }
     }
   });
 
-  const h1Index = cleanedItems[0].calendar.findIndex(d => d.date.toDateString() === h1DateStr);
-
-  if (h1Index !== -1) {
-    let qIdx = 0;
-    for (let d = h1Index; d >= 0; d--) {
-      for (const s of ["shift3", "shift2", "shift1"]) {
-        if (qIdx >= taskQueue.length) break;
-        const task = taskQueue[qIdx];
-        cleanedItems[task.itemIdx].calendar[d].shifts[s].active = true;
-        qIdx++;
-      }
-      if (qIdx >= taskQueue.length) break;
-    }
-  }
-  return cleanedItems;
+  return updatedItems;
 };
 
+/* ================= COMPONENT ================= */
 export default function FormDemand() {
   const [salesOrders, setSalesOrders] = useState([]);
   const [selectedSO, setSelectedSO] = useState("");
@@ -102,45 +133,83 @@ export default function FormDemand() {
 
     try {
       setLoading(true);
-      const res = await api.get(`/demand/from-so/${soId}`);
-      const h = res.data.header;
-      const dDate = toInputDate(h.deliveryDate);
+      const res = await api.get(`/demand/sales-orders/${soId}`);
+      const { header: resHeader, items: rawItems } = res.data;
 
-      setHeader({
-        soNo: h.soNo || "",
-        soDate: toInputDate(h.soDate),
-        customer: h.customer || "",
-        deliveryDate: dDate,
+      const newHeader = {
+        soNo: resHeader.so_number || "",
+        soDate: toInputDate(resHeader.so_date),
+        customer: resHeader.customer_name || "",
+        deliveryDate: toInputDate(resHeader.delivery_date),
         productionDate: "",
-      });
+      };
+      setHeader(newHeader);
 
-      const initialItems = res.data.items.map(it => ({
+      const initialItems = (rawItems || []).map(it => ({
         ...createItem(new Date()),
-        itemId: it.itemId,
-        itemCode: it.itemCode,
+        itemId: it.item_id,
+        itemCode: it.item_code,
         description: it.description,
-        uom: it.uom || 'PCS', // Perbaikan: menggunakan 'it' bukan 'item'
-        qty: it.qty,
+        uom: it.uom || 'PCS',
+        qty: Number(it.quantity || 0),
+        pcs: Number(it.pcs || 0),
       }));
 
-      setItems(autoPlotGlobalBackward(initialItems, dDate));
+      if (newHeader.deliveryDate && initialItems.length > 0) {
+        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate));
+      } else {
+        setItems(initialItems);
+      }
     } catch (error) {
-      console.error(error);
-      Swal.fire("Error", "Gagal load data detail SO", "error");
+      Swal.fire("Error", "Gagal memuat detail Sales Order", "error");
     } finally {
       setLoading(false);
     }
   };
 
+  const updateItem = (idx, field, value) => {
+    setItems(prev => {
+      const newList = [...prev];
+      newList[idx] = { ...newList[idx], [field]: value };
+      if (field === "pcs") {
+        return autoPlotGlobalBackward(newList, header.deliveryDate);
+      }
+      return newList;
+    });
+  };
+
   const updateHeader = (k, v) => {
     setHeader(prev => {
-      const next = { ...prev, [k]: v };
+      const nextHeader = { ...prev, [k]: v };
       if (k === "deliveryDate") {
         setItems(oldItems => autoPlotGlobalBackward(oldItems, v));
       }
-      return next;
+      return nextHeader;
     });
   };
+
+  /* ================= VALIDATION HELPER ================= */
+  const validateQtyLimit = (item, currentShiftValue, newValue) => {
+    const targetPcs = Number(item.pcs) || 0;
+    const currentTotalPlotted = getTotalPlottedQty(item.calendar);
+
+    // Hitung berapa total jika nilai shift ini diupdate
+    const newTotal = currentTotalPlotted - Number(currentShiftValue || 0) + Number(newValue);
+
+    if (newTotal > targetPcs) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Melebihi Kapasitas',
+        text: `Total plotting (${newTotal} Pcs) tidak boleh melebihi Total Pcs (${targetPcs} Pcs).`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return false;
+    }
+    return true;
+  };
+
+  /* ================= UPDATED FUNCTIONS INSIDE COMPONENT ================= */
 
   const toggleShift = useCallback((itemIdx, dayIdx, shift, mode) => {
     setItems(prev => {
@@ -148,27 +217,28 @@ export default function FormDemand() {
       const item = newList[itemIdx];
       const targetDay = { ...item.calendar[dayIdx] };
       const currentActive = targetDay.shifts[shift].active;
-
-      // Tentukan status aktif baru
       const nextActive = mode === "on" ? true : mode === "off" ? false : !currentActive;
 
-      // Jika mau mengaktifkan, cek dulu apakah total sudah terpenuhi
       if (nextActive && !currentActive) {
         const currentTotal = getTotalPlottedQty(item.calendar);
-        if (currentTotal >= Number(item.qty)) {
-          // Jika sudah penuh, jangan aktifkan atau set qty ke 0
-          targetDay.shifts[shift] = { ...targetDay.shifts[shift], active: true, qty: 0 };
-        } else {
-          // Jika masih ada sisa, isi dengan default 50 atau sisa qty
-          const remaining = Number(item.qty) - currentTotal;
-          targetDay.shifts[shift] = {
-            ...targetDay.shifts[shift],
-            active: true,
-            qty: remaining < 50 ? remaining : 50
-          };
+        const targetPcs = Number(item.pcs) || 0;
+        const remaining = targetPcs - currentTotal;
+
+        if (remaining <= 0) {
+          // Alert jika mencoba mengaktifkan shift tapi sisa pcs sudah 0
+          Swal.fire({ icon: 'info', title: 'Plotting Selesai', text: 'Semua PCS sudah teralokasi.', timer: 1500, showConfirmButton: false });
+          return prev;
         }
+
+        targetDay.shifts[shift] = {
+          ...targetDay.shifts[shift],
+          active: true,
+          qty: remaining < 50 ? remaining : 50
+        };
       } else {
         targetDay.shifts[shift].active = nextActive;
+        // Jika di-off-kan, qty jadi 0
+        if (!nextActive) targetDay.shifts[shift].qty = 0;
       }
 
       newList[itemIdx].calendar[dayIdx] = targetDay;
@@ -176,17 +246,35 @@ export default function FormDemand() {
     });
   }, []);
 
-  const handleExportExcel = async () => {
-    if (items.length === 0 || !header.soNo) {
-      return Swal.fire("Peringatan", "Pilih SO dan pastikan item tersedia", "warning");
-    }
+  const updateShiftQty = (itemIdx, dayIdx, shift, value) => {
+    const valNum = Number(value) || 0;
 
+    setItems(prev => {
+      const newList = [...prev];
+      const item = newList[itemIdx];
+      const currentVal = item.calendar[dayIdx].shifts[shift].qty;
+
+      // Jalankan validasi
+      if (!validateQtyLimit(item, currentVal, valNum)) {
+        return prev; // Jika gagal, jangan update state
+      }
+
+      const targetDay = { ...item.calendar[dayIdx] };
+      targetDay.shifts[shift] = {
+        ...targetDay.shifts[shift],
+        qty: valNum,
+        active: valNum > 0
+      };
+      newList[itemIdx].calendar[dayIdx] = targetDay;
+      return newList;
+    });
+  };
+
+  const handleExportExcel = async () => {
+    if (items.length === 0 || !header.soNo) return Swal.fire("Peringatan", "Data tidak lengkap", "warning");
     try {
       setLoading(true);
-      const response = await api.post("/demand/export-excel", { header, items }, {
-        responseType: 'blob',
-      });
-
+      const response = await api.post("/demand/export-excel", { header, items }, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -202,106 +290,53 @@ export default function FormDemand() {
   };
 
   const handleSubmit = async () => {
-    if (!header.soNo) return Swal.fire("Peringatan", "Pilih Sales Order terlebih dahulu", "warning");
-    if (!header.deliveryDate) return Swal.fire("Peringatan", "Isi Tanggal Kirim (Delivery)", "warning");
-    if (!header.productionDate) return Swal.fire("Peringatan", "Isi Tanggal Produksi sebelum menyimpan", "warning");
-    if (items.length === 0) return Swal.fire("Peringatan", "Minimal harus ada 1 item", "warning");
-
+    if (!header.soNo || !header.deliveryDate || !header.productionDate) {
+      return Swal.fire("Peringatan", "Lengkapi semua tanggal!", "warning");
+    }
     try {
       setLoading(true);
-      const response = await api.post("/demand", { header, items });
-
-      if (response.status === 201 || response.status === 200) {
-        Swal.fire({
-          title: "Berhasil!",
-          text: "Data Perencanaan Produksi (Demand) telah tersimpan.",
-          icon: "success",
-          confirmButtonColor: "#3085d6"
-        });
-      }
+      await api.post("/demand", { header, items });
+      Swal.fire("Berhasil!", "Data tersimpan.", "success");
     } catch (error) {
-      const errorMsg = error.response?.data?.error || error.message;
-      Swal.fire("Error", "Gagal simpan ke database: " + errorMsg, "error");
+      Swal.fire("Error", "Gagal simpan data", "error");
     } finally {
       setLoading(false);
     }
   };
-  const updateItem = (idx, field, value) => {
-    setItems(prev => {
-      const newList = [...prev];
-      newList[idx] = { ...newList[idx], [field]: value };
-      return newList;
-    });
-  };
-  const getTotalPlottedQty = (calendar) => {
-    let total = 0;
-    calendar.forEach((day) => {
-      Object.values(day.shifts).forEach((shift) => {
-        if (shift.active) {
-          total += Number(shift.qty) || 0;
-        }
-      });
-    });
-    return total;
-  };
+
   return (
     <div className="p-6 bg-white rounded-lg border border-gray-300 w-full" onMouseUp={() => setDrag(null)}>
       <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
-        Demand Planner – Backward Planning
+        Demand Planner – Cumulative Backward
       </h1>
 
       {/* Select SO */}
       <div className="mb-6">
         <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">Pilih Sales Order</label>
-        <select
-          value={selectedSO}
-          onChange={handleSelectSO}
-          className="border border-gray-300 p-2 rounded text-sm w-full bg-white focus:outline-none focus:border-blue-500 shadow-sm"
-        >
+        <select value={selectedSO} onChange={handleSelectSO} className="border border-gray-300 p-2 rounded text-sm w-full bg-white shadow-sm">
           <option value="">-- Pilih Sales Order --</option>
-          {salesOrders.map((so) => (
-            <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>
-          ))}
+          {salesOrders.map((so) => <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>)}
         </select>
       </div>
 
       {/* Header Info */}
       <div className="space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4">
-          {[
-            { key: "soNo", label: "SO Number", type: "text" },
-            { key: "soDate", label: "Tanggal SO", type: "date" },
-            { key: "customer", label: "Customer", type: "text" }
-          ].map((field) => (
-            <div key={field.key} className="flex flex-col">
-              <label className="text-xs font-bold text-gray-500 mb-1 uppercase">{field.label}</label>
-              <input
-                type={field.type}
-                className="border border-gray-200 p-2 rounded text-sm bg-gray-50 text-gray-600 outline-none"
-                value={header[field.key]}
-                readOnly
-              />
+          {[{ k: "soNo", l: "SO Number" }, { k: "soDate", l: "Tanggal SO" }, { k: "customer", l: "Customer" }].map((f) => (
+            <div key={f.k} className="flex flex-col">
+              <label className="text-xs font-bold text-gray-500 mb-1 uppercase">{f.l}</label>
+              <input type="text" className="border border-gray-200 p-2 rounded text-sm bg-gray-50 text-gray-600" value={header[f.k]} readOnly />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
             <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Tanggal Kirim (Delivery)</label>
-            <input
-              type="date"
-              className="border border-blue-200 p-2 rounded text-sm bg-white focus:ring-1 focus:ring-blue-400 outline-none"
-              value={header.deliveryDate}
-              onChange={(e) => updateHeader("deliveryDate", e.target.value)}
-            />
+            <input type="date" className="border border-blue-200 p-2 rounded text-sm" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
           </div>
           <div className="flex flex-col">
             <label className="text-xs font-bold text-orange-600 mb-1 uppercase">Tanggal Produksi</label>
-            <input
-              type="date"
-              className="border border-orange-200 p-2 rounded text-sm bg-white focus:ring-1 focus:ring-orange-400 outline-none"
-              value={header.productionDate}
-              onChange={(e) => updateHeader("productionDate", e.target.value)}
-            />
+            <input type="date" className="border border-orange-200 p-2 rounded text-sm" value={header.productionDate} onChange={(e) => updateHeader("productionDate", e.target.value)} />
           </div>
         </div>
       </div>
@@ -309,154 +344,57 @@ export default function FormDemand() {
       {/* Items Calendar */}
       {items.map((item, i) => (
         <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
-
-          {/* Item Info Inputs (Symmetrical Header Style) */}
-          <div className="flex items-end gap-3 mb-4 pb-4 border-b border-gray-100">
-
-            {/* Indikator Nomor/Warna - Fixed Width agar tidak goyang */}
-            <div className="flex-none w-12">
-              <div className={`h-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
-                {i + 1}
-              </div>
+          <div className="flex items-end gap-3 mb-2 pb-4 border-b border-gray-100">
+            <div className={`h-10 w-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>{i + 1}</div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Item Code</label>
+              <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50 font-bold" value={item.itemCode || ""} readOnly />
             </div>
-
-            {/* Item Code - Flex 1 */}
-            <div className="flex-1 min-w-[120px] flex flex-col">
-              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Item Code</label>
-              <input
-                type="text"
-                className="h-10 border border-gray-200 px-3 rounded text-sm bg-gray-50 text-gray-700 font-bold focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
-                value={item.itemCode || ""}
-                placeholder="Kode..."
-                onChange={(e) => updateItem(i, "itemCode", e.target.value)}
-              />
+            <div className="flex-[2]">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Deskripsi</label>
+              <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50" value={item.description || ""} readOnly />
             </div>
-
-            {/* Deskripsi Barang - Flex 3 agar lebih lebar dari yang lain */}
-            <div className="flex-[3] min-w-[200px] flex flex-col">
-              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Deskripsi Barang</label>
-              <input
-                type="text"
-                className="h-10 border border-gray-200 px-3 rounded text-sm bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
-                value={item.description || ""}
-                placeholder="Nama barang..."
-                onChange={(e) => updateItem(i, "description", e.target.value)}
-              />
+            <div className="w-24">
+              <label className="text-[10px] font-bold text-blue-600 uppercase">Total Pcs</label>
+              <input type="number" className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold" value={item.pcs || ""} onChange={(e) => updateItem(i, "pcs", e.target.value)} />
             </div>
-
-            {/* UoM - Fixed Width */}
-            <div className="w-20 flex flex-col">
-              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">UoM</label>
-              <input
-                type="text"
-                className="h-10 border border-gray-200 rounded text-sm bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 text-center uppercase"
-                value={item.uom || ""}
-                placeholder="Unit"
-                onChange={(e) => updateItem(i, "uom", e.target.value)}
-              />
-            </div>
-
-            {/* Total Qty - Flex 1 */}
-            <div className="flex-1 min-w-[100px] flex flex-col">
-              <label className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">Total Qty SO</label>
-              <input
-                type="number"
-                className="h-10 border border-gray-200 px-3 rounded text-sm bg-white text-blue-700 font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
-                value={item.qty || ""}
-                placeholder="0"
-                onChange={(e) => updateItem(i, "qty", e.target.value)}
-              />
-            </div>
-
-            {/* Tombol Hapus - Fixed Width */}
-            <div className="flex-none">
-              <button
-                onClick={() => setItems(items.filter((_, idx) => idx !== i))}
-                className="h-10 px-4 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase flex items-center justify-center"
-              >
-                Hapus Item
-              </button>
-            </div>
+            <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="h-10 px-3 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase">Hapus</button>
           </div>
-          <div className="text-[10px] mt-1 font-bold">
-            Sisa: <span className={Number(item.qty) - getTotalPlottedQty(item.calendar) < 0 ? "text-red-500" : "text-green-600"}>
-              {Number(item.qty) - getTotalPlottedQty(item.calendar)}
-            </span>
+
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-[11px] font-bold uppercase">
+              Sisa Plotting: <span className={`px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
+              </span>
+            </div>
+            <div className="text-[9px] text-gray-400 italic">*Plotting berkelanjutan dari item sebelumnya</div>
           </div>
-          {/* Scrollable Calendar Area (Tetap Sama) */}
+
           <div className="overflow-x-auto">
-            <div className="flex gap-2 pb-4">
+            <div className="flex gap-2 pb-2">
               {item.calendar.map((d, idx) => {
-                const isShip = header.deliveryDate && d.date.toDateString() === new Date(header.deliveryDate).toDateString();
+                const isShip = header.deliveryDate && isSameDay(d.date, new Date(header.deliveryDate + "T00:00:00"));
                 return (
-                  <div
-                    key={idx}
-                    className={`min-w-[130px] border rounded p-2 text-[11px] transition-all ${isShip
-                      ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600 ring-inset'
-                      : 'border-gray-200 bg-white shadow-sm'
-                      }`}
-                  >
-                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'border-blue-300 text-blue-800' : 'border-gray-100 text-gray-400'}`}>
+                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] transition-all ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white shadow-sm'}`}>
+                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
-                      {isShip && <span className="block text-[9px] uppercase tracking-tighter">[ Delivery ]</span>}
+                      {isShip && <span className="block text-[9px] font-black uppercase">📦 Delivery</span>}
                     </div>
-
                     <div className="grid grid-cols-3 gap-1 pt-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
-                        <div
-                          key={s}
-                          className={`relative h-7 border rounded flex items-center justify-center transition-colors ${d.shifts[s].active
-                            ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner`
-                            : "bg-gray-50 text-gray-300 border-gray-100"
-                            }`}
+                        <div key={s}
+                          className={`relative h-7 border rounded flex items-center justify-center transition-all ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner` : "bg-gray-50 text-gray-300 border-gray-100"} ${isShip ? "opacity-20 cursor-not-allowed" : ""}`}
                         >
-                          <div
-                            className="absolute inset-0 cursor-pointer z-0"
-                            onMouseDown={(e) => {
-                              const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
-                              setDrag({ i, s, mode });
-                              toggleShift(i, idx, s, mode);
-                            }}
-                            onMouseEnter={() => {
-                              if (drag && drag.i === i && drag.s === s) {
-                                toggleShift(i, idx, drag.s, drag.mode);
-                              }
-                            }}
-                          />
-                          {d.shifts[s].active && (
-                            <input
-                              type="number"
-                              value={d.shifts[s].qty || ""}
-                              onChange={(e) => {
-                                const newQtyValue = Number(e.target.value);
-                                const totalSoQty = Number(item.qty) || 0;
-
-                                // Salin items untuk simulasi perhitungan
-                                const newItems = [...items];
-                                const oldQty = Number(newItems[i].calendar[idx].shifts[s].qty) || 0;
-
-                                // Hitung total saat ini (tanpa qty shift ini yang lama) + qty baru
-                                const currentTotal = getTotalPlottedQty(newItems[i].calendar) - oldQty + newQtyValue;
-
-                                if (currentTotal > totalSoQty) {
-                                  Swal.fire({
-                                    title: "Qty Melebihi Batas",
-                                    text: `Total qty yang diplot (${currentTotal}) tidak boleh melebihi Qty SO (${totalSoQty})`,
-                                    icon: "warning",
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                  });
-                                  // Jika melebihi, kita set ke maksimal sisa yang dibolehkan
-                                  const maxAllowed = totalSoQty - (getTotalPlottedQty(newItems[i].calendar) - oldQty);
-                                  newItems[i].calendar[idx].shifts[s].qty = maxAllowed > 0 ? maxAllowed : 0;
-                                } else {
-                                  newItems[i].calendar[idx].shifts[s].qty = e.target.value;
-                                }
-
-                                setItems(newItems);
-                              }}
-                              className="relative z-10 w-full bg-transparent text-center font-bold focus:outline-none"
-                            />
+                          {!isShip && (
+                            <>
+                              <div className="absolute inset-0 z-0 cursor-pointer"
+                                onMouseDown={(e) => { if (e.target === e.currentTarget) { const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle"; setDrag({ i, s, mode }); toggleShift(i, idx, s, mode); } }}
+                                onMouseEnter={() => { if (drag && drag.i === i) toggleShift(i, idx, s, drag.mode); }}
+                              />
+                              <input type="number" value={d.shifts[s].qty || ""} onChange={(e) => updateShiftQty(i, idx, s, e.target.value)}
+                                className={`relative z-10 w-full bg-transparent text-center font-bold text-[10px] focus:outline-none ${d.shifts[s].active ? "text-white" : "text-gray-400 opacity-0 hover:opacity-100"}`}
+                              />
+                            </>
                           )}
                         </div>
                       ))}
@@ -469,51 +407,11 @@ export default function FormDemand() {
         </div>
       ))}
 
-      {/* Legend & Actions */}
-      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Keterangan:</h3>
-        <div className="flex flex-wrap gap-6 items-center">
-          <div className="flex flex-wrap gap-2">
-            {items.map((item, i) => (
-              item.itemCode && (
-                <div key={i} className="flex items-center gap-2 bg-white border border-gray-200 px-2 py-1 rounded">
-                  <div className={`w-2.5 h-2.5 rounded-full ${ITEM_COLORS[i % ITEM_COLORS.length]}`}></div>
-                  <span className="text-[10px] font-bold text-gray-600 uppercase">
-                    {item.itemCode} <span className="text-gray-400 font-normal italic">({item.uom})</span>
-                  </span>
-                </div>
-              )
-            ))}
-          </div>
-          <div className="flex items-center gap-2 border-l pl-6 border-gray-200">
-            <div className="w-4 h-4 border-2 border-blue-600 bg-blue-100 rounded"></div>
-            <span className="text-[11px] font-bold text-blue-700 uppercase">Target Delivery</span>
-          </div>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-3 mt-6">
-        <button
-          onClick={() => setItems([...items, createItem(new Date())])}
-          className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
-        >
-          + TAMBAH ITEM MANUAL
-        </button>
-
+        <button onClick={() => setItems([...items, createItem(new Date())])} className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-100 uppercase">+ TAMBAH ITEM MANUAL</button>
         <div className="flex gap-2">
-          <button
-            onClick={handleExportExcel}
-            disabled={loading}
-            className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm hover:bg-green-50 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "..." : "EXPORT EXCEL"}
-          </button>
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 transition-colors shadow-md"
-          >
+          <button onClick={handleExportExcel} disabled={loading} className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm hover:bg-green-50">EXPORT EXCEL</button>
+          <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 shadow-md">
             {loading ? "MENYIMPAN..." : "SIMPAN PRODUCTION DEMAND"}
           </button>
         </div>

@@ -4,14 +4,14 @@ const pool = require("../db");
 
 exports.getMasterItemsWithRatio = async (req, res) => {
     try {
-        // Menggunakan GROUP BY agar item_code unik 
-        // dan mengambil MAX quantity sebagai ratio standar
         const result = await pool.query(`
             SELECT 
                 i.id, 
                 i.item_code, 
                 i.description, 
-                MAX(COALESCE(b.quantity, 0)) as ratio_bom
+                -- Ratio: volume dibagi jumlah pcs dari tabel BOM
+                -- NULLIF digunakan untuk menghindari error 'division by zero'
+                MAX(COALESCE(b.quantity, 0) / NULLIF(COALESCE(b.qtypcs_item, 0), 0)) as ratio_bom
             FROM items i
             LEFT JOIN bill_of_materials b ON i.item_code = b.product_item
             GROUP BY i.id, i.item_code, i.description
@@ -19,6 +19,7 @@ exports.getMasterItemsWithRatio = async (req, res) => {
         `);
         res.json(result.rows);
     } catch (err) {
+        console.error("SQL Error:", err);
         res.status(500).json({ error: "Gagal mengambil master item" });
     }
 };

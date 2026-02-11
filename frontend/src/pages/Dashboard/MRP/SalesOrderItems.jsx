@@ -53,6 +53,7 @@ export default function SalesOrderItems() {
 
     if (name === "item_id") {
       const master = allItems.find(i => Number(i.id) === Number(value));
+      // ratio_bom di sini sudah hasil (qty / pcs) dari SQL
       nextForm.ratio = master ? parseFloat(master.ratio_bom) : 0;
     }
 
@@ -60,12 +61,8 @@ export default function SalesOrderItems() {
     const r = nextForm.ratio;
 
     if (p && r) {
-      // Biarkan kalkulasi murni, jangan gunakan toFixed di sini 
-      // agar tidak memaksa jumlah nol di belakang.
-      const rawQty = parseFloat(p) * parseFloat(r);
-
-      // Gunakan Math.round atau presisi tinggi jika perlu (misal 6 desimal)
-      // agar data yang dikirim ke database tetap akurat.
+      // Hasil Qty SO = Pcs Input * Ratio BOM
+      const rawQty = parseFloat(p) * r;
       nextForm.quantity = parseFloat(rawQty.toFixed(6));
     } else {
       nextForm.quantity = "";
@@ -163,8 +160,8 @@ export default function SalesOrderItems() {
               <td className="border p-2 text-center">{i.pcs}</td>
               <td className="border p-2 text-center font-bold">
                 {new Intl.NumberFormat('id-ID', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 4 // Sesuaikan jika butuh lebih banyak desimal
+                  minimumFractionDigits: 4,
+                  maximumFractionDigits: 4
                 }).format(i.quantity)}
               </td>
               <td className="border p-2 text-center">

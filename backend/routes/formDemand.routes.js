@@ -10,5 +10,7 @@ router.post("/mrp/run", controller.runMRP);
 router.post("/", controller.saveDemand);
 router.post("/export-excel", controller.exportToExcel);
 router.get("/from-so/:id", controller.getDemandFromSalesOrder);
+// Di file routes Anda
+router.get("/sales-orders/:id", controller.getDemandFromSalesOrder);
 
 module.exports = router;
