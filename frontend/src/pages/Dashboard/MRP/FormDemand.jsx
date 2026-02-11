@@ -345,18 +345,31 @@ export default function FormDemand() {
       {items.map((item, i) => (
         <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
           <div className="flex items-end gap-3 mb-2 pb-4 border-b border-gray-100">
-            <div className={`h-10 w-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>{i + 1}</div>
-
-            {/* Item Code */}
-            <div className="flex-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Item Code</label>
-              <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50 font-bold" value={item.itemCode || ""} readOnly />
+            {/* Label Nomor Item */}
+            <div className={`h-10 w-10 rounded ${ITEM_COLORS[i % ITEM_COLORS.length]} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
+              {i + 1}
             </div>
 
-            {/* Deskripsi */}
+            {/* Item Code - Perbaikan: Ditambahkan onChange */}
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Item Code</label>
+              <input
+                type="text"
+                className="h-10 w-full border border-gray-200 px-3 rounded text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                value={item.itemCode || ""}
+                onChange={(e) => updateItem(i, "itemCode", e.target.value)}
+              />
+            </div>
+
+            {/* Deskripsi - Perbaikan: Ditambahkan onChange */}
             <div className="flex-[1.5]">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Deskripsi</label>
-              <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm bg-gray-50" value={item.description || ""} readOnly />
+              <input
+                type="text"
+                className="h-10 w-full border border-gray-200 px-3 rounded text-sm focus:border-blue-500 outline-none transition-all"
+                value={item.description || ""}
+                onChange={(e) => updateItem(i, "description", e.target.value)}
+              />
             </div>
 
             {/* INPUT QUANTITY (Volume/m3) */}
@@ -365,7 +378,7 @@ export default function FormDemand() {
               <input
                 type="number"
                 step="0.01"
-                className="h-10 w-full border border-gray-200 px-2 rounded text-sm text-center bg-gray-50"
+                className="h-10 w-full border border-gray-200 px-2 rounded text-sm text-center focus:border-blue-500 outline-none"
                 value={item.qty || ""}
                 onChange={(e) => updateItem(i, "qty", e.target.value)}
               />
@@ -376,47 +389,76 @@ export default function FormDemand() {
               <label className="text-[10px] font-bold text-blue-600 uppercase">Total Pcs</label>
               <input
                 type="number"
-                className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold"
+                className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold focus:border-blue-500 outline-none"
                 value={item.pcs || ""}
                 onChange={(e) => updateItem(i, "pcs", e.target.value)}
               />
             </div>
 
-            <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="h-10 px-3 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase">Hapus</button>
+            {/* Tombol Hapus */}
+            <button
+              onClick={() => setItems(items.filter((_, idx) => idx !== i))}
+              className="h-10 px-3 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold hover:bg-red-500 hover:text-white transition-all uppercase"
+            >
+              Hapus
+            </button>
           </div>
 
+          {/* Info Sisa Plotting */}
           <div className="flex justify-between items-center mb-4">
             <div className="text-[11px] font-bold uppercase">
-              Sisa Plotting: <span className={`px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+              Sisa Plotting:
+              <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
                 {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
               </span>
             </div>
-            <div className="text-[9px] text-gray-400 italic">*Plotting berkelanjutan dari item sebelumnya</div>
+            <div className="text-[9px] text-gray-400 italic">*Plotting berkelanjutan dari posisi shift terakhir</div>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="flex gap-2 pb-2">
+          {/* Baris Kalender/Shift */}
+          <div className="overflow-x-auto pb-2">
+            <div className="flex gap-2">
               {item.calendar.map((d, idx) => {
                 const isShip = header.deliveryDate && isSameDay(d.date, new Date(header.deliveryDate + "T00:00:00"));
                 return (
-                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] transition-all ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div
+                    key={idx}
+                    className={`min-w-[130px] border rounded-lg p-2 text-[11px] transition-all ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white shadow-sm'}`}
+                  >
                     <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
                       {isShip && <span className="block text-[9px] font-black uppercase">📦 Delivery</span>}
                     </div>
                     <div className="grid grid-cols-3 gap-1 pt-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
-                        <div key={s}
-                          className={`relative h-7 border rounded flex items-center justify-center transition-all ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner` : "bg-gray-50 text-gray-300 border-gray-100"} ${isShip ? "opacity-20 cursor-not-allowed" : ""}`}
+                        <div
+                          key={s}
+                          className={`relative h-7 border rounded flex items-center justify-center transition-all 
+                      ${d.shifts[s].active
+                              ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner`
+                              : "bg-gray-50 text-gray-300 border-gray-100"
+                            } ${isShip ? "opacity-20 cursor-not-allowed" : ""}`}
                         >
                           {!isShip && (
                             <>
+                              {/* Area Klik/Drag Toggle */}
                               <div className="absolute inset-0 z-0 cursor-pointer"
-                                onMouseDown={(e) => { if (e.target === e.currentTarget) { const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle"; setDrag({ i, s, mode }); toggleShift(i, idx, s, mode); } }}
+                                onMouseDown={(e) => {
+                                  if (e.target === e.currentTarget) {
+                                    const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
+                                    setDrag({ i, s, mode });
+                                    toggleShift(i, idx, s, mode);
+                                  }
+                                }}
                                 onMouseEnter={() => { if (drag && drag.i === i) toggleShift(i, idx, s, drag.mode); }}
                               />
-                              <input type="number" value={d.shifts[s].qty || ""} onChange={(e) => updateShiftQty(i, idx, s, e.target.value)}
-                                className={`relative z-10 w-full bg-transparent text-center font-bold text-[10px] focus:outline-none ${d.shifts[s].active ? "text-white" : "text-gray-400 opacity-0 hover:opacity-100"}`}
+                              {/* Input Angka Shift */}
+                              <input
+                                type="number"
+                                value={d.shifts[s].qty || ""}
+                                onChange={(e) => updateShiftQty(i, idx, s, e.target.value)}
+                                className={`relative z-10 w-full bg-transparent text-center font-bold text-[10px] focus:outline-none 
+                            ${d.shifts[s].active ? "text-white" : "text-gray-400 opacity-0 hover:opacity-100"}`}
                               />
                             </>
                           )}
