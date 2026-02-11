@@ -177,56 +177,63 @@ exports.exportToExcel = async (req, res) => {
             bottom: { style: 'thin' }, right: { style: 'thin' }
         };
 
-        // 1. Header Info (Baris 1 - 7)
-        worksheet.addRow(["DEMAND PRODUCTION PLAN"]).font = { size: 14, bold: true };
-        worksheet.addRow(["SO Number", header.soNo || "-"]);
-        worksheet.addRow(["SO Date", header.soDate ? new Date(header.soDate).toLocaleDateString("id-ID") : "-"]);
-        worksheet.addRow(["Customer", header.customer || "-"]);
-        worksheet.addRow(["Delivery Date", header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("id-ID") : "-"]);
-        worksheet.addRow(["Production Date", header.productionDate || "-"]);
-        worksheet.addRow([]); // Baris kosong ke-7
+        // 1. Header Info (Styling lebih profesional)
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = "DEMAND PRODUCTION PLAN";
+        titleCell.font = { size: 16, bold: true, color: { argb: 'FF4F46E5' } };
+        
+        worksheet.addRow(["SO Number", ": " + (header.soNo || "-")]);
+        worksheet.addRow(["SO Date", ": " + (header.soDate ? new Date(header.soDate).toLocaleDateString("id-ID") : "-")]);
+        worksheet.addRow(["Customer", ": " + (header.customer || "-")]);
+        worksheet.addRow(["Delivery Date", ": " + (header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("id-ID") : "-")]);
+        worksheet.addRow(["Production Date", ": " + (header.productionDate || "-")]);
+        worksheet.addRow([]); // Spacer
 
         if (!items || items.length === 0) return res.status(400).send("No items to export");
 
-        // 2. Tentukan Baris Mulai Tabel (Dynamic)
+        // 2. Tentukan Baris Mulai Tabel
         const headerRowIndex = 8;
 
-        // 3. Double Header Logic
-        const firstHeader = ["Item Code", "Description", "UoM", "Qty (m3)", "Pcs"]; // Header diubah
+        // 3. Header Kolom (Ditambah kolom Pcs di E)
+        const firstHeader = ["Item Code", "Description", "UoM", "Qty (m3)", "Pcs"];
         const secondHeader = ["", "", "", "", ""];
 
-        // Cek sumber kalender (dari frontend 'calendar' atau DB 'production_schedule')
         const refCalendar = items[0].calendar ||
             (typeof items[0].production_schedule === 'string'
                 ? JSON.parse(items[0].production_schedule)
                 : items[0].production_schedule);
 
         refCalendar.forEach(day => {
-            const dateStr = new Date(day.date).toLocaleDateString("id-ID", { day: '2-digit', month: '2-digit' });
+            const dateStr = new Date(day.date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' });
             firstHeader.push(dateStr, "", "");
             secondHeader.push("S1", "S2", "S3");
         });
 
-        const row1 = worksheet.addRow(firstHeader); // Ini akan jadi baris 8
-        const row2 = worksheet.addRow(secondHeader); // Ini akan jadi baris 9
+        const row1 = worksheet.addRow(firstHeader);
+        const row2 = worksheet.addRow(secondHeader);
 
-        // 4. Merging Static Headers (A-D)
-        ['A', 'B', 'C', 'D'].forEach(col => {
+        // 4. Merging Static Headers (A sampai E)
+        // Karena kita nambah kolom 'Pcs', maka range merge jadi A-E
+        ['A', 'B', 'C', 'D', 'E'].forEach(col => {
             worksheet.mergeCells(`${col}${headerRowIndex}:${col}${headerRowIndex + 1}`);
         });
 
-        // 5. Merging Date Headers
-        let colStart = 5; // Mulai dari kolom E
+        // 5. Merging Date Headers (Mulai dari kolom F / index 6)
+        let colStart = 6; 
         refCalendar.forEach(() => {
             worksheet.mergeCells(headerRowIndex, colStart, headerRowIndex, colStart + 2);
             colStart += 3;
         });
 
-        // Styling headers
-        [row1, row2].forEach(row => {
-            row.eachCell(cell => {
-                cell.font = { bold: true };
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        // Styling Headers
+        [row1, row2].forEach((row, idx) => {
+            row.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { 
+                    type: 'pattern', 
+                    pattern: 'solid', 
+                    fgColor: { argb: idx === 0 ? 'FF4F46E5' : '6366F1' } // Indigo shades
+                };
                 cell.border = borderStyle;
                 cell.alignment = { horizontal: 'center', vertical: 'middle' };
             });
@@ -244,7 +251,7 @@ exports.exportToExcel = async (req, res) => {
                 item.description,
                 item.uom,
                 Number(item.qty || item.total_qty || 0),
-                Number(item.pcs || 0) // Menggunakan nilai pcs
+                Number(item.pcs || 0)
             ];
 
             cal.forEach(day => {
@@ -256,21 +263,31 @@ exports.exportToExcel = async (req, res) => {
             const row = worksheet.addRow(rowData);
             row.eachCell((cell, colNum) => {
                 cell.border = borderStyle;
-                cell.alignment = { horizontal: colNum <= 2 ? 'left' : 'center' };
+                
+                // Alignment spesifik
+                if (colNum <= 2) cell.alignment = { horizontal: 'left' };
+                else cell.alignment = { horizontal: 'center' };
 
-                // Color Active Shifts (Emerald Green)
-                if (colNum > 4 && cell.value !== "-") {
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } };
-                    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                // Styling angka Pcs dan Qty
+                if (colNum === 4 || colNum === 5) {
+                    cell.font = { bold: true };
+                    cell.numFmt = '#,##0.00';
+                }
+
+                // Highlight Active Shifts (Emerald Green)
+                if (colNum > 5 && cell.value !== "-") {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; // Light green bg
+                    cell.font = { color: { argb: 'FF065F46' }, bold: true }; // Dark green text
                 }
             });
         });
 
-        // Set Column Widths
-        worksheet.getColumn(1).width = 15; // Code
-        worksheet.getColumn(2).width = 30; // Description
-        worksheet.getColumn(3).width = 8;  // UoM
-        worksheet.getColumn(4).width = 12; // Total
+        // Set Lebar Kolom agar tidak terpotong
+        worksheet.getColumn(1).width = 18; // Code
+        worksheet.getColumn(2).width = 35; // Description
+        worksheet.getColumn(3).width = 7;  // UoM
+        worksheet.getColumn(4).width = 10; // Qty
+        worksheet.getColumn(5).width = 10; // Pcs
 
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         res.setHeader("Content-Disposition", `attachment; filename=Demand_${header.soNo || 'Export'}.xlsx`);
@@ -280,9 +297,7 @@ exports.exportToExcel = async (req, res) => {
 
     } catch (err) {
         console.error("EXPORT EXCEL ERROR:", err);
-        if (!res.headersSent) {
-            res.status(500).send("Gagal ekspor ke Excel");
-        }
+        if (!res.headersSent) res.status(500).send("Gagal ekspor ke Excel");
     }
 };
 
