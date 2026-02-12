@@ -34,7 +34,10 @@ app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
 app.use("/api/bahanbaku", dataBahanRoutes);
 
-// reject rate (SENDIRI-SENDIRI)
+// Admin
+app.use("/api/user", require("./routes/user.route"));
+
+// Reporter
 app.use("/api/customers", require("./routes/customers.routes"));
 app.use("/api/items", require("./routes/items.routes"));
 app.use("/api/machines", require("./routes/machines.routes"));
@@ -45,7 +48,7 @@ app.use("/api/sales-order-items", require("./routes/salesOrderItems.routes"));
 app.use("/api/demand", require("./routes/formDemand.routes"));
 app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
 
-
+// Planner
 app.use("/api/mrp", require("./routes/mrp.routes"));
 app.use("/api/planned-order", require("./routes/plannedOrder.routes"));
 app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
