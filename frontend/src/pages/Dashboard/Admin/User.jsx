@@ -56,7 +56,7 @@ export default function User() {
         password: "", 
         email: "", 
         nama_lengkap: "", 
-        role: "admin" 
+        role: "Admin" 
       });
     }
     setShowModal(true);
@@ -200,9 +200,9 @@ export default function User() {
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Role Akses</label>
                   <select name="role" value={formData.role} onChange={handleChange} className="w-full border border-gray-200 p-2.5 rounded-lg mt-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
-                    <option value="admin">Admin</option>
-                    <option value="user">Repoter</option>
-                    <option value="manager">Planner</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Reporter">Repoter</option>
+                    <option value="Planner">Planner</option>
                   </select>
                 </div>
               </div>
