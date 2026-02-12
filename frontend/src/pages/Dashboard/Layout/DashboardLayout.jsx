@@ -7,6 +7,7 @@ import logo from "../../assets/logo.png";
 import {
   LayoutDashboard,
   User,
+  User2,
   Download,
   LogOut,
   Trees,
@@ -197,7 +198,7 @@ export default function DashboardLayout() {
           {isAdmin && (
             <MenuLink
               to="/dashboard/user"
-              icon={User} // Pastikan icon 'User' diimport (biasanya dari lucide-react)
+              icon={User2}
               label="User Management"
               collapsed={collapsed}
             />
@@ -442,7 +443,7 @@ function ProductionDropdown({ collapsed, currentPath }) {
       </button>
       {!collapsed && open && (
         <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/production/order" icon={Form} label="Order Production" />
+          <SubMenuLink to="/dashboard/production/order" icon={Form} label="Production Order" />
         </div>
       )}
     </div>
