@@ -26,6 +26,7 @@ import {
   Form,
   ListTodo,
 } from "lucide-react";
+import { is } from "date-fns/locale";
 
 export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -40,6 +41,7 @@ export default function DashboardLayout() {
   /* ================= ROLE HELPER ================= */
   const isAdmin = user?.role === "Admin";
   const isPlanner = user?.role === "Planner";
+  const isReporter = user?.role === "Reporter";
 
   /* ================= CLOCK ================= */
   useEffect(() => {
@@ -170,8 +172,8 @@ export default function DashboardLayout() {
             </>
           )}
 
-          {/* ADMIN ONLY */}
-          {isAdmin && (
+          {/* REPORTER ONLY */}
+          {isReporter && (
             <>
               <MenuLink
                 to="/dashboard/rencana-pengiriman"
@@ -191,13 +193,25 @@ export default function DashboardLayout() {
             </>
           )}
 
-          {/* PROFILE */}
-          <MenuLink
-            to="/dashboard/profile"
-            icon={User}
-            label="Profil"
-            collapsed={collapsed}
-          />
+          {/* ADMIN ONLY */}
+          {isAdmin && (
+            <MenuLink
+              to="/dashboard/user"
+              icon={User} // Pastikan icon 'User' diimport (biasanya dari lucide-react)
+              label="User Management"
+              collapsed={collapsed}
+            />
+          )}
+
+          {/* Profile */}
+          {(isReporter || isPlanner) && (
+            <MenuLink
+              to="/dashboard/profile"
+              icon={User}
+              label="Profil"
+              collapsed={collapsed}
+            />
+          )}
         </nav>
 
         {/* USER INFO & LOGOUT */}

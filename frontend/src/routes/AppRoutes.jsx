@@ -5,7 +5,10 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
 
-{/* Live Report */}
+{/* Admin */ }
+import User from "../pages/Dashboard/Admin/User";
+
+{/* Live Report */ }
 import RencanaPengiriman from "../pages/Dashboard/Live Report/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/Live Report/DataSync";
 import EntryBahanbaku from "../pages/Dashboard/Live Report/EntryBahanbaku";
@@ -18,7 +21,7 @@ import RejectRateSanding from "../pages/Dashboard/Live Report/RejectRateSanding"
 import BBPerforma from "../pages/Dashboard/Live Report/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 
-{/* MRP */}
+{/* MRP */ }
 import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
 import Machines from "../pages/Dashboard/MRP/Machines";
@@ -42,8 +45,13 @@ function AppRoutes() {
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
 
-        {/* ADMIN ONLY */}
+        {/*ADMIN ONLY*/}
         <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
+          <Route path="user" element={<User />}></Route>
+        </Route>
+
+        {/* REPORTER ONLY */}
+        <Route element={<ProtectedRoute allowedRoles={["Reporter"]} />}>
           <Route path="rencana-pengiriman" element={<RencanaPengiriman />} />
           <Route path="data-sync" element={<DataSync />} />
           <Route path="bahanbaku" element={<EntryBahanbaku />} />
@@ -76,13 +84,13 @@ function AppRoutes() {
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
-          <Route path="demand/list"element={<DemandList />}/>
+          <Route path="demand/list" element={<DemandList />} />
           <Route path="production/order" element={<ProductionOrder />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
         </Route>
         <Route
-          element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}>
+          element={<ProtectedRoute allowedRoles={["Planner", "Reporter"]} />}>
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>
