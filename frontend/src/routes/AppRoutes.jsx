@@ -66,7 +66,7 @@ function AppRoutes() {
 
         {/* ADMIN & PLANNER */}
         <Route
-          element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}
+          element={<ProtectedRoute allowedRoles={["Planner"]} />}
         >
           <Route path="master/customers" element={<Customers />} />
           <Route path="master/items" element={<Items />} />
@@ -80,6 +80,9 @@ function AppRoutes() {
           <Route path="production/order" element={<ProductionOrder />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
+        </Route>
+        <Route
+          element={<ProtectedRoute allowedRoles={["Admin", "Planner"]} />}>
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>
