@@ -423,7 +423,7 @@ function DemandDropdown({ collapsed, currentPath }) {
 }
 
 function ProductionDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/production/order"];
+  const paths = ["/dashboard/production/order","/dashboard/production/schedule"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
@@ -444,6 +444,7 @@ function ProductionDropdown({ collapsed, currentPath }) {
       {!collapsed && open && (
         <div className="mt-1 space-y-1">
           <SubMenuLink to="/dashboard/production/order" icon={Form} label="Production Order" />
+          <SubMenuLink to="/dashboard/production/schedule" icon={Form} label="Production Schedule" />
         </div>
       )}
     </div>
@@ -465,7 +466,7 @@ function EntryMRPDropdown({ collapsed, currentPath }) {
       >
         <div className="flex items-center gap-3">
           <ListTodo size={18} />
-          {!collapsed && "MRP Entry"}
+          {!collapsed && "BOM"}
         </div>
         {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
       </button>
