@@ -1,11 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const plannedOrderController = require("../controllers/plannedOrder.controller");
+const plannedOrderController = require("../controllers/plannedOrder.controller"); // Pastikan path benar
 
-// Pastikan baris ini ada agar frontend bisa mengambil data plotting per SO
-router.get("/schedule/:demand_id", plannedOrderController.getScheduleByDemand);
-
-router.post("/auto-generate-so", plannedOrderController.autoGenerateSOSchedule);
+// Route yang sudah ada sebelumnya
 router.get("/", plannedOrderController.getAllOrders);
+router.get("/schedule/:demand_id", plannedOrderController.getScheduleByDemand);
+router.post("/auto-generate-so", plannedOrderController.autoGenerateSOSchedule);
+
+// --- TAMBAHKAN BARIS INI ---
+router.post("/toggle-plot", plannedOrderController.toggleManualPlot);
 
 module.exports = router;

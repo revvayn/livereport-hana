@@ -53,7 +53,36 @@ export default function ProductionSchedule() {
       Swal.fire("Error", err.response?.data?.error || "Gagal generate", "error");
     }
   };
+  // Di ProductionSchedule.js
+  const handleCellClick = async (item, date, shift, existingPlot) => {
+    // Hindari klik pada kolom tanggal yang rusak (seperti 01 Jan)
+    if (!date || date.startsWith('1970') || date.startsWith('0001')) {
+      return Swal.fire("Error", "Tanggal tidak valid di baris ini", "error");
+    }
 
+    const action = existingPlot ? 'DELETE' : 'ADD';
+
+    // Pastikan format YYYY-MM-DD murni tanpa jam
+    const cleanDate = date.split('T')[0];
+
+    try {
+      setPlottingLoading(true);
+      await api.post("/planned-order/toggle-plot", {
+        demand_id: selectedSO.demand_id,
+        item_id: item.item_id,
+        date: cleanDate,
+        shift: parseInt(shift),
+        qty: item.pcs || 0,
+        action: action
+      });
+      // Refresh data setelah sukses
+      fetchPlots(selectedSO);
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Cek koneksi database", "error");
+    } finally {
+      setPlottingLoading(false);
+    }
+  };
   const getItemColor = (code) => {
     if (!code) return 'text-gray-900';
     if (code.startsWith('FGP')) return 'text-blue-700';
@@ -62,37 +91,35 @@ export default function ProductionSchedule() {
     return 'text-gray-900';
   };
 
-  // LOGIKA MATRIKS DIPERBAIKI:
   const matrix = useMemo(() => {
-    if (plots.length === 0) return { dates: [], items: [] };
+    if (!plots || plots.length === 0) return { dates: [], items: [] };
 
-    // 1. Ambil semua tanggal unik dari hasil query (termasuk plotting SO lain)
-    const dates = [...new Set(plots.filter(p => p.date).map(p => p.date.split('T')[0]))].sort();
+    // 1. Ambil tanggal unik dan sort
+    const dates = [...new Set(plots.map(p => {
+      const d = new Date(p.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }))].sort();
 
-    // 2. Kelompokkan berdasarkan Item Code agar semua item muncul meskipun data plotnya kosong
-    const itemMap = plots.reduce((acc, current) => {
-      if (!acc[current.item_code]) {
-        acc[current.item_code] = {
-          item_code: current.item_code,
-          description: current.description,
-          uom: current.uom,
-          total_qty: current.total_qty,
-          pcs: current.pcs,
-          data: []
-        };
+    const itemMap = {};
+    plots.forEach(current => {
+      const key = current.item_id;
+      if (!itemMap[key]) {
+        itemMap[key] = { ...current, data: [] };
       }
-      // Masukkan data plot hanya jika ada tanggalnya
-      if (current.date) {
-        acc[current.item_code].data.push({
-          date: current.date.split('T')[0],
-          shift: parseInt(current.shift),
-          qty: current.plot_qty,
-          type: current.plot_type, // 'CURRENT' atau 'OTHER'
-          ref: current.ref_so
-        });
-      }
-      return acc;
-    }, {});
+
+      // Pastikan format date untuk perbandingan sama dengan variabel 'dates'
+      const d = new Date(current.date);
+      const formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      itemMap[key].data.push({
+        date: formattedDate,
+        shift: parseInt(current.shift),
+        qty: current.plot_qty,
+        // KUNCI UTAMA: Cek tipe data di sini
+        type: current.plot_type, // 'CURRENT' atau 'OTHER' dari Query SQL
+        ref: current.ref_so
+      });
+    });
 
     return { dates, items: Object.values(itemMap) };
   }, [plots]);
@@ -166,11 +193,11 @@ export default function ProductionSchedule() {
         <table className="w-full text-[10px] border-collapse min-w-max">
           <thead className="bg-gray-100 text-gray-600 uppercase">
             <tr>
-              <th className="p-3 border-r sticky left-0 bg-gray-100 z-30 text-left">Item Code</th>
-              <th className="p-3 border-r sticky left-[80px] bg-gray-100 z-30 text-left">Description</th>
-              <th className="p-3 border-r sticky left-[280px] bg-gray-100 z-30 text-center">UOM</th>
-              <th className="p-3 border-r sticky left-[330px] bg-gray-100 z-30 text-center">QTY (M3)</th>
-              <th className="p-3 border-r sticky left-[390px] bg-indigo-100 text-indigo-700 z-30 text-center">PCS</th>
+              <th className="p-3 border-r sticky left-0 bg-gray-100 z-30 text-left w-[100px]">Item Code</th>
+              <th className="p-3 border-r sticky left-[100px] bg-gray-100 z-30 text-left w-[200px]">Description</th>
+              <th className="p-3 border-r sticky left-[300px] bg-gray-100 z-30 text-center w-[60px]">UOM</th>
+              <th className="p-3 border-r sticky left-[360px] bg-gray-100 z-30 text-center w-[80px]">QTY (M3)</th>
+              <th className="p-3 border-r sticky left-[440px] bg-indigo-100 text-indigo-700 z-30 text-center w-[70px]">PCS</th>
               {matrix.dates.map(date => (
                 <th key={date} colSpan="3" className="p-2 border-r text-center font-bold bg-gray-200 border-b border-gray-300">
                   {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
@@ -197,10 +224,10 @@ export default function ProductionSchedule() {
               <tr><td colSpan="100" className="p-20 text-center animate-pulse text-indigo-500 font-bold">LOADING SCHEDULE...</td></tr>
             ) : matrix.items.map((item) => (
               <tr key={item.item_code} className="hover:bg-gray-50 group">
-                <td className={`p-3 border-r sticky left-0 bg-white group-hover:bg-gray-50 font-bold z-10 ${getItemColor(item.item_code)}`}>
+                <td className={`p-3 border-r sticky left-0 bg-white group-hover:bg-gray-50 font-bold z-10 w-[100px] ${getItemColor(item.item_code)}`}>
                   {item.item_code}
                 </td>
-                <td className="p-3 border-r sticky left-[80px] bg-white group-hover:bg-gray-50 text-gray-500 italic z-10 w-48 truncate">
+                <td className="p-3 border-r sticky left-[100px] bg-white group-hover:bg-gray-50 text-gray-500 italic z-10 w-[200px] truncate">
                   {item.description}
                 </td>
                 <td className="p-3 border-r sticky left-[280px] bg-white group-hover:bg-gray-50 text-center text-gray-400 z-10">
@@ -214,22 +241,27 @@ export default function ProductionSchedule() {
                 </td>
                 {matrix.dates.map(date => [1, 2, 3].map(shift => {
                   const cell = item.data.find(d => d.date === date && d.shift === shift);
-                  
-                  let cellClass = "text-gray-200";
-                  let content = "-";
+
+                  let cellClass = "cursor-pointer hover:bg-indigo-50 text-gray-200";
+                  let content = "+";
 
                   if (cell) {
                     if (cell.type === 'CURRENT') {
-                      cellClass = "bg-emerald-500 text-white font-bold shadow-sm";
-                      content = Math.round(cell.qty);
+                      cellClass = "cursor-pointer bg-emerald-500 text-white font-bold hover:bg-emerald-600 shadow-inner";
+                      content = cell.qty;
                     } else {
-                      cellClass = "bg-amber-100 text-amber-600 text-[8px] border border-amber-200";
-                      content = `SO:${cell.ref}`; // Menampilkan nomor SO lain yang mengisi slot tersebut
+                      cellClass = "bg-amber-100 text-amber-700 border border-amber-300 cursor-not-allowed text-[7px]";
+                      content = `SO:${cell.ref.split('/').pop()}`;
                     }
                   }
 
                   return (
-                    <td key={`${date}-${shift}`} className={`p-2 border-r text-center transition-all ${cellClass}`}>
+                    <td
+                      key={`${date}-${shift}`}
+                      onClick={() => handleCellClick(item, date, shift, cell)}
+                      className={`p-2 border-r text-center transition-all min-w-[40px] ${cellClass}`}
+                      title={cell?.type === 'OTHER' ? `Conflict with ${cell.ref}` : "Click to Toggle"}
+                    >
                       {content}
                     </td>
                   );

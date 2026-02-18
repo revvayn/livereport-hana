@@ -56,13 +56,16 @@ exports.autoGenerateSOSchedule = async (req, res) => {
             let currentShift = 3;
 
             for (const route of routingRes.rows) {
+                const yyyy = currentDate.getFullYear();
+                const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(currentDate.getDate()).padStart(2, '0');
+                const formattedDate = `${yyyy}-${mm}-${dd}`;
+
                 await client.query(
-                    `INSERT INTO production_order_plots 
-                    (demand_id, item_id, operation_id, machine_id, date, shift, qty) 
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    `INSERT INTO production_order_plots ... VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                     [
                         demand_id, item.item_id, route.operation_id, route.machine_id,
-                        currentDate.toISOString().split('T')[0],
+                        formattedDate, // Gunakan string manual, bukan ISOString
                         currentShift, item.pcs
                     ]
                 );
@@ -92,49 +95,41 @@ exports.autoGenerateSOSchedule = async (req, res) => {
 exports.getScheduleByDemand = async (req, res) => {
     try {
         const { demand_id } = req.params;
-
         const query = `
             WITH date_range AS (
-                -- Mencari rentang tanggal berdasarkan plot yang ada untuk SO ini
-                -- Jika belum ada plot, ambil delivery_date sebagai patokan
+                -- Tentukan jendela waktu 10 hari di sekitar delivery date
                 SELECT 
-                    COALESCE(MIN(pop.date), (SELECT delivery_date FROM demands WHERE id = $1) - INTERVAL '7 days')::date as start_d,
-                    COALESCE(MAX(pop.date), (SELECT delivery_date FROM demands WHERE id = $1) + INTERVAL '2 days')::date as end_d
-                FROM production_order_plots pop
-                WHERE pop.demand_id = $1
+                    ((SELECT delivery_date FROM demands WHERE id = $1)::date - INTERVAL '7 days')::date as start_d,
+                    ((SELECT delivery_date FROM demands WHERE id = $1)::date + INTERVAL '2 days')::date as end_d
             ),
             target_items AS (
-                -- Ambil semua item yang ada di SO ini (Master List)
+                -- Ambil item yang memang milik SO ini
                 SELECT item_id, item_code, description, uom, total_qty, pcs
                 FROM demand_items WHERE demand_id = $1
             )
             SELECT 
-                ti.*,
-                pop.date, 
-                pop.shift, 
-                pop.qty as plot_qty,
-                d.so_number as ref_so,
-                CASE 
-                    WHEN pop.demand_id = $1 THEN 'CURRENT' 
-                    ELSE 'OTHER' 
-                END as plot_type
-            FROM target_items ti
-            -- Join ke plots berdasarkan item_id DAN rentang tanggal
-            LEFT JOIN production_order_plots pop ON ti.item_id = pop.item_id 
-                AND pop.date >= (SELECT start_d FROM date_range)
-                AND pop.date <= (SELECT end_d FROM date_range)
-            LEFT JOIN demands d ON pop.demand_id = d.id
-            ORDER BY ti.item_code, pop.date ASC, pop.shift ASC;
-        `;
-
+        ti.*,
+        pop.date, 
+        pop.shift, 
+        pop.qty as plot_qty,
+        d.so_number as ref_so,
+        -- Pastikan perbandingan ID ini akurat
+        CASE 
+            WHEN pop.demand_id = $1::integer THEN 'CURRENT' 
+            ELSE 'OTHER' 
+        END as plot_type
+    FROM target_items ti
+    LEFT JOIN production_order_plots pop ON ti.item_id = pop.item_id 
+        AND pop.date BETWEEN (SELECT start_d FROM date_range) AND (SELECT end_d FROM date_range)
+    LEFT JOIN demands d ON pop.demand_id = d.id
+    ORDER BY ti.item_code ASC, pop.date ASC, pop.shift ASC;
+`;
         const result = await pool.query(query, [demand_id]);
         res.json(result.rows);
     } catch (err) {
-        console.error("Matrix Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 };
-
 // 4. Get Demand Items (Detail SKU)
 exports.getDemandItems = async (req, res) => {
     try {
@@ -149,5 +144,72 @@ exports.getDemandItems = async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: "Gagal memuat item detail" });
+    }
+};
+
+// Tambahkan fungsi baru ini di controller
+exports.toggleManualPlot = async (req, res) => {
+    const { demand_id, item_id, date, shift, qty, action } = req.body;
+
+    try {
+        if (action === 'ADD') {
+            // 1. Cari routing secara manual jika tidak disertakan
+            const routing = await pool.query(
+                `SELECT operation_id, machine_id FROM item_routings WHERE item_id = $1 LIMIT 1`,
+                [item_id]
+            );
+            
+            const op_id = routing.rows.length > 0 ? routing.rows[0].operation_id : null;
+            const mc_id = routing.rows.length > 0 ? routing.rows[0].machine_id : null;
+        
+            // 2. Gunakan UPSERT (Insert or Update)
+            await pool.query(
+                `INSERT INTO production_order_plots 
+                (demand_id, item_id, operation_id, machine_id, date, shift, qty) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (demand_id, item_id, date, shift) 
+                DO UPDATE SET qty = EXCLUDED.qty`,
+                [
+                    parseInt(demand_id), 
+                    parseInt(item_id), 
+                    op_id, 
+                    mc_id, 
+                    date, // Pastikan formatnya 'YYYY-MM-DD'
+                    parseInt(shift), 
+                    Math.round(qty)
+                ]
+            );
+        } else {
+            // Kita gunakan casting integer secara eksplisit untuk ID dan Shift
+            const deleteResult = await pool.query(
+                `DELETE FROM production_order_plots 
+                 WHERE demand_id = $1::integer 
+                 AND item_id = $2::integer 
+                 AND TO_CHAR(date, 'YYYY-MM-DD') = $3 
+                 AND shift = $4::integer`,
+                [parseInt(demand_id), parseInt(item_id), date, parseInt(shift)]
+            );
+
+            if (deleteResult.rowCount === 0) {
+                // INVESTIGASI: Jika gagal hapus, tarik data aslinya untuk dibandingkan
+                const check = await pool.query(
+                    `SELECT id, demand_id, item_id, TO_CHAR(date, 'YYYY-MM-DD') as dt, shift 
+                     FROM production_order_plots 
+                     WHERE demand_id = $1::integer AND item_id = $2::integer`,
+                    [parseInt(demand_id), parseInt(item_id)]
+                );
+
+                console.log("--- DEBUG HAPUS ---");
+                console.log("Input dari Frontend:", { demand_id, item_id, date, shift });
+                console.log("Data di Database:", check.rows);
+
+                return res.status(404).json({
+                    error: `Gagal. Anda kirim Shift ${shift}, tapi di DB adanya Shift ${check.rows.length > 0 ? check.rows[0].shift : 'KOSONG'}`
+                });
+            }
+        }
+        res.json({ message: "Success" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
