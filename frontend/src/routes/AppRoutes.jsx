@@ -5,10 +5,10 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
 
-{/* Admin */ }
+{/* Admin */}
 import User from "../pages/Dashboard/Admin/User";
 
-{/* Live Report */ }
+{/* Live Report */}
 import RencanaPengiriman from "../pages/Dashboard/Live Report/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/Live Report/DataSync";
 import EntryBahanbaku from "../pages/Dashboard/Live Report/EntryBahanbaku";
@@ -21,7 +21,7 @@ import RejectRateSanding from "../pages/Dashboard/Live Report/RejectRateSanding"
 import BBPerforma from "../pages/Dashboard/Live Report/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 
-{/* MRP */ }
+{/* MRP */}
 import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
 import Machines from "../pages/Dashboard/MRP/Machines";
@@ -32,6 +32,7 @@ import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
 import DemandList from "../pages/Dashboard/MRP/DemandList";
 import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
+import ProductionSchedule from "../pages/Dashboard/MRP/PlannedOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
 
@@ -86,6 +87,7 @@ function AppRoutes() {
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="demand/list" element={<DemandList />} />
           <Route path="production/order" element={<ProductionOrder />} />
+          <Route path="production/schedule" element={<ProductionSchedule />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
         </Route>

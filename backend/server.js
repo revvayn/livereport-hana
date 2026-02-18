@@ -47,6 +47,7 @@ app.use("/api/sales-orders", require("./routes/salesOrders.routes"));
 app.use("/api/sales-order-items", require("./routes/salesOrderItems.routes"));
 app.use("/api/demand", require("./routes/formDemand.routes"));
 app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));
+app.use("/api/planned-order", require("./routes/plannedOrder.routes"));
 
 // Planner
 app.use("/api/mrp", require("./routes/mrp.routes"));
