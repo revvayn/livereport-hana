@@ -1,5 +1,9 @@
 const pool = require("../db");
 
+// --- TAMBAHKAN DEKLARASI INI DI ATAS ---
+// Anda bisa menentukan angka ini secara manual atau mengambilnya dari DB
+const LIMIT_KAPASITAS = 1000;
+
 // 1. Ambil Semua Demand (List Utama)
 exports.getAllOrders = async (req, res) => {
     try {
@@ -10,206 +14,317 @@ exports.getAllOrders = async (req, res) => {
                 d.delivery_date,
                 d.customer_name,
                 d.has_schedule,
-                (SELECT COUNT(*) FROM demand_items WHERE demand_id = d.id) as total_items
+                (
+                    SELECT COUNT(*) 
+                    FROM demand_items 
+                    WHERE demand_id = d.id
+                ) as total_items
             FROM demands d
-            ORDER BY d.created_at DESC;
+            ORDER BY d.created_at DESC
         `;
+
         const result = await pool.query(query);
         res.json(result.rows);
+
     } catch (err) {
         console.error("DATABASE ERROR:", err.message);
         res.status(500).json({ error: "Gagal memuat data order" });
     }
 };
 
-// 2. Backward Scheduling Logic (Perbaikan Transaksi & Penanggalan)
+
+// 2. Backward Scheduling Logic
 exports.autoGenerateSOSchedule = async (req, res) => {
     const { demand_id, delivery_date } = req.body;
     const client = await pool.connect();
 
     try {
-        await client.query('BEGIN');
+        await client.query("BEGIN");
 
-        // Ambil item dan routing-nya
         const itemsRes = await client.query(
-            `SELECT di.item_id, di.pcs 
-             FROM demand_items di 
-             WHERE di.demand_id = $1`,
+            `SELECT item_id, pcs FROM demand_items WHERE demand_id = $1`,
             [demand_id]
         );
 
-        if (itemsRes.rows.length === 0) throw new Error("Item demand tidak ditemukan");
-
-        // Hapus plot lama SO ini
-        await client.query(`DELETE FROM production_order_plots WHERE demand_id = $1`, [demand_id]);
-
         for (const item of itemsRes.rows) {
+            // 1. CEK: Apakah sudah ada plot PACKING untuk item ini?
+            const existingPacking = await client.query(
+                `SELECT date, shift FROM production_order_plots 
+                 WHERE demand_id = $1 AND item_id = $2 
+                 AND operation_id IN (SELECT id FROM operations WHERE UPPER(operation_name) LIKE '%PACKING%')
+                 ORDER BY date ASC, shift ASC LIMIT 1`,
+                [demand_id, item.item_id]
+            );
+
+            let startPointDate;
+            let startPointShift;
+
+            if (existingPacking.rows.length > 0) {
+                // Jika ada packing, mulai dari shift SEBELUM packing terkecil
+                const packDate = new Date(existingPacking.rows[0].date);
+                startPointShift = existingPacking.rows[0].shift - 1;
+                startPointDate = packDate;
+
+                if (startPointShift < 1) {
+                    startPointDate.setDate(startPointDate.getDate() - 1);
+                    startPointShift = 3;
+                }
+            } else {
+                // Jika BELUM ada packing, mulai dari delivery_date - 1
+                const [y, m, d] = delivery_date.split("T")[0].split("-");
+                startPointDate = new Date(y, m - 1, d);
+                startPointDate.setDate(startPointDate.getDate() - 1);
+                startPointShift = 3;
+            }
+
+            // 2. Ambil Routing SELAIN Packing (karena packing dianggap sudah ada atau manual)
+            // Kita urutkan backward
             const routingRes = await client.query(
-                `SELECT operation_id, machine_id, sequence 
-                 FROM item_routings WHERE item_id = $1 ORDER BY sequence DESC`,
+                `SELECT operation_id, machine_id 
+                 FROM item_routings
+                 WHERE item_id = $1 
+                 AND operation_id NOT IN (SELECT id FROM operations WHERE UPPER(operation_name) LIKE '%PACKING%')
+                 ORDER BY sequence DESC`,
                 [item.item_id]
             );
 
-            if (routingRes.rows.length === 0) continue;
+            // Hapus plot LAMA yang BUKAN packing sebelum generate ulang (Opsional)
+            await client.query(
+                `DELETE FROM production_order_plots 
+                 WHERE demand_id = $1 AND item_id = $2 
+                 AND operation_id NOT IN (SELECT id FROM operations WHERE UPPER(operation_name) LIKE '%PACKING%')`,
+                [demand_id, item.item_id]
+            );
 
-            let currentDate = new Date(delivery_date);
-            let currentShift = 3;
+            let currentDate = new Date(startPointDate);
+            let currentShift = startPointShift;
 
             for (const route of routingRes.rows) {
-                const yyyy = currentDate.getFullYear();
-                const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
-                const dd = String(currentDate.getDate()).padStart(2, '0');
-                const formattedDate = `${yyyy}-${mm}-${dd}`;
+                const dateString = currentDate.toISOString().split('T')[0];
 
                 await client.query(
-                    `INSERT INTO production_order_plots ... VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                    [
-                        demand_id, item.item_id, route.operation_id, route.machine_id,
-                        formattedDate, // Gunakan string manual, bukan ISOString
-                        currentShift, item.pcs
-                    ]
+                    `INSERT INTO production_order_plots
+                     (demand_id, item_id, operation_id, machine_id, date, shift, qty)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7)
+                     ON CONFLICT (demand_id, item_id, date, shift) DO UPDATE 
+                     SET operation_id = EXCLUDED.operation_id, qty = EXCLUDED.qty`,
+                    [demand_id, item.item_id, route.operation_id, route.machine_id, dateString, currentShift, item.pcs]
                 );
 
-                // Logika Mundur
                 currentShift--;
                 if (currentShift < 1) {
-                    currentShift = 3;
                     currentDate.setDate(currentDate.getDate() - 1);
+                    currentShift = 3;
                 }
             }
         }
 
         await client.query(`UPDATE demands SET has_schedule = true WHERE id = $1`, [demand_id]);
-        await client.query('COMMIT');
-        res.json({ message: "Jadwal berhasil digenerate otomatis." });
+        await client.query("COMMIT");
+        res.json({ message: "Jadwal berhasil diperbarui (Backward dari Packing)." });
 
     } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query("ROLLBACK");
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
     }
 };
 
-// 3. Fetch Matrix Data (Kunci Agar SO Lain Terlihat)
+
+// 3. Fetch Matrix Data
 exports.getScheduleByDemand = async (req, res) => {
     try {
         const { demand_id } = req.params;
-        const query = `
-            WITH date_range AS (
-                -- Tentukan jendela waktu 10 hari di sekitar delivery date
-                SELECT 
-                    ((SELECT delivery_date FROM demands WHERE id = $1)::date - INTERVAL '7 days')::date as start_d,
-                    ((SELECT delivery_date FROM demands WHERE id = $1)::date + INTERVAL '2 days')::date as end_d
-            ),
-            target_items AS (
-                -- Ambil item yang memang milik SO ini
-                SELECT item_id, item_code, description, uom, total_qty, pcs
-                FROM demand_items WHERE demand_id = $1
-            )
-            SELECT 
-        ti.*,
-        pop.date, 
-        pop.shift, 
-        pop.qty as plot_qty,
-        d.so_number as ref_so,
-        -- Pastikan perbandingan ID ini akurat
-        CASE 
-            WHEN pop.demand_id = $1::integer THEN 'CURRENT' 
-            ELSE 'OTHER' 
-        END as plot_type
-    FROM target_items ti
-    LEFT JOIN production_order_plots pop ON ti.item_id = pop.item_id 
-        AND pop.date BETWEEN (SELECT start_d FROM date_range) AND (SELECT end_d FROM date_range)
-    LEFT JOIN demands d ON pop.demand_id = d.id
-    ORDER BY ti.item_code ASC, pop.date ASC, pop.shift ASC;
+
+        const matrixQuery = `
+SELECT 
+    di.item_id,
+    i.item_code,
+    i.description,
+    i.uom,
+    di.pcs,
+
+    pop.id as plot_id,
+    pop.date,
+    pop.shift,
+    pop.qty,
+    pop.operation_id,
+    ops.operation_name,
+
+    CASE 
+        WHEN pop.demand_id = $1 
+             AND UPPER(ops.operation_name) LIKE '%PACKING%' 
+             THEN 'PACKING'
+        WHEN pop.demand_id = $1 
+             THEN 'CURRENT'
+        WHEN pop.demand_id IS NOT NULL 
+             THEN 'OTHER'
+        ELSE NULL
+    END as plot_type
+
+FROM demand_items di
+JOIN items i ON di.item_id = i.id
+
+LEFT JOIN production_order_plots pop
+    ON di.item_id = pop.item_id
+    AND (
+        pop.demand_id = $1
+        OR pop.operation_id IN (
+            SELECT operation_id FROM item_routings
+            WHERE item_id = di.item_id
+        )
+    )
+
+LEFT JOIN operations ops
+    ON pop.operation_id = ops.id
+
+WHERE di.demand_id = $1
+ORDER BY i.item_code, pop.date, pop.shift
 `;
-        const result = await pool.query(query, [demand_id]);
-        res.json(result.rows);
+
+
+        const routingQuery = `
+            SELECT DISTINCT ops.id, ops.operation_name 
+            FROM item_routings ir
+            JOIN operations ops ON ir.operation_id = ops.id
+            WHERE ir.item_id IN (
+                SELECT item_id FROM demand_items WHERE demand_id = $1
+            )
+            ORDER BY ops.id
+        `;
+
+        const [matrixRes, routingRes] = await Promise.all([
+            pool.query(matrixQuery, [demand_id]),
+            pool.query(routingQuery, [demand_id])
+        ]);
+
+        res.json({
+            plots: matrixRes.rows,
+            availableOperations: routingRes.rows
+        });
+
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ error: err.message });
     }
 };
-// 4. Get Demand Items (Detail SKU)
-exports.getDemandItems = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await pool.query(
-            `SELECT id, item_code, description, uom, total_qty, pcs 
-             FROM demand_items 
-             WHERE demand_id = $1 
-             ORDER BY item_code ASC`,
-            [id]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: "Gagal memuat item detail" });
-    }
-};
 
-// Tambahkan fungsi baru ini di controller
+
+// 5. Toggle Manual Plot (PERBAIKAN LIMIT_KAPASITAS)
 exports.toggleManualPlot = async (req, res) => {
-    const { demand_id, item_id, date, shift, qty, action } = req.body;
+    const { plot_id, demand_id, item_id, operation_id, date, shift, qty, action } = req.body;
+    const LIMIT_KAPASITAS = 1000; // Pastikan ini ada
 
     try {
-        if (action === 'ADD') {
-            // 1. Cari routing secara manual jika tidak disertakan
+        if (action === "ADD") {
+            const inputQty = parseFloat(qty || 0);
+
+            // 1. Ambil Routing & Machine
             const routing = await pool.query(
-                `SELECT operation_id, machine_id FROM item_routings WHERE item_id = $1 LIMIT 1`,
-                [item_id]
+                `SELECT machine_id FROM item_routings WHERE item_id = $1 AND operation_id = $2`,
+                [item_id, operation_id]
             );
-            
-            const op_id = routing.rows.length > 0 ? routing.rows[0].operation_id : null;
-            const mc_id = routing.rows.length > 0 ? routing.rows[0].machine_id : null;
-        
-            // 2. Gunakan UPSERT (Insert or Update)
-            await pool.query(
-                `INSERT INTO production_order_plots 
-                (demand_id, item_id, operation_id, machine_id, date, shift, qty) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (demand_id, item_id, date, shift) 
-                DO UPDATE SET qty = EXCLUDED.qty`,
-                [
-                    parseInt(demand_id), 
-                    parseInt(item_id), 
-                    op_id, 
-                    mc_id, 
-                    date, // Pastikan formatnya 'YYYY-MM-DD'
-                    parseInt(shift), 
-                    Math.round(qty)
-                ]
+            if (routing.rows.length === 0) return res.status(400).json({ error: "Routing tidak ditemukan" });
+            const machine_id = routing.rows[0].machine_id;
+
+            // 2. Cek Kapasitas per Shift per Operasi
+            const capacityCheck = await pool.query(
+                `SELECT COALESCE(SUM(qty), 0) as total FROM production_order_plots 
+                 WHERE date = $1 AND shift = $2 AND operation_id = $3 AND id != COALESCE($4, 0)`,
+                [date, shift, operation_id, plot_id || 0]
             );
-        } else {
-            // Kita gunakan casting integer secara eksplisit untuk ID dan Shift
-            const deleteResult = await pool.query(
-                `DELETE FROM production_order_plots 
-                 WHERE demand_id = $1::integer 
-                 AND item_id = $2::integer 
-                 AND TO_CHAR(date, 'YYYY-MM-DD') = $3 
-                 AND shift = $4::integer`,
-                [parseInt(demand_id), parseInt(item_id), date, parseInt(shift)]
-            );
+            const totalUsed = parseFloat(capacityCheck.rows[0].total);
 
-            if (deleteResult.rowCount === 0) {
-                // INVESTIGASI: Jika gagal hapus, tarik data aslinya untuk dibandingkan
-                const check = await pool.query(
-                    `SELECT id, demand_id, item_id, TO_CHAR(date, 'YYYY-MM-DD') as dt, shift 
-                     FROM production_order_plots 
-                     WHERE demand_id = $1::integer AND item_id = $2::integer`,
-                    [parseInt(demand_id), parseInt(item_id)]
-                );
-
-                console.log("--- DEBUG HAPUS ---");
-                console.log("Input dari Frontend:", { demand_id, item_id, date, shift });
-                console.log("Data di Database:", check.rows);
-
-                return res.status(404).json({
-                    error: `Gagal. Anda kirim Shift ${shift}, tapi di DB adanya Shift ${check.rows.length > 0 ? check.rows[0].shift : 'KOSONG'}`
+            if (totalUsed + inputQty > LIMIT_KAPASITAS) {
+                return res.status(400).json({
+                    error: `Kapasitas penuh! Terpakai: ${totalUsed}, Max: ${LIMIT_KAPASITAS}`
                 });
             }
+
+            // 3. Simpan dengan ON CONFLICT (agar tidak double plot di sel yang sama)
+            await pool.query(
+                `INSERT INTO production_order_plots (demand_id, item_id, operation_id, machine_id, date, shift, qty)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 ON CONFLICT (demand_id, item_id, date, shift)
+                 DO UPDATE SET operation_id = EXCLUDED.operation_id, qty = EXCLUDED.qty, machine_id = EXCLUDED.machine_id`,
+                [demand_id, item_id, operation_id, machine_id, date, shift, inputQty]
+            );
+        } else {
+            // DELETE
+            await pool.query(`DELETE FROM production_order_plots WHERE id = $1`, [plot_id]);
         }
         res.json({ message: "Success" });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+};
+
+
+// 6. Simpan Demand Baru
+exports.saveDemand = async (req, res) => {
+    const { header, items } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // 1. Simpan Header Demand
+        const dRes = await client.query(
+            `INSERT INTO demands (so_number, customer_name, delivery_date) 
+             VALUES ($1, $2, $3) RETURNING id`,
+            [header.soNo, header.customer, header.deliveryDate] // Pastikan delivery_date ikut disimpan
+        );
+
+        const demandId = dRes.rows[0].id;
+
+        // 2. Simpan Items
+        for (const item of items) {
+            // CARI item_id asli dari tabel items berdasarkan item_code
+            const itemLookup = await client.query(
+                `SELECT id FROM items WHERE item_code = $1`,
+                [item.itemCode]
+            );
+
+            if (itemLookup.rows.length === 0) {
+                throw new Error(`Item Code ${item.itemCode} tidak ditemukan di master data items.`);
+            }
+
+            const realItemId = itemLookup.rows[0].id;
+            const scheduleData = item.calendar ? JSON.stringify(item.calendar) : JSON.stringify([]);
+
+            await client.query(
+                `INSERT INTO demand_items (
+                    demand_id, 
+                    item_id,       -- TAMBAHKAN INI: Supaya relasi JOIN di matrix jalan
+                    item_code, 
+                    description, 
+                    uom, 
+                    total_qty, 
+                    pcs, 
+                    production_schedule
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                    demandId,
+                    realItemId,
+                    item.itemCode,
+                    item.description || '',
+                    item.uom || '',
+                    item.qty,
+                    item.pcs || 0,
+                    scheduleData
+                ]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: "Demand dan Jadwal Berhasil disimpan", demand_id: demandId });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("SAVE DEMAND ERROR:", err.message);
+        res.status(500).json({ error: "Gagal menyimpan: " + err.message });
+    } finally {
+        client.release();
     }
 };

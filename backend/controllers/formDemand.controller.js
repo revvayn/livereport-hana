@@ -13,7 +13,7 @@ exports.getDemandFromSalesOrder = async (req, res) => {
             `SELECT 
                 so.so_number, 
                 so.so_date, 
-                c.customer_name, -- PERBAIKAN: Dari c.name menjadi c.customer_name
+                c.customer_name, 
                 so.delivery_date 
              FROM sales_orders so
              LEFT JOIN customers c ON so.customer_id = c.id
@@ -35,7 +35,8 @@ exports.getDemandFromSalesOrder = async (req, res) => {
                 soi.pcs 
              FROM sales_order_items soi
              INNER JOIN items i ON i.id = soi.item_id
-             WHERE soi.sales_order_id = $1`,
+             WHERE soi.sales_order_id = $1
+             ORDER BY soi.id ASC`, // <--- TAMBAHKAN INI AGAR URUTAN SESUAI INPUT SO
             [id]
         );
 

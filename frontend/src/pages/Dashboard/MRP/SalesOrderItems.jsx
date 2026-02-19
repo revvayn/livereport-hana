@@ -95,7 +95,27 @@ export default function SalesOrderItems() {
     setEditId(null);
     setForm({ item_id: "", quantity: "", pcs: "", ratio: 0 });
   };
+  const handleDelete = async (id) => {
+    const confirm = await Swal.fire({
+      title: "Apakah Anda yakin?",
+      text: "Item ini akan dihapus dari Sales Order",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Ya, Hapus!",
+    });
 
+    if (confirm.isConfirmed) {
+      try {
+        await api.delete(`/sales-order-items/${id}`);
+        Swal.fire("Terhapus!", "Item berhasil dihapus.", "success");
+        fetchItems(selectedSOId); // Refresh tabel setelah hapus
+      } catch (err) {
+        Swal.fire("Error", "Gagal menghapus item: " + (err.response?.data?.error || err.message), "error");
+      }
+    }
+  };
   return (
     <div className="p-6 bg-white border rounded-lg max-w-6xl mx-auto">
       <h1 className="text-xl font-bold mb-4 border-b pb-2">Items for {soNumber || "..."}</h1>

@@ -1,13 +1,19 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
 export default function ProductionSchedule() {
+  const [availableOps, setAvailableOps] = useState([]);
   const [demands, setDemands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSO, setSelectedSO] = useState(null);
   const [plots, setPlots] = useState([]);
   const [plottingLoading, setPlottingLoading] = useState(false);
+  const [activeOp, setActiveOp] = useState(null);
+
+  // --- REF UNTUK MENGUNCI SCROLL ---
+  const tableContainerRef = useRef(null);
+  const scrollLeftPos = useRef(0);
 
   const fetchDemands = async () => {
     try {
@@ -15,114 +21,174 @@ export default function ProductionSchedule() {
       const res = await api.get("/planned-order");
       setDemands(res.data);
     } catch (err) {
-      console.error("Frontend Fetch Error:", err);
-      Swal.fire("Error", "Gagal load data demand: " + err.message, "error");
+      Swal.fire("Error", "Gagal load data demand", "error");
     } finally {
       setLoading(false);
     }
   };
 
   const fetchPlots = async (so) => {
+    // Simpan posisi scroll sebelum fetching
+    if (tableContainerRef.current) {
+      scrollLeftPos.current = tableContainerRef.current.scrollLeft;
+    }
+    
     setSelectedSO(so);
     try {
       setPlottingLoading(true);
       const res = await api.get(`/planned-order/schedule/${so.demand_id}`);
-      setPlots(res.data);
+      setPlots(res.data.plots || []);
+      setAvailableOps(res.data.availableOperations || []);
+      
+      // Kembalikan posisi scroll setelah state diupdate
+      setTimeout(() => {
+        if (tableContainerRef.current) {
+          tableContainerRef.current.scrollLeft = scrollLeftPos.current;
+        }
+      }, 0);
     } catch (err) {
-      Swal.fire("Error", "Gagal mengambil detail plotting", "error");
+      Swal.fire("Error", "Gagal load data matrix", "error");
     } finally {
       setPlottingLoading(false);
     }
   };
 
-  const handleGenerate = async (so) => {
-    try {
-      Swal.fire({
-        title: 'Generating Schedule...',
-        text: 'Sistem sedang menghitung jadwal backward...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
-      const res = await api.post("/planned-order/auto-generate-so", {
-        demand_id: so.demand_id,
-        delivery_date: so.delivery_date
-      });
-      Swal.fire("Berhasil", res.data.message, "success");
-      fetchDemands();
-    } catch (err) {
-      Swal.fire("Error", err.response?.data?.error || "Gagal generate", "error");
-    }
+  const getDynamicColor = (id, type) => {
+    if (type === 'PACKING') return 'bg-emerald-500';
+    if (!id) return 'bg-indigo-500';
+    const colors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-cyan-500', 'bg-rose-500'];
+    return colors[id % colors.length];
   };
-  // Di ProductionSchedule.js
-  const handleCellClick = async (item, date, shift, existingPlot) => {
-    // Hindari klik pada kolom tanggal yang rusak (seperti 01 Jan)
-    if (!date || date.startsWith('1970') || date.startsWith('0001')) {
-      return Swal.fire("Error", "Tanggal tidak valid di baris ini", "error");
+
+  const matrix = useMemo(() => {
+    if (!plots || plots.length === 0 || !selectedSO) return { dates: [], items: [] };
+
+    const formatDateLocal = (d) => {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    };
+
+    const itemMap = {};
+    plots.forEach(p => {
+      if (!itemMap[p.item_id]) {
+        itemMap[p.item_id] = {
+          item_id: p.item_id,
+          item_code: p.item_code,
+          description: p.description,
+          uom: p.uom,
+          pcs: parseFloat(p.pcs || 0),
+          data: []
+        };
+      }
+
+      if (p.date) {
+        const dStr = p.date.split("T")[0];
+        itemMap[p.item_id].data.push({
+          plot_id: p.plot_id,
+          date: dStr,
+          shift: Number(p.shift),
+          qty: parseFloat(p.qty || 0),
+          operation_name: p.operation_name,
+          operation_id: Number(p.operation_id),
+          plot_type: p.plot_type
+        });
+      }
+    });
+
+    const deliveryDate = new Date(selectedSO.delivery_date);
+    const startDate = new Date(deliveryDate);
+    startDate.setDate(startDate.getDate() - 14);
+
+    const fullDates = [];
+    let temp = new Date(startDate);
+    while (temp <= deliveryDate) {
+      fullDates.push(formatDateLocal(temp));
+      temp.setDate(temp.getDate() + 1);
     }
 
-    const action = existingPlot ? 'DELETE' : 'ADD';
+    return { dates: fullDates, items: Object.values(itemMap) };
+  }, [plots, selectedSO]);
 
-    // Pastikan format YYYY-MM-DD murni tanpa jam
-    const cleanDate = date.split('T')[0];
+  const handleCellClick = async (item, date, shift, existingPlot) => {
+    if (!date || plottingLoading) return;
+    if (existingPlot && existingPlot.plot_type === 'OTHER') return;
+
+    let action = 'ADD';
+    let targetQty = 0;
+
+    const totalTerplot = item.data
+      .filter(d => d.plot_type === 'CURRENT' || d.plot_type === 'PACKING')
+      .reduce((sum, d) => sum + d.qty, 0);
+    const sisaKebutuhan = item.pcs - (existingPlot ? (totalTerplot - existingPlot.qty) : totalTerplot);
+
+    if (!existingPlot || (existingPlot.plot_type === 'CURRENT' || existingPlot.plot_type === 'PACKING')) {
+      if (!activeOp && !existingPlot) return Swal.fire("Info", "Pilih Operasi terlebih dahulu", "warning");
+
+      const { value: formValues, isDismissed, isDenied } = await Swal.fire({
+        title: 'Plotting Quantity',
+        html: `<div class="text-left text-xs mb-2">Item: <b>${item.item_code}</b><br/>Sisa Butuh: <b>${sisaKebutuhan}</b></div>` +
+              `<input id="swal-qty" type="number" class="swal2-input" placeholder="Qty" value="${existingPlot ? existingPlot.qty : sisaKebutuhan}">`,
+        showCancelButton: true,
+        showDenyButton: !!existingPlot,
+        confirmButtonText: 'Simpan',
+        denyButtonText: 'Hapus Plot',
+        focusConfirm: false,
+        preConfirm: () => {
+          return document.getElementById('swal-qty').value;
+        }
+      });
+
+      if (isDismissed) return;
+      
+      if (isDenied) {
+        action = 'DELETE';
+      } else {
+        targetQty = parseFloat(formValues);
+        if (!targetQty || targetQty <= 0) return Swal.fire("Gagal", "Quantity harus lebih dari 0", "error");
+        action = 'ADD';
+      }
+    }
 
     try {
       setPlottingLoading(true);
       await api.post("/planned-order/toggle-plot", {
+        plot_id: existingPlot?.plot_id,
         demand_id: selectedSO.demand_id,
         item_id: item.item_id,
-        date: cleanDate,
+        operation_id: action === 'ADD' ? (activeOp ? activeOp.id : existingPlot.operation_id) : (existingPlot?.operation_id),
+        date: date,
         shift: parseInt(shift),
-        qty: item.pcs || 0,
+        qty: targetQty,
         action: action
       });
-      // Refresh data setelah sukses
-      fetchPlots(selectedSO);
+      await fetchPlots(selectedSO);
     } catch (err) {
-      Swal.fire("Gagal", err.response?.data?.error || "Cek koneksi database", "error");
+      Swal.fire("Gagal", err.response?.data?.error || "Terjadi kesalahan", "error");
     } finally {
       setPlottingLoading(false);
     }
   };
+
   const getItemColor = (code) => {
-    if (!code) return 'text-gray-900';
-    if (code.startsWith('FGP')) return 'text-blue-700';
-    if (code.startsWith('WIP')) return 'text-purple-700';
-    if (code.startsWith('RM')) return 'text-orange-700';
+    if (code?.startsWith('FGP')) return 'text-blue-700';
+    if (code?.startsWith('WIP')) return 'text-purple-700';
     return 'text-gray-900';
   };
 
-  const matrix = useMemo(() => {
-    if (!plots || plots.length === 0) return { dates: [], items: [] };
-
-    // 1. Ambil tanggal unik dan sort
-    const dates = [...new Set(plots.map(p => {
-      const d = new Date(p.date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }))].sort();
-
-    const itemMap = {};
-    plots.forEach(current => {
-      const key = current.item_id;
-      if (!itemMap[key]) {
-        itemMap[key] = { ...current, data: [] };
-      }
-
-      // Pastikan format date untuk perbandingan sama dengan variabel 'dates'
-      const d = new Date(current.date);
-      const formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-      itemMap[key].data.push({
-        date: formattedDate,
-        shift: parseInt(current.shift),
-        qty: current.plot_qty,
-        // KUNCI UTAMA: Cek tipe data di sini
-        type: current.plot_type, // 'CURRENT' atau 'OTHER' dari Query SQL
-        ref: current.ref_so
+  const handleGenerate = async (so) => {
+    try {
+      setLoading(true);
+      await api.post("/planned-order/generate-schedule", { 
+        demand_id: so.demand_id, 
+        delivery_date: so.delivery_date 
       });
-    });
-
-    return { dates, items: Object.values(itemMap) };
-  }, [plots]);
+      Swal.fire("Berhasil", "Jadwal otomatis digenerate", "success");
+      fetchDemands();
+    } catch (err) {
+      Swal.fire("Error", "Gagal generate jadwal", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => { fetchDemands(); }, []);
 
@@ -157,9 +223,9 @@ export default function ProductionSchedule() {
                 </td>
                 <td className="py-4 text-right pr-2 space-x-2 flex justify-end">
                   <button onClick={() => fetchPlots(so)} className="border border-indigo-600 text-indigo-600 px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-indigo-50">
-                    View Matrix
+                    Matrix
                   </button>
-                  <button onClick={() => handleGenerate(so)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-indigo-700 shadow-sm">
+                  <button onClick={() => handleGenerate(so)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold hover:bg-indigo-700">
                     Generate
                   </button>
                 </td>
@@ -172,110 +238,133 @@ export default function ProductionSchedule() {
   );
 
   const renderDetailView = () => (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-6">
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <button onClick={() => setSelectedSO(null)} className="text-indigo-600 text-[11px] font-bold flex items-center gap-1 hover:underline mb-2">
+          <button onClick={() => { setSelectedSO(null); setActiveOp(null); }} className="text-indigo-600 text-[11px] font-bold flex items-center gap-1 hover:underline mb-2">
             ← BACK TO LIST
           </button>
           <h2 className="text-lg font-bold text-gray-800">
-            Schedule Detail: <span className="text-indigo-600">{selectedSO.reference_no}</span>
+            Schedule: <span className="text-indigo-600">{selectedSO.reference_no}</span>
           </h2>
         </div>
-        {/* Legend agar user tidak bingung */}
-        <div className="flex gap-4 text-[10px]">
-          <div className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-500 rounded"></span> Current SO</div>
-          <div className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded"></span> Scheduled (Other SO)</div>
+
+        <div className="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border border-dashed border-gray-300">
+          <button onClick={() => setActiveOp(null)} className={`px-2 py-1 rounded-md text-[10px] font-bold border transition-all ${!activeOp ? 'bg-gray-200 text-gray-700' : 'bg-white text-red-500 border-red-200'}`}>
+            {activeOp ? '✕ RESET' : 'SELECT OP:'}
+          </button>
+          {availableOps.map((op) => (
+            <button
+              key={op.id}
+              onClick={() => setActiveOp({ id: op.id, name: op.operation_name })}
+              className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border ${activeOp?.id === op.id ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200' : 'border-transparent'}`}
+            >
+              <span className={`w-3 h-3 ${getDynamicColor(op.id)} rounded-sm`}></span>
+              {op.operation_name}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="overflow-x-auto border rounded-xl overflow-hidden shadow-inner">
-        <table className="w-full text-[10px] border-collapse min-w-max">
-          <thead className="bg-gray-100 text-gray-600 uppercase">
-            <tr>
-              <th className="p-3 border-r sticky left-0 bg-gray-100 z-30 text-left w-[100px]">Item Code</th>
-              <th className="p-3 border-r sticky left-[100px] bg-gray-100 z-30 text-left w-[200px]">Description</th>
-              <th className="p-3 border-r sticky left-[300px] bg-gray-100 z-30 text-center w-[60px]">UOM</th>
-              <th className="p-3 border-r sticky left-[360px] bg-gray-100 z-30 text-center w-[80px]">QTY (M3)</th>
-              <th className="p-3 border-r sticky left-[440px] bg-indigo-100 text-indigo-700 z-30 text-center w-[70px]">PCS</th>
-              {matrix.dates.map(date => (
-                <th key={date} colSpan="3" className="p-2 border-r text-center font-bold bg-gray-200 border-b border-gray-300">
-                  {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
-                </th>
-              ))}
-            </tr>
-            <tr className="bg-gray-50 text-[8px] border-b">
-              <th className="sticky left-0 bg-gray-50 z-30 border-r"></th>
-              <th className="sticky left-[80px] bg-gray-50 z-30 border-r"></th>
-              <th className="sticky left-[280px] bg-gray-50 z-30 border-r"></th>
-              <th className="sticky left-[330px] bg-gray-50 z-30 border-r"></th>
-              <th className="sticky left-[390px] bg-indigo-50 z-30 border-r"></th>
-              {matrix.dates.map(date => (
-                <React.Fragment key={date}>
-                  <th className="p-1 border-r w-10 text-center">S1</th>
-                  <th className="p-1 border-r w-10 text-center">S2</th>
-                  <th className="p-1 border-r w-10 text-center">S3</th>
-                </React.Fragment>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {plottingLoading ? (
-              <tr><td colSpan="100" className="p-20 text-center animate-pulse text-indigo-500 font-bold">LOADING SCHEDULE...</td></tr>
-            ) : matrix.items.map((item) => (
-              <tr key={item.item_code} className="hover:bg-gray-50 group">
-                <td className={`p-3 border-r sticky left-0 bg-white group-hover:bg-gray-50 font-bold z-10 w-[100px] ${getItemColor(item.item_code)}`}>
-                  {item.item_code}
-                </td>
-                <td className="p-3 border-r sticky left-[100px] bg-white group-hover:bg-gray-50 text-gray-500 italic z-10 w-[200px] truncate">
-                  {item.description}
-                </td>
-                <td className="p-3 border-r sticky left-[280px] bg-white group-hover:bg-gray-50 text-center text-gray-400 z-10">
-                  {item.uom}
-                </td>
-                <td className="p-3 border-r sticky left-[330px] bg-white group-hover:bg-gray-50 text-center font-semibold z-10 text-gray-700">
-                  {parseFloat(item.total_qty || 0).toFixed(2)}
-                </td>
-                <td className="p-3 border-r sticky left-[390px] bg-indigo-50 font-black text-indigo-700 text-center z-10 group-hover:bg-indigo-100 transition-colors">
-                  {item.pcs}
-                </td>
-                {matrix.dates.map(date => [1, 2, 3].map(shift => {
-                  const cell = item.data.find(d => d.date === date && d.shift === shift);
+      <div className="relative overflow-hidden border rounded-xl shadow-inner bg-gray-50">
+        {/* OVERLAY LOADING: Menjaga tabel tetap ada sehingga tidak melompat */}
+        {plottingLoading && (
+          <div className="absolute inset-0 z-[60] bg-white/40 flex items-center justify-center">
+            <div className="animate-spin h-6 w-6 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
+          </div>
+        )}
 
-                  let cellClass = "cursor-pointer hover:bg-indigo-50 text-gray-200";
-                  let content = "+";
-
-                  if (cell) {
-                    if (cell.type === 'CURRENT') {
-                      cellClass = "cursor-pointer bg-emerald-500 text-white font-bold hover:bg-emerald-600 shadow-inner";
-                      content = cell.qty;
-                    } else {
-                      cellClass = "bg-amber-100 text-amber-700 border border-amber-300 cursor-not-allowed text-[7px]";
-                      content = `SO:${cell.ref.split('/').pop()}`;
-                    }
-                  }
-
-                  return (
-                    <td
-                      key={`${date}-${shift}`}
-                      onClick={() => handleCellClick(item, date, shift, cell)}
-                      className={`p-2 border-r text-center transition-all min-w-[40px] ${cellClass}`}
-                      title={cell?.type === 'OTHER' ? `Conflict with ${cell.ref}` : "Click to Toggle"}
-                    >
-                      {content}
-                    </td>
-                  );
-                }))}
+        <div 
+          ref={tableContainerRef}
+          className="overflow-x-auto"
+          onScroll={(e) => (scrollLeftPos.current = e.target.scrollLeft)}
+        >
+          <table className="w-full text-[10px] border-collapse min-w-max">
+            <thead className="bg-gray-100 text-gray-600 sticky top-0 z-40">
+              <tr className="border-b">
+                <th className="p-3 border-r sticky left-0 bg-gray-100 z-50 text-left w-[100px]">Code</th>
+                <th className="p-3 border-r sticky left-[100px] bg-gray-100 z-50 text-left w-[180px]">Description</th>
+                <th className="p-3 border-r sticky left-[280px] bg-gray-100 z-50 text-center w-[50px]">UOM</th>
+                <th className="p-3 border-r sticky left-[330px] bg-indigo-50 text-indigo-700 z-50 text-center w-[60px]">PCS</th>
+                {matrix.dates.map(date => (
+                  <th id={`col-${date}`} key={date} colSpan="3" className="p-2 border-r text-center font-bold bg-gray-200 text-[9px]">
+                    {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+              <tr className="bg-gray-50 text-[8px] border-b">
+                <th colSpan="4" className="sticky left-0 bg-gray-50 z-50 border-r"></th>
+                {matrix.dates.map(date => (
+                  <React.Fragment key={date}>
+                    <th className="p-1 border-r w-10 text-center text-gray-400">S1</th>
+                    <th className="p-1 border-r w-10 text-center text-gray-400">S2</th>
+                    <th className="p-1 border-r w-10 text-center text-gray-400">S3</th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y bg-white">
+              {matrix.items.map((item) => (
+                <tr key={item.item_id} className="hover:bg-gray-50 group h-12">
+                  <td className={`p-3 border-r sticky left-0 bg-white group-hover:bg-gray-50 font-bold z-10 ${getItemColor(item.item_code)}`}>
+                    {item.item_code}
+                  </td>
+                  <td className="p-3 border-r sticky left-[100px] bg-white group-hover:bg-gray-50 text-gray-500 italic z-10 truncate max-w-[180px]">
+                    {item.description}
+                  </td>
+                  <td className="p-3 border-r sticky left-[280px] bg-white group-hover:bg-gray-50 text-center text-gray-400 z-10">
+                    {item.uom}
+                  </td>
+                  <td className="p-3 border-r sticky left-[330px] bg-indigo-50 font-black text-indigo-700 text-center z-10">
+                    {item.pcs}
+                  </td>
+                  {matrix.dates.map(date => [1, 2, 3].map(shiftNum => {
+                    const cell = item.data.find(d =>
+                      d.date === date &&
+                      Number(d.shift) === Number(shiftNum)
+                    );
+
+                    let cellClass = "cursor-pointer hover:bg-indigo-100 text-transparent hover:text-indigo-400 transition-all border-r border-b";
+                    let content = <span className="text-xs">+</span>;
+
+                    if (cell) {
+                      const isCurrentSO = cell.plot_type === 'CURRENT' || cell.plot_type === 'PACKING';
+                      if (isCurrentSO) {
+                        const bgColor = getDynamicColor(cell.operation_id, cell.plot_type);
+                        cellClass = `${bgColor} text-white font-bold shadow-sm hover:brightness-95`;
+                        content = (
+                          <div className="flex flex-col items-center justify-center leading-tight h-full scale-90">
+                            <span className="text-[7px] uppercase opacity-90 truncate w-full">{cell.operation_name}</span>
+                            <span className="text-[10px] mt-0.5">{cell.qty}</span>
+                          </div>
+                        );
+                      } else {
+                        cellClass = "bg-gray-200 text-gray-400 cursor-not-allowed";
+                        content = <span className="text-[8px] scale-75">FULL</span>;
+                      }
+                    }
+
+                    return (
+                      <td
+                        key={`${date}-${shiftNum}`}
+                        onClick={() => handleCellClick(item, date, shiftNum, cell)}
+                        className={`p-0.5 text-center min-w-[45px] h-12 relative border-r border-b ${cellClass}`}
+                      >
+                        {content}
+                      </td>
+                    );
+                  }))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen space-y-6 font-sans text-gray-900">
+    <div className="p-6 bg-gray-50 min-h-screen space-y-6 font-sans">
       {!selectedSO ? renderListView() : renderDetailView()}
     </div>
   );
