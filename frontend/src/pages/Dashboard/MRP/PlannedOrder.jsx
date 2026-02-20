@@ -15,6 +15,51 @@ export default function ProductionSchedule() {
   const tableContainerRef = useRef(null);
   const scrollLeftPos = useRef(0);
 
+  const toUTCDate = (dateStr) => {
+    if (!dateStr) return null;
+  
+    const clean = dateStr.includes("T")
+      ? dateStr.split("T")[0]
+      : dateStr;
+  
+    const parts = clean.split("-");
+    if (parts.length !== 3) return null;
+  
+    const [y, m, d] = parts.map(Number);
+    if (!y || !m || !d) return null;
+  
+    return new Date(Date.UTC(y, m - 1, d));
+  };
+  
+
+  const formatISO = (dateObj) => {
+    if (!dateObj || isNaN(dateObj.getTime())) return null;
+    return dateObj.toISOString().split("T")[0];
+  };
+  
+
+  const subtractDays = (dateStr, days) => {
+    const date = toUTCDate(dateStr);
+    if (!date) return null;
+  
+    date.setUTCDate(date.getUTCDate() - days);
+    return formatISO(date);
+  };
+  
+
+  const addDays = (dateStr, days) => {
+    const date = toUTCDate(dateStr);
+    if (!date) return null;
+  
+    date.setUTCDate(date.getUTCDate() + days);
+    return formatISO(date);
+  };
+  
+
+  const formatDisplay = (dateStr) => {
+    const [y, m, d] = dateStr.split("-");
+    return `${d}-${m}`;
+  };
   const fetchDemands = async () => {
     try {
       setLoading(true);
@@ -28,26 +73,34 @@ export default function ProductionSchedule() {
   };
 
   const fetchPlots = async (so) => {
-    // Simpan posisi scroll sebelum fetching
+    if (!so) return;
+
+    // Simpan posisi scroll
     if (tableContainerRef.current) {
       scrollLeftPos.current = tableContainerRef.current.scrollLeft;
     }
-    
+
     setSelectedSO(so);
+    setPlottingLoading(true); // Mulai overlay loading
+
     try {
-      setPlottingLoading(true);
       const res = await api.get(`/planned-order/schedule/${so.demand_id}`);
-      setPlots(res.data.plots || []);
-      setAvailableOps(res.data.availableOperations || []);
-      
-      // Kembalikan posisi scroll setelah state diupdate
-      setTimeout(() => {
+
+      // Pastikan data ada sebelum set state
+      const newPlots = res.data.plots || [];
+      const newOps = res.data.availableOperations || [];
+
+      setPlots(newPlots);
+      setAvailableOps(newOps);
+
+      // Gunakan requestAnimationFrame agar browser selesai render DOM tabel baru
+      requestAnimationFrame(() => {
         if (tableContainerRef.current) {
           tableContainerRef.current.scrollLeft = scrollLeftPos.current;
         }
-      }, 0);
+      });
     } catch (err) {
-      Swal.fire("Error", "Gagal load data matrix", "error");
+      Swal.fire("Error", "Gagal memuat data matrix", "error");
     } finally {
       setPlottingLoading(false);
     }
@@ -60,14 +113,39 @@ export default function ProductionSchedule() {
     return colors[id % colors.length];
   };
 
+  const fullDates = useMemo(() => {
+    if (!selectedSO?.delivery_date) return [];
+  
+    const utcDate = new Date(selectedSO.delivery_date);
+  
+    const yyyy = utcDate.getUTCFullYear();
+    const mm = String(utcDate.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(utcDate.getUTCDate()).padStart(2, "0");
+  
+    const cleanDelivery = `${yyyy}-${mm}-${dd}`;
+  
+    const dates = [];
+  
+    for (let i = 14; i >= 0; i--) {
+      const dt = new Date(Date.UTC(yyyy, utcDate.getUTCMonth(), utcDate.getUTCDate() - i));
+      const y2 = dt.getUTCFullYear();
+      const m2 = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const d2 = String(dt.getUTCDate()).padStart(2, "0");
+  
+      dates.push(`${y2}-${m2}-${d2}`);
+    }
+  
+    return dates;
+  }, [selectedSO]);
+  
+  
   const matrix = useMemo(() => {
-    if (!plots || plots.length === 0 || !selectedSO) return { dates: [], items: [] };
-
-    const formatDateLocal = (d) => {
-      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-    };
+    if (!plots || plots.length === 0 || !selectedSO) {
+      return { dates: [], items: [] };
+    }
 
     const itemMap = {};
+
     plots.forEach(p => {
       if (!itemMap[p.item_id]) {
         itemMap[p.item_id] = {
@@ -81,10 +159,11 @@ export default function ProductionSchedule() {
       }
 
       if (p.date) {
-        const dStr = p.date.split("T")[0];
+        const cleanDate = p.date.split("T")[0];
+
         itemMap[p.item_id].data.push({
           plot_id: p.plot_id,
-          date: dStr,
+          date: cleanDate,
           shift: Number(p.shift),
           qty: parseFloat(p.qty || 0),
           operation_name: p.operation_name,
@@ -94,56 +173,78 @@ export default function ProductionSchedule() {
       }
     });
 
-    const deliveryDate = new Date(selectedSO.delivery_date);
-    const startDate = new Date(deliveryDate);
-    startDate.setDate(startDate.getDate() - 14);
+    // SORT TANPA new Date()
+    Object.values(itemMap).forEach(item => {
+      item.data.sort((a, b) => {
+        if (a.date === b.date) return a.shift - b.shift;
+        return a.date.localeCompare(b.date);
+      });
+    });
 
-    const fullDates = [];
-    let temp = new Date(startDate);
-    while (temp <= deliveryDate) {
-      fullDates.push(formatDateLocal(temp));
-      temp.setDate(temp.getDate() + 1);
-    }
+    return {
+      dates: fullDates, // pakai generator global yang sudah UTC-safe
+      items: Object.values(itemMap)
+    };
+  }, [plots, selectedSO, fullDates]);
 
-    return { dates: fullDates, items: Object.values(itemMap) };
-  }, [plots, selectedSO]);
 
   const handleCellClick = async (item, date, shift, existingPlot) => {
     if (!date || plottingLoading) return;
     if (existingPlot && existingPlot.plot_type === 'OTHER') return;
 
+    // --- PERBAIKAN: Tentukan ID Operasi yang sedang diproses ---
+    const currentOpId = existingPlot ? existingPlot.operation_id : activeOp?.id;
+
+    if (!currentOpId && !existingPlot) {
+      return Swal.fire("Info", "Pilih Operasi terlebih dahulu", "warning");
+    }
+
+    // --- PERBAIKAN: Hitung total yang sudah terplot KHUSUS untuk Operasi ini saja ---
+    const totalTerplotOp = item.data
+      .filter(d =>
+        Number(d.operation_id) === Number(currentOpId) &&
+        (d.plot_type === 'CURRENT' || d.plot_type === 'PACKING')
+      )
+      .reduce((sum, d) => sum + d.qty, 0);
+
+
+    // Sisa butuh = target PCS - (total terplot untuk op ini)
+    // Jika sedang edit, kurangi dulu qty sel yang sekarang dari total agar tidak double count
+    const sisaKebutuhanOp = item.pcs - (existingPlot ? (totalTerplotOp - existingPlot.qty) : totalTerplotOp);
+
     let action = 'ADD';
     let targetQty = 0;
 
-    const totalTerplot = item.data
-      .filter(d => d.plot_type === 'CURRENT' || d.plot_type === 'PACKING')
-      .reduce((sum, d) => sum + d.qty, 0);
-    const sisaKebutuhan = item.pcs - (existingPlot ? (totalTerplot - existingPlot.qty) : totalTerplot);
-
     if (!existingPlot || (existingPlot.plot_type === 'CURRENT' || existingPlot.plot_type === 'PACKING')) {
-      if (!activeOp && !existingPlot) return Swal.fire("Info", "Pilih Operasi terlebih dahulu", "warning");
-
       const { value: formValues, isDismissed, isDenied } = await Swal.fire({
         title: 'Plotting Quantity',
-        html: `<div class="text-left text-xs mb-2">Item: <b>${item.item_code}</b><br/>Sisa Butuh: <b>${sisaKebutuhan}</b></div>` +
-              `<input id="swal-qty" type="number" class="swal2-input" placeholder="Qty" value="${existingPlot ? existingPlot.qty : sisaKebutuhan}">`,
+        html: `
+          <div class="text-left text-xs mb-2">
+            Item: <b>${item.item_code}</b><br/>
+            Proses: <b>${existingPlot?.operation_name || activeOp?.name}</b><br/>
+            Sisa Butuh Proses Ini: <b>${sisaKebutuhanOp}</b>
+          </div>
+          <input id="swal-qty" type="number" class="swal2-input" placeholder="Qty" value="${existingPlot ? existingPlot.qty : sisaKebutuhanOp}">
+        `,
         showCancelButton: true,
         showDenyButton: !!existingPlot,
         confirmButtonText: 'Simpan',
         denyButtonText: 'Hapus Plot',
         focusConfirm: false,
-        preConfirm: () => {
-          return document.getElementById('swal-qty').value;
-        }
+        preConfirm: () => document.getElementById('swal-qty').value
       });
 
       if (isDismissed) return;
-      
+
       if (isDenied) {
         action = 'DELETE';
       } else {
         targetQty = parseFloat(formValues);
         if (!targetQty || targetQty <= 0) return Swal.fire("Gagal", "Quantity harus lebih dari 0", "error");
+        // Validasi simpel di frontend
+        if (targetQty > sisaKebutuhanOp) {
+          return Swal.fire("Gagal", `Qty melebihi sisa kebutuhan proses ini (${sisaKebutuhanOp})`, "error");
+        }
         action = 'ADD';
       }
     }
@@ -154,7 +255,7 @@ export default function ProductionSchedule() {
         plot_id: existingPlot?.plot_id,
         demand_id: selectedSO.demand_id,
         item_id: item.item_id,
-        operation_id: action === 'ADD' ? (activeOp ? activeOp.id : existingPlot.operation_id) : (existingPlot?.operation_id),
+        operation_id: currentOpId, // Menggunakan ID operasi yang tepat
         date: date,
         shift: parseInt(shift),
         qty: targetQty,
@@ -169,17 +270,18 @@ export default function ProductionSchedule() {
   };
 
   const getItemColor = (code) => {
-    if (code?.startsWith('FGP')) return 'text-blue-700';
-    if (code?.startsWith('WIP')) return 'text-purple-700';
+    const c = code?.toUpperCase() || '';
+    if (c.startsWith('FGP')) return 'text-blue-600 border-l-4 border-blue-600';
+    if (c.startsWith('WIP')) return 'text-purple-600 border-l-4 border-purple-600';
     return 'text-gray-900';
   };
 
   const handleGenerate = async (so) => {
     try {
       setLoading(true);
-      await api.post("/planned-order/generate-schedule", { 
-        demand_id: so.demand_id, 
-        delivery_date: so.delivery_date 
+      await api.post("/planned-order/generate-schedule", {
+        demand_id: so.demand_id,
+        delivery_date: so.delivery_date
       });
       Swal.fire("Berhasil", "Jadwal otomatis digenerate", "success");
       fetchDemands();
@@ -214,7 +316,7 @@ export default function ProductionSchedule() {
                 <td className="py-4 text-gray-600">{so.customer_name || '-'}</td>
                 <td className="py-4 text-center">{so.total_items} SKU</td>
                 <td className="py-4 text-center text-gray-500">
-                  {new Date(so.delivery_date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {formatDisplay(so.delivery_date)}
                 </td>
                 <td className="py-4 text-center">
                   <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${so.has_schedule ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -274,7 +376,7 @@ export default function ProductionSchedule() {
           </div>
         )}
 
-        <div 
+        <div
           ref={tableContainerRef}
           className="overflow-x-auto"
           onScroll={(e) => (scrollLeftPos.current = e.target.scrollLeft)}
@@ -288,7 +390,7 @@ export default function ProductionSchedule() {
                 <th className="p-3 border-r sticky left-[330px] bg-indigo-50 text-indigo-700 z-50 text-center w-[60px]">PCS</th>
                 {matrix.dates.map(date => (
                   <th id={`col-${date}`} key={date} colSpan="3" className="p-2 border-r text-center font-bold bg-gray-200 text-[9px]">
-                    {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+                    {formatDisplay(date)}
                   </th>
                 ))}
               </tr>
@@ -343,7 +445,7 @@ export default function ProductionSchedule() {
                         content = <span className="text-[8px] scale-75">FULL</span>;
                       }
                     }
-
+console.log("delivery_date RAW:", selectedSO?.delivery_date);
                     return (
                       <td
                         key={`${date}-${shiftNum}`}
