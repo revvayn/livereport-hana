@@ -108,17 +108,18 @@ exports.getAllDemands = async (req, res) => {
     try {
         const query = `
             SELECT 
-                d.id as demand_id,
-                d.so_number as reference_no,
-                d.so_date,
-                d.customer_name,
-                d.delivery_date,
-                d.production_date,
-                COUNT(di.id) as total_items
-            FROM demands d
-            LEFT JOIN demand_items di ON d.id = di.demand_id
-            GROUP BY d.id
-            ORDER BY d.created_at DESC;
+  d.id as demand_id,
+  d.so_number,
+  d.so_date,
+  d.customer_name,
+  d.delivery_date,
+  d.production_date,
+  d.is_generated,
+  COUNT(di.id) as total_items
+FROM demands d
+LEFT JOIN demand_items di ON d.id = di.demand_id
+GROUP BY d.id
+ORDER BY d.created_at DESC;
         `;
         const result = await pool.query(query);
         res.json(result.rows);
@@ -182,7 +183,7 @@ exports.exportToExcel = async (req, res) => {
         const titleCell = worksheet.getCell('A1');
         titleCell.value = "DEMAND PRODUCTION PLAN";
         titleCell.font = { size: 16, bold: true, color: { argb: 'FF4F46E5' } };
-        
+
         worksheet.addRow(["SO Number", ": " + (header.soNo || "-")]);
         worksheet.addRow(["SO Date", ": " + (header.soDate ? new Date(header.soDate).toLocaleDateString("id-ID") : "-")]);
         worksheet.addRow(["Customer", ": " + (header.customer || "-")]);
@@ -220,7 +221,7 @@ exports.exportToExcel = async (req, res) => {
         });
 
         // 5. Merging Date Headers (Mulai dari kolom F / index 6)
-        let colStart = 6; 
+        let colStart = 6;
         refCalendar.forEach(() => {
             worksheet.mergeCells(headerRowIndex, colStart, headerRowIndex, colStart + 2);
             colStart += 3;
@@ -230,9 +231,9 @@ exports.exportToExcel = async (req, res) => {
         [row1, row2].forEach((row, idx) => {
             row.eachCell((cell) => {
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                cell.fill = { 
-                    type: 'pattern', 
-                    pattern: 'solid', 
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
                     fgColor: { argb: idx === 0 ? 'FF4F46E5' : '6366F1' } // Indigo shades
                 };
                 cell.border = borderStyle;
@@ -264,7 +265,7 @@ exports.exportToExcel = async (req, res) => {
             const row = worksheet.addRow(rowData);
             row.eachCell((cell, colNum) => {
                 cell.border = borderStyle;
-                
+
                 // Alignment spesifik
                 if (colNum <= 2) cell.alignment = { horizontal: 'left' };
                 else cell.alignment = { horizontal: 'center' };
@@ -309,3 +310,166 @@ exports.runMRP = async (req, res) => {
     const { demand_item_id } = req.body;
     res.json({ message: `Item ID ${demand_item_id} diproses oleh sistem MRP!` });
 };
+
+exports.updateDemand = async (req, res) => {
+    const { id } = req.params;
+    const { header, items } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        // Update header
+        await client.query(
+            `UPDATE demands 
+             SET delivery_date = $1,
+                 production_date = $2,
+                 so_date = $3,
+                 customer_name = $4
+             WHERE id = $5`,
+            [
+                header.deliveryDate,
+                header.productionDate,
+                header.soDate,
+                header.customer,
+                id
+            ]
+        );
+
+        // Hapus item lama
+        await client.query(
+            "DELETE FROM demand_items WHERE demand_id = $1",
+            [id]
+        );
+
+        // Insert ulang item (lebih aman)
+        for (const item of items) {
+            await client.query(
+                `INSERT INTO demand_items
+                (demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                [
+                    id,
+                    item.itemId,
+                    item.itemCode,
+                    item.description,
+                    item.uom,
+                    parseFloat(item.qty) || 0,
+                    parseFloat(item.pcs) || 0,
+                    JSON.stringify(item.calendar)
+                ]
+            );
+        }
+
+        await client.query("COMMIT");
+        res.json({ message: "Demand updated successfully" });
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+};
+
+// POST /demand/:id/generate-finishing
+// POST /demand/:id/generate-finishing
+exports.generateFinishing = async (req, res) => {
+    const { id } = req.params;
+  
+    try {
+      // ✅ Cek demand
+      const checkDemand = await pool.query(
+        "SELECT is_generated FROM demands WHERE id = $1",
+        [id]
+      );
+      if (!checkDemand.rows.length) return res.status(404).json({ error: "Demand tidak ditemukan" });
+      if (checkDemand.rows[0].is_generated) return res.status(400).json({ error: "Finishing sudah digenerate" });
+  
+      // ✅ Ambil item demand
+      const demandItems = await pool.query(
+        "SELECT * FROM demand_items WHERE demand_id = $1",
+        [id]
+      );
+      if (!demandItems.rows.length) return res.status(400).json({ error: "Tidak ada item pada demand ini" });
+  
+      const updatedItems = [];
+  
+      for (const item of demandItems.rows) {
+        // Ambil routing finishing
+        const routing = await pool.query(
+          "SELECT pcs FROM item_routings WHERE item_id = $1 AND sequence = 0",
+          [item.item_id]
+        );
+        if (!routing.rows.length) continue;
+  
+        const maxPerShift = routing.rows[0].pcs;
+        let remaining = item.pcs;
+  
+        // ✅ Parse calendar dengan aman
+        let calendar;
+        if (typeof item.production_schedule === "string") {
+          calendar = JSON.parse(item.production_schedule);
+        } else if (typeof item.production_schedule === "object" && item.production_schedule !== null) {
+          calendar = item.production_schedule;
+        } else {
+          calendar = [];
+        }
+  
+        // Cari shift terakhir
+        let lastDay = -1, lastShift = -1;
+        calendar.forEach((day, dIdx) => {
+          ["shift1", "shift2", "shift3"].forEach((s, sIdx) => {
+            if (day.shifts[s]?.active) {
+              lastDay = dIdx;
+              lastShift = sIdx + 1;
+            }
+          });
+        });
+        if (lastDay === -1) continue;
+  
+        let currentDay = lastDay, currentShift = lastShift;
+  
+        // Plot finishing mundur
+        while (remaining > 0 && currentDay >= 0) {
+          const shiftKey = `shift${currentShift}`;
+  
+          // Jangan overwrite kalau sudah ada qty
+          if (!calendar[currentDay].shifts[shiftKey]?.active) {
+            const plotQty = remaining > maxPerShift ? maxPerShift : remaining;
+            calendar[currentDay].shifts[shiftKey] = { active: true, qty: plotQty, type: "finishing" };
+            remaining -= plotQty;
+          }
+  
+          currentShift--;
+          if (currentShift < 1) {
+            currentShift = 3;
+            currentDay--;
+          }
+        }
+  
+        // Update database
+        await pool.query(
+          "UPDATE demand_items SET production_schedule = $1 WHERE id = $2",
+          [JSON.stringify(calendar), item.id]
+        );
+  
+        updatedItems.push({
+          id: item.id,
+          production_schedule: calendar // ✅ Kirim calendar terbaru ke frontend
+        });
+      }
+  
+      // Mark demand as generated
+      await pool.query("UPDATE demands SET is_generated = true WHERE id = $1", [id]);
+  
+      res.json({
+        message: "Finishing generated successfully",
+        updatedItems
+      });
+  
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Generate finishing gagal" });
+    }
+  };

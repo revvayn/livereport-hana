@@ -10,7 +10,7 @@ export default function ItemRoutings() {
   const [form, setForm] = useState({
     item_id: "",
     operation_id: "",
-    machine_id: "",
+    pcs: "",
     cycle_time_min: "",
     sequence: ""
   });
@@ -32,13 +32,11 @@ export default function ItemRoutings() {
 
   const fetchDropdowns = async () => {
     try {
-      const [resItems, resMachines, resOperations] = await Promise.all([
+      const [resItems, resOperations] = await Promise.all([
         api.get("/items"),
-        api.get("/machines"),
         api.get("/operations")
       ]);
       setItems(resItems.data || []);
-      setMachines(resMachines.data || []);
       setOperations(resOperations.data || []);
     } catch (err) {
       console.error(err);
@@ -52,8 +50,8 @@ export default function ItemRoutings() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { item_id, operation_id, machine_id, cycle_time_min, sequence } = form;
-    if (!item_id || !operation_id || !machine_id || cycle_time_min === "" || sequence === "") {
+    const { item_id, operation_id, pcs, cycle_time_min, sequence } = form;
+    if (!item_id || !operation_id || pcs === "" || cycle_time_min === "" || sequence === "") {
       return Swal.fire("Error", "Semua field wajib diisi", "warning");
     }
 
@@ -66,7 +64,7 @@ export default function ItemRoutings() {
         await api.post("/item-routings", form);
         Swal.fire("Berhasil", "Item routing ditambahkan", "success");
       }
-      setForm({ item_id: "", operation_id: "", machine_id: "", cycle_time_min: "", sequence: "" });
+      setForm({ item_id: "", operation_id: "", pcs: "", cycle_time_min: "", sequence: "" });
       setEditId(null);
       fetchRoutings();
     } catch (err) {
@@ -81,7 +79,7 @@ export default function ItemRoutings() {
     setForm({
       item_id: r.item_id,
       operation_id: r.operation_id,
-      machine_id: r.machine_id,
+      pcs: r.pcs,
       cycle_time_min: r.cycle_time_min,
       sequence: r.sequence
     });
@@ -145,16 +143,15 @@ export default function ItemRoutings() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Machine</label>
-          <select
-            value={form.machine_id}
-            onChange={e => setForm({ ...form, machine_id: e.target.value })}
+          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Pcs</label>
+          <input
+            type="number"
+            placeholder="Pcs"
+            value={form.pcs}
+            onChange={e => setForm({ ...form, pcs: e.target.value })}
             required
-            className="border border-gray-300 p-2 rounded text-sm bg-white focus:outline-none focus:border-blue-500 w-full h-10"
-          >
-            <option value="">-- Machine --</option>
-            {machines.map(m => <option key={m.id} value={m.id}>{m.machine_name}</option>)}
-          </select>
+            className="border border-gray-300 p-2 rounded text-sm focus:outline-none focus:border-blue-500 w-full h-10 text-center"
+          />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -200,7 +197,7 @@ export default function ItemRoutings() {
               <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase w-12 text-center">ID</th>
               <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Item Code</th>
               <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Operation</th>
-              <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Machine</th>
+              <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-24">PCS</th>
               <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-24">C/T</th>
               <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-20">Seq</th>
               <th className="p-3 text-center text-xs font-bold text-gray-600 uppercase w-32">Aksi</th>
@@ -213,7 +210,7 @@ export default function ItemRoutings() {
                   <td className="p-3 text-center text-gray-400 font-mono text-xs">{r.id}</td>
                   <td className="p-3 font-bold text-blue-700">{r.item_code}</td>
                   <td className="p-3 text-gray-700">{r.operation_name}</td>
-                  <td className="p-3 text-gray-600 italic">{r.machine_name}</td>
+                  <td className="p-3 text-gray-600 italic">{r.pcs}</td>
                   <td className="p-3 text-center font-mono">{parseFloat(r.cycle_time_min).toFixed(2)}</td>
                   <td className="p-3 text-center font-bold">
                     <span className="bg-gray-100 px-2 py-1 rounded text-gray-700">{r.sequence}</span>

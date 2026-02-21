@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
-export default function DemandList() {
+export default function FinishingList() {
 
   /* ================= MAIN STATE ================= */
   const [editingDemandId, setEditingDemandId] = useState(null);
@@ -20,7 +20,12 @@ export default function DemandList() {
     soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "",
   });
   const [items, setItems] = useState([]);
+  const [time, setTime] = useState(new Date());
 
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
   /* ================= HELPERS ================= */
   const ITEM_COLORS = [
     "bg-green-600",
@@ -188,6 +193,104 @@ export default function DemandList() {
     return updatedItems;
   };
 
+  /* ================= AUTO PLOT FINISHING ================= */
+  const autoPlotFinishing = (items, itemRoutings, lastPackingCalendar) => {
+    // items: array item dari SO
+    // itemRoutings: array dari backend /item_routings
+    // lastPackingCalendar: calendar terakhir dari packing (untuk key mundur)
+
+    if (!items || !itemRoutings || items.length === 0) return [];
+
+    // clone items
+    const updatedItems = items.map(it => ({ ...it, calendar: [...it.calendar] }));
+
+    updatedItems.forEach(item => {
+      // ambil routing finishing sequence=0 untuk item ini
+      const routing = itemRoutings.find(r => r.item_code === item.itemCode && r.sequence === 0);
+      if (!routing) return;
+
+      const totalQty = Number(item.pcs || 0);
+      const cycleTime = Number(routing.cycle_time_min || 1); // minimal 1
+      const maxPerShift = Number(routing.pcs || 50); // default 50 pcs/shift
+
+      // start mundur dari H-1 terakhir packing
+      let calendar = lastPackingCalendar || item.calendar;
+      let dayIdx = calendar.length - 1;
+      let shiftKeys = ["shift3", "shift2", "shift1"];
+      let shiftIdx = shiftKeys.length - 1;
+
+      let plotted = 0;
+      while (plotted < totalQty && dayIdx >= 0) {
+        const shiftKey = shiftKeys[shiftIdx];
+        const remaining = totalQty - plotted;
+        const qtyThisShift = remaining < maxPerShift ? remaining : maxPerShift;
+
+        calendar[dayIdx].shifts[shiftKey] = {
+          active: true,
+          qty: qtyThisShift
+        };
+
+        plotted += qtyThisShift;
+
+        // mundur shift
+        shiftIdx--;
+        if (shiftIdx < 0) {
+          shiftIdx = shiftKeys.length - 1;
+          dayIdx--; // pindah hari sebelumnya
+        }
+      }
+
+      item.calendar = calendar;
+    });
+
+    return updatedItems;
+  };
+
+  /* ================= AUTO PLOT FINISHING VISUAL ================= */
+  const autoPlotFinishingVisual = (items, itemRoutings, lastPackingCalendar) => {
+    if (!items || !itemRoutings || items.length === 0) return [];
+
+    const updatedItems = items.map(it => ({ ...it, calendar: [...it.calendar] }));
+
+    updatedItems.forEach(item => {
+      const routing = itemRoutings.find(r => r.item_code === item.itemCode && r.sequence === 0);
+      if (!routing) return;
+
+      const totalQty = Number(item.pcs || 0);
+      const maxPerShift = Number(routing.pcs || 50);
+
+      let calendar = lastPackingCalendar || item.calendar;
+      let dayIdx = calendar.length - 1;
+      let shiftKeys = ["shift3", "shift2", "shift1"];
+      let shiftIdx = shiftKeys.length - 1;
+
+      let plotted = 0;
+      while (plotted < totalQty && dayIdx >= 0) {
+        const shiftKey = shiftKeys[shiftIdx];
+        const remaining = totalQty - plotted;
+        const qtyThisShift = remaining < maxPerShift ? remaining : maxPerShift;
+
+        calendar[dayIdx].shifts[shiftKey] = {
+          active: true,
+          qty: qtyThisShift,
+          type: "finishing" // tanda shift finishing
+        };
+
+        plotted += qtyThisShift;
+
+        shiftIdx--;
+        if (shiftIdx < 0) {
+          shiftIdx = shiftKeys.length - 1;
+          dayIdx--;
+        }
+      }
+
+      item.calendar = calendar;
+    });
+
+    return updatedItems;
+  };
+
   /* ================= FETCH DEMAND LIST ================= */
   const fetchDemands = async () => {
     try {
@@ -266,10 +369,9 @@ export default function DemandList() {
       });
 
       const mappedItems = itemsData.map((it) => {
-        const parsed =
-          typeof it.production_schedule === "string"
-            ? JSON.parse(it.production_schedule)
-            : it.production_schedule;
+        const parsed = typeof it.production_schedule === "string"
+          ? JSON.parse(it.production_schedule)
+          : it.production_schedule || [];
 
         return {
           itemId: it.id,
@@ -278,7 +380,7 @@ export default function DemandList() {
           uom: it.uom,
           qty: it.total_qty,
           pcs: it.pcs,
-          calendar: parsed || [],
+          calendar: parsed,
         };
       });
 
@@ -341,7 +443,6 @@ export default function DemandList() {
     if (!header.deliveryDate || !header.productionDate) {
       return Swal.fire("Peringatan", "Lengkapi tanggal!", "warning");
     }
-
     try {
       setLoading(true);
 
@@ -369,7 +470,30 @@ export default function DemandList() {
       setLoading(false);
     }
   };
-
+  const handleGenerateFinishing = () => {
+    if (!items || items.length === 0) return Swal.fire("Peringatan", "Tidak ada item untuk diproses", "warning");
+    if (!header.deliveryDate) return Swal.fire("Peringatan", "Lengkapi tanggal kirim!", "warning");
+  
+    // 1. Tentukan kalender terakhir dari packing (atau pakai calendarStart)
+    const lastPackingCalendar = items[0]?.calendar || [];
+  
+    // 2. Dummy itemRoutings, seharusnya dari API /item_routings
+    const itemRoutings = items.map((it) => ({
+      item_code: it.itemCode,
+      sequence: 0,
+      pcs: 50,
+      cycle_time_min: 1
+    }));
+  
+    // 3. Generate visual finishing plot
+    const plottedItems = autoPlotFinishingVisual(items, itemRoutings, lastPackingCalendar);
+  
+    // 4. Update state items langsung
+    setItems(plottedItems);
+  
+    Swal.fire("Sukses!", "Finishing schedule berhasil digenerate (frontend)", "success");
+  };
+  
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -474,19 +598,69 @@ export default function DemandList() {
                     </td>
                     <td className="py-4 text-right">
                       <div className="flex justify-end gap-2">
+
+                        {!so.is_generated && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                Swal.fire({
+                                  title: "Mohon tunggu...",
+                                  text: "Sedang generate finishing schedule",
+                                  allowOutsideClick: false,
+                                  didOpen: () => Swal.showLoading(),
+                                });
+
+                                // generate finishing di backend
+                                await api.post(`/demand/${so.demand_id}/generate-finishing`);
+
+                                Swal.close();
+                                Swal.fire({
+                                  icon: "success",
+                                  title: "Berhasil!",
+                                  text: "Finishing schedule berhasil digenerate",
+                                });
+
+                                // LANGSUNG load detail view tanpa harus klik manual
+                                await handleShowDetail(so);
+
+                                // pastikan view di-set ke 'detail'
+                                setView("detail");
+
+                              } catch (err) {
+                                Swal.close();
+                                Swal.fire({
+                                  icon: "error",
+                                  title: "Gagal",
+                                  text: err.response?.data?.error || "Terjadi kesalahan saat generate finishing",
+                                });
+                                console.error(err);
+                              }
+                            }}
+                            className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700"
+                          >
+                            Generate
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleShowDetail(so)}
-                          className="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 shadow-sm transition-all"
+                          disabled={!so.is_generated}
+                          className={`px-3 py-1.5 rounded text-xs font-bold transition-all
+        ${so.is_generated
+                              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                              : "bg-gray-200 text-gray-400 cursor-not-allowed"}
+      `}
                         >
                           View Detail
                         </button>
 
                         <button
                           onClick={() => handleDelete(so.demand_id)}
-                          className="bg-white border border-red-200 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                          className="bg-white border border-red-200 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white"
                         >
                           Delete
                         </button>
+
                       </div>
                     </td>
                   </tr>
@@ -506,6 +680,7 @@ export default function DemandList() {
               <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50">
                 <table className="w-full text-[10px] border-collapse bg-white">
                   <thead>
+                    {/* Header utama */}
                     <tr className="bg-gray-100 text-gray-600 font-bold uppercase">
                       <th className="border p-2 sticky left-0 bg-gray-100 z-20 min-w-[120px] text-left">Item Code</th>
                       <th className="border p-2 min-w-[150px] text-left">Description</th>
@@ -518,9 +693,13 @@ export default function DemandList() {
                         </th>
                       ))}
                     </tr>
+
+                    {/* Sub-header shift */}
                     <tr className="bg-gray-50 text-[8px] text-gray-400">
                       <th className="border p-1 sticky left-0 bg-gray-50 z-20"></th>
-                      <th className="border p-1"></th><th className="border p-1"></th><th className="border p-1"></th>
+                      <th className="border p-1"></th>
+                      <th className="border p-1"></th>
+                      <th className="border p-1"></th>
                       <th className="border p-1 bg-indigo-50/30"></th>
                       {items[0]?.calendar?.map((day, i) => (
                         <React.Fragment key={i}>
@@ -531,57 +710,63 @@ export default function DemandList() {
                       ))}
                     </tr>
                   </thead>
+
                   <tbody>
                     {items.map((item, index) => (
                       <tr key={index} className="hover:bg-blue-50/30 transition-colors">
                         <td className="border p-2 font-bold sticky left-0 bg-white z-10 text-indigo-700">
                           {item.itemCode}
                         </td>
-
-                        <td className="border p-2 text-gray-600 italic">
-                          {item.description || "-"}
-                        </td>
-
-                        <td className="border p-2 text-center text-gray-500 uppercase">
-                          {item.uom || "PCS"}
-                        </td>
-
-                        <td className="border p-2 text-center font-bold text-gray-900 bg-gray-50/50">
-                          {item.qty}
-                        </td>
-
+                        <td className="border p-2 text-gray-600 italic">{item.description || "-"}</td>
+                        <td className="border p-2 text-center text-gray-500 uppercase">{item.uom || "PCS"}</td>
+                        <td className="border p-2 text-center font-bold text-gray-900 bg-gray-50/50">{item.qty}</td>
                         <td className="border p-2 text-center font-black text-indigo-600 bg-indigo-50/20">
                           {Number(item.pcs || 0).toLocaleString("id-ID")}
                         </td>
 
-                        {item.calendar?.map((day, dIdx) => (
-                          <React.Fragment key={dIdx}>
-                            {["shift1", "shift2", "shift3"].map((s) => (
-                              <td
-                                key={s}
-                                className={`border p-1 text-center font-bold ${day.shifts[s].active
-                                  ? "bg-emerald-500 text-white"
-                                  : "text-gray-200"
-                                  }`}
-                              >
-                                {day.shifts[s].active ? day.shifts[s].qty : "-"}
-                              </td>
-                            ))}
-                          </React.Fragment>
-                        ))}
+                        {item.calendar?.map((day, dIdx) =>
+                          ["shift1", "shift2", "shift3"].map((s) => (
+                            <td
+                              key={`${dIdx}-${s}`}
+                              className={`border p-1 text-center font-bold ${day.shifts[s].active
+                                ? day.shifts[s].type === "finishing"
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-emerald-500 text-white"
+                                : "text-gray-200"
+                                }`}
+                            >
+                              {day.shifts[s].active ? day.shifts[s].qty : "-"}
+                            </td>
+                          ))
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+            {/* Footer legend yang tidak ikut scroll */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100 text-[9px] text-gray-500 flex gap-4 items-center uppercase font-bold">
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></div> Packing
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 bg-purple-600 rounded-sm"></div> Finishing
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 bg-white border border-gray-300 rounded-sm"></div> No Schedule
+              </div>
+              <div className="ml-auto text-indigo-600 font-black italic">
+                S1/S2/S3 = Shift 1, 2, 3
+              </div>
+            </div>
 
             {/* TAB 2: EDIT JADWAL */}
             {activeTab === "bom" && (
               <div className="border rounded-lg shadow-inner bg-gray-50 p-5">
-              <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
-                Demand Planner – Cumulative Backward
-              </h1>
+                <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
+                  Demand Planner – Cumulative Backward
+                </h1>
 
                 {/* Header Info */}
                 <div className="space-y-4 mb-6">
