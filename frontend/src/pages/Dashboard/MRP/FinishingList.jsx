@@ -36,6 +36,11 @@ export default function FinishingList() {
     "bg-teal-600",
   ];
 
+  const STATUS_COLORS = {
+    packing: "bg-emerald-500", // Hijau (Sama dengan Matrix)
+    finishing: "bg-purple-600", // Ungu (Sama dengan Matrix)
+  };
+
   const updateHeader = (key, value) => {
     setHeader((prev) => ({ ...prev, [key]: value }));
   };
@@ -46,22 +51,21 @@ export default function FinishingList() {
     setItems(newItems);
   };
 
-  const toggleShift = (itemIdx, dayIdx, shift, mode = "toggle") => {
+  const toggleShift = (itemIdx, dayIdx, shift, mode = "toggle", isShiftPressed = false) => {
     setItems((prev) => {
       const copy = [...prev];
       const item = { ...copy[itemIdx] };
       const day = { ...item.calendar[dayIdx] };
 
       const current = day.shifts[shift].active;
-
-      let newActive = current;
-      if (mode === "on") newActive = true;
-      else if (mode === "off") newActive = false;
-      else newActive = !current;
+      let newActive = mode === "on" ? true : mode === "off" ? false : !current;
 
       day.shifts[shift] = {
         ...day.shifts[shift],
         active: newActive,
+        // DINAMIS: Ditentukan oleh input user (tombol Shift)
+        type: isShiftPressed ? "packing" : "finishing",
+        qty: newActive ? (day.shifts[shift].qty || 50) : 0
       };
 
       item.calendar[dayIdx] = day;
@@ -152,46 +156,56 @@ export default function FinishingList() {
 
   /* ================= AUTO PLOT ================= */
   const autoPlotGlobalBackward = (items, deliveryDate) => {
-    if (!deliveryDate || items.length === 0) return items;
+  if (!deliveryDate || items.length === 0) return items;
 
-    const delivery = new Date(deliveryDate + "T00:00:00");
-    const startDate = addDays(delivery, -13); // ✅ H-13 dari delivery
+  const delivery = new Date(deliveryDate + "T00:00:00");
+  const startDate = addDays(delivery, -13);
 
-    let updatedItems = items.map((it) => ({
-      ...it,
-      calendarStart: startDate,
-      calendar: buildCalendar(startDate, 14),
-    }));
+  let updatedItems = items.map((it) => ({
+    ...it,
+    calendarStart: startDate,
+    calendar: buildCalendar(startDate, 14),
+  }));
 
-    let currentDayIdx = 12; // H-1
-    let currentShift = 3;
+  // Penanda posisi plotting global agar antar item tidak tumpang tindih shift-nya
+  let currentDayIdx = 12; 
+  let currentShift = 3;
 
-    updatedItems.forEach((item) => {
-      let targetPcs = Number(item.pcs) || 0;
-      let currentPlotted = 0;
+  updatedItems.forEach((item) => {
+    let targetPcs = Number(item.pcs) || 0;
+    let currentPlotted = 0;
 
-      while (currentPlotted < targetPcs && currentDayIdx >= 0) {
-        const sKey = `shift${currentShift}`;
-        const remaining = targetPcs - currentPlotted;
-        const amountToPlot = remaining < 50 ? remaining : 50;
+    while (currentPlotted < targetPcs && currentDayIdx >= 0) {
+      const sKey = `shift${currentShift}`;
+      const remaining = targetPcs - currentPlotted;
+      const amountToPlot = remaining < 50 ? remaining : 50;
 
-        item.calendar[currentDayIdx].shifts[sKey] = {
-          active: true,
-          qty: amountToPlot,
-        };
+      /**
+       * LOGIKA DINAMIS:
+       * Karena ini Backward, urutan plotting adalah: 
+       * Kotak 1 (H-1 Shift 3) -> Kotak 2 (H-1 Shift 2) -> dst.
+       * Kita set agar 50% awal dari proses plotting (yang paling dekat delivery) 
+       * menjadi 'packing', sisanya 'finishing'.
+       */
+      const type = currentPlotted < (targetPcs / 2) ? "packing" : "finishing";
 
-        currentPlotted += amountToPlot;
+      item.calendar[currentDayIdx].shifts[sKey] = {
+        active: true,
+        qty: amountToPlot,
+        type: type 
+      };
 
-        currentShift--;
-        if (currentShift < 1) {
-          currentShift = 3;
-          currentDayIdx--;
-        }
+      currentPlotted += amountToPlot;
+      currentShift--;
+      if (currentShift < 1) {
+        currentShift = 3;
+        currentDayIdx--;
       }
-    });
+    }
+  });
 
-    return updatedItems;
-  };
+  return updatedItems;
+};
 
   /* ================= AUTO PLOT FINISHING ================= */
   const autoPlotFinishing = (items, itemRoutings, lastPackingCalendar) => {
@@ -227,7 +241,8 @@ export default function FinishingList() {
 
         calendar[dayIdx].shifts[shiftKey] = {
           active: true,
-          qty: qtyThisShift
+          qty: qtyThisShift,
+          type: "finishing" // ✅ WAJIB ADA
         };
 
         plotted += qtyThisShift;
@@ -487,14 +502,14 @@ export default function FinishingList() {
     // Buat calendar baru untuk setiap item
     const plottedItems = items.map((item) => {
       // Pastikan targetPcs diambil dari state yang sudah diedit
-      const totalPcs = Number(item.pcs || 0); 
-      
+      const totalPcs = Number(item.pcs || 0);
+
       // Validasi Tanggal Mulai
       let start = item.calendarStart ? new Date(item.calendarStart) : null;
       if (!start || isNaN(start.getTime())) {
-         start = addDays(new Date(header.deliveryDate + "T00:00:00"), -13);
+        start = addDays(new Date(header.deliveryDate + "T00:00:00"), -13);
       }
-  
+
       const calendar = buildCalendar(start, 14);
       if (totalPcs === 0) return { ...item, calendar, calendarStart: start };
 
@@ -555,7 +570,11 @@ export default function FinishingList() {
         const remaining = totalQty - plotted;
         const qtyThisShift = remaining < maxPerShift ? remaining : maxPerShift;
 
-        calendar[dayIdx].shifts[shiftKey] = { active: true, qty: qtyThisShift };
+        calendar[dayIdx].shifts[shiftKey] = {
+          active: true,
+          qty: qtyThisShift,
+          type: "finishing" // ✅ WAJIB
+        };
         plotted += qtyThisShift;
 
         shiftIdx--;
@@ -969,10 +988,12 @@ export default function FinishingList() {
                       <div className="flex gap-2">
                         {item.calendar.map((d, idx) => {
                           const isShip = header.deliveryDate && isSameDay(d.date, new Date(header.deliveryDate + "T00:00:00"));
+
                           return (
                             <div
                               key={idx}
-                              className={`min-w-[130px] border rounded-lg p-2 text-[11px] transition-all ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white shadow-sm'}`}
+                              className={`min-w-[130px] border rounded-lg p-2 text-[11px] transition-all ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white shadow-sm'
+                                }`}
                             >
                               <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                                 {formatDate(d.date)}
@@ -983,31 +1004,35 @@ export default function FinishingList() {
                                   <div
                                     key={s}
                                     className={`relative h-7 border rounded flex items-center justify-center transition-all 
-                      ${d.shifts[s].active
-                                        ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white border-transparent shadow-inner`
-                                        : "bg-gray-50 text-gray-300 border-gray-100"
+              ${d.shifts[s].active
+  ? d.shifts[s].type === "packing"
+    ? "bg-emerald-500 text-white border-transparent shadow-inner"
+    : d.shifts[s].type === "finishing"
+      ? "bg-purple-600 text-white border-transparent shadow-inner"
+      : "bg-emerald-500 text-white"
+  : "bg-gray-50 text-gray-300 border-gray-100"}
                                       } ${isShip ? "opacity-20 cursor-not-allowed" : ""}`}
                                   >
                                     {!isShip && (
                                       <>
-                                        {/* Area Klik/Drag Toggle */}
-                                        <div className="absolute inset-0 z-0 cursor-pointer"
+                                        <div
+                                          className="absolute inset-0 z-0 cursor-pointer"
                                           onMouseDown={(e) => {
                                             if (e.target === e.currentTarget) {
                                               const mode = e.shiftKey ? "on" : e.altKey ? "off" : "toggle";
                                               setDrag({ i, s, mode });
-                                              toggleShift(i, idx, s, mode);
+                                              // Pastikan toggleShift juga memperbarui type secara dinamis
+                                              toggleShift(i, idx, s, mode, e.shiftKey);
                                             }
                                           }}
                                           onMouseEnter={() => { if (drag && drag.i === i) toggleShift(i, idx, s, drag.mode); }}
                                         />
-                                        {/* Input Angka Shift */}
                                         <input
                                           type="number"
                                           value={d.shifts[s].qty || ""}
                                           onChange={(e) => updateShiftQty(i, idx, s, e.target.value)}
                                           className={`relative z-10 w-full bg-transparent text-center font-bold text-[10px] focus:outline-none 
-                            ${d.shifts[s].active ? "text-white" : "text-gray-400 opacity-0 hover:opacity-100"}`}
+                    ${d.shifts[s].active ? "text-white" : "text-gray-400 opacity-0 hover:opacity-100"}`}
                                         />
                                       </>
                                     )}
