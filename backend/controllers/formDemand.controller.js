@@ -373,103 +373,90 @@ exports.updateDemand = async (req, res) => {
 };
 
 // POST /demand/:id/generate-finishing
-// POST /demand/:id/generate-finishing
 exports.generateFinishing = async (req, res) => {
     const { id } = req.params;
   
     try {
-      // ✅ Cek demand
-      const checkDemand = await pool.query(
-        "SELECT is_generated FROM demands WHERE id = $1",
-        [id]
-      );
-      if (!checkDemand.rows.length) return res.status(404).json({ error: "Demand tidak ditemukan" });
-      if (checkDemand.rows[0].is_generated) return res.status(400).json({ error: "Finishing sudah digenerate" });
-  
-      // ✅ Ambil item demand
-      const demandItems = await pool.query(
-        "SELECT * FROM demand_items WHERE demand_id = $1",
-        [id]
-      );
-      if (!demandItems.rows.length) return res.status(400).json({ error: "Tidak ada item pada demand ini" });
-  
-      const updatedItems = [];
-  
-      for (const item of demandItems.rows) {
-        // Ambil routing finishing
-        const routing = await pool.query(
-          "SELECT pcs FROM item_routings WHERE item_id = $1 AND sequence = 0",
-          [item.item_id]
+        const demandItems = await pool.query(
+            "SELECT id, item_id, pcs, production_schedule FROM demand_items WHERE demand_id = $1",
+            [id]
         );
-        if (!routing.rows.length) continue;
-  
-        const maxPerShift = routing.rows[0].pcs;
-        let remaining = item.pcs;
-  
-        // ✅ Parse calendar dengan aman
-        let calendar;
-        if (typeof item.production_schedule === "string") {
-          calendar = JSON.parse(item.production_schedule);
-        } else if (typeof item.production_schedule === "object" && item.production_schedule !== null) {
-          calendar = item.production_schedule;
-        } else {
-          calendar = [];
-        }
-  
-        // Cari shift terakhir
-        let lastDay = -1, lastShift = -1;
-        calendar.forEach((day, dIdx) => {
-          ["shift1", "shift2", "shift3"].forEach((s, sIdx) => {
-            if (day.shifts[s]?.active) {
-              lastDay = dIdx;
-              lastShift = sIdx + 1;
+
+        for (const item of demandItems.rows) {
+            let remaining = parseFloat(item.pcs) || 0;
+            if (remaining <= 0) continue;
+
+            // Ambil kapasitas finishing dari routing
+            const routing = await pool.query(
+                "SELECT pcs FROM item_routings WHERE item_id = $1 AND sequence = 0",
+                [item.item_id]
+            );
+            const maxPerShift = routing.rows.length ? routing.rows[0].pcs : 50;
+
+            let calendar = (typeof item.production_schedule === "string") 
+                ? JSON.parse(item.production_schedule) 
+                : item.production_schedule;
+
+            // --- LOGIKA PERBAIKAN: MENCARI AWAL PACKING ---
+            let firstPackingDayIdx = -1;
+            let firstPackingShiftIdx = -1;
+
+            // Cari shift paling awal dimana 'Packing' sudah terisi
+            for (let d = 0; d < calendar.length; d++) {
+                const shifts = ["shift1", "shift2", "shift3"];
+                for (let s = 0; s < shifts.length; s++) {
+                    if (calendar[d].shifts[shifts[s]]?.active && calendar[d].shifts[shifts[s]]?.type !== 'finishing') {
+                        firstPackingDayIdx = d;
+                        firstPackingShiftIdx = s + 1; // 1, 2, atau 3
+                        break;
+                    }
+                }
+                if (firstPackingDayIdx !== -1) break;
             }
-          });
-        });
-        if (lastDay === -1) continue;
-  
-        let currentDay = lastDay, currentShift = lastShift;
-  
-        // Plot finishing mundur
-        while (remaining > 0 && currentDay >= 0) {
-          const shiftKey = `shift${currentShift}`;
-  
-          // Jangan overwrite kalau sudah ada qty
-          if (!calendar[currentDay].shifts[shiftKey]?.active) {
-            const plotQty = remaining > maxPerShift ? maxPerShift : remaining;
-            calendar[currentDay].shifts[shiftKey] = { active: true, qty: plotQty, type: "finishing" };
-            remaining -= plotQty;
-          }
-  
-          currentShift--;
-          if (currentShift < 1) {
-            currentShift = 3;
-            currentDay--;
-          }
+
+            // Jika tidak ada packing, mulai dari hari terakhir (H-1 delivery)
+            let currentDay = firstPackingDayIdx !== -1 ? firstPackingDayIdx : calendar.length - 1;
+            let currentShift = firstPackingShiftIdx !== -1 ? firstPackingShiftIdx - 1 : 3;
+
+            // Jika shift packing pertama adalah Shift 1, maka finishing mulai dari Shift 3 hari sebelumnya
+            if (currentShift < 1) {
+                currentShift = 3;
+                currentDay--;
+            }
+
+            // --- PLOTTING MUNDUR (KE KIRI) ---
+            while (remaining > 0 && currentDay >= 0) {
+                const shiftKey = `shift${currentShift}`;
+                
+                // Hanya isi jika slot benar-benar kosong (bukan bekas packing)
+                if (!calendar[currentDay].shifts[shiftKey]?.active) {
+                    const plotQty = remaining > maxPerShift ? maxPerShift : remaining;
+                    calendar[currentDay].shifts[shiftKey] = { 
+                        active: true, 
+                        qty: plotQty, 
+                        type: "finishing" 
+                    };
+                    remaining -= plotQty;
+                }
+        
+                currentShift--;
+                if (currentShift < 1) {
+                    currentShift = 3;
+                    currentDay--;
+                }
+            }
+
+            await pool.query(
+                "UPDATE demand_items SET production_schedule = $1 WHERE id = $2",
+                [JSON.stringify(calendar), item.id]
+            );
         }
   
-        // Update database
-        await pool.query(
-          "UPDATE demand_items SET production_schedule = $1 WHERE id = $2",
-          [JSON.stringify(calendar), item.id]
-        );
-  
-        updatedItems.push({
-          id: item.id,
-          production_schedule: calendar // ✅ Kirim calendar terbaru ke frontend
-        });
-      }
-  
-      // Mark demand as generated
-      await pool.query("UPDATE demands SET is_generated = true WHERE id = $1", [id]);
-  
-      res.json({
-        message: "Finishing generated successfully",
-        updatedItems
-      });
+        await pool.query("UPDATE demands SET is_generated = true WHERE id = $1", [id]);
+        res.json({ message: "Finishing generated mundur berhasil" });
   
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Generate finishing gagal" });
+        console.error(err);
+        res.status(500).json({ error: "Generate finishing gagal: " + err.message });
     }
-  };
+};

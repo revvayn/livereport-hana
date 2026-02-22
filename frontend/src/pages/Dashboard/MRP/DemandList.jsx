@@ -148,44 +148,46 @@ export default function DemandList() {
   /* ================= AUTO PLOT ================= */
   const autoPlotGlobalBackward = (items, deliveryDate) => {
     if (!deliveryDate || items.length === 0) return items;
-
+  
     const delivery = new Date(deliveryDate + "T00:00:00");
-    const startDate = addDays(delivery, -13); // ✅ H-13 dari delivery
-
-    let updatedItems = items.map((it) => ({
-      ...it,
-      calendarStart: startDate,
-      calendar: buildCalendar(startDate, 14),
-    }));
-
-    let currentDayIdx = 12; // H-1
-    let currentShift = 3;
-
-    updatedItems.forEach((item) => {
-      let targetPcs = Number(item.pcs) || 0;
+    const startDate = addDays(delivery, -13); // H-13
+  
+    return items.map((item) => {
+      // pastikan calendarStart valid
+      let calendarStart = item.calendarStart ? new Date(item.calendarStart) : null;
+      if (!calendarStart || isNaN(calendarStart)) {
+        calendarStart = startDate;
+      }
+  
+      const calendar = buildCalendar(calendarStart, 14);
+      const totalPcs = Number(item.pcs || 0);
+  
+      if (totalPcs === 0) return { ...item, calendar, calendarStart };
+  
       let currentPlotted = 0;
-
-      while (currentPlotted < targetPcs && currentDayIdx >= 0) {
-        const sKey = `shift${currentShift}`;
-        const remaining = targetPcs - currentPlotted;
-        const amountToPlot = remaining < 50 ? remaining : 50;
-
-        item.calendar[currentDayIdx].shifts[sKey] = {
+      let currentDayIdx = 12; // H-1
+      let currentShift = 3;
+  
+      while (currentPlotted < totalPcs && currentDayIdx >= 0) {
+        const shiftKey = `shift${currentShift}`;
+        const remaining = totalPcs - currentPlotted;
+        const qtyToPlot = remaining < 50 ? remaining : 50;
+  
+        calendar[currentDayIdx].shifts[shiftKey] = {
           active: true,
-          qty: amountToPlot,
+          qty: qtyToPlot,
         };
-
-        currentPlotted += amountToPlot;
-
+  
+        currentPlotted += qtyToPlot;
         currentShift--;
         if (currentShift < 1) {
           currentShift = 3;
           currentDayIdx--;
         }
       }
+  
+      return { ...item, calendar, calendarStart };
     });
-
-    return updatedItems;
   };
 
   /* ================= FETCH DEMAND LIST ================= */
@@ -209,12 +211,13 @@ export default function DemandList() {
   const handleSelectSO = async (e) => {
     const id = e.target.value;
     setSelectedSO(id);
-
+  
     if (!id) return;
-
+  
     const res = await api.get(`/demand/from-so/${id}`);
     const data = res.data;
-
+  
+    // HEADER
     setHeader({
       soNo: data.so_number,
       soDate: toInputDate(data.so_date),
@@ -222,41 +225,116 @@ export default function DemandList() {
       deliveryDate: toInputDate(data.delivery_date),
       productionDate: toInputDate(data.production_date),
     });
-
-    const mappedItems = data.items.map((item) => ({
-      itemId: item.id || null,
-      itemCode: item.item_code,
-      description: item.description,
-      uom: item.uom || "PCS",
-      qty: item.qty,
-      pcs: item.total_pcs || 0,
-      calendar: item.production_schedule
-        ? (typeof item.production_schedule === "string"
+  
+    // Pastikan deliveryDate valid
+    const deliveryDate = data.delivery_date
+      ? new Date(data.delivery_date + "T00:00:00")
+      : new Date(); // fallback ke sekarang
+  
+    const mappedItems = data.items.map((item) => {
+      // gunakan pcs dari frontend jika sudah diedit, fallback ke total_pcs backend
+      const pcs = item.pcsEdited ?? item.total_pcs ?? 0;
+  
+      // calendarStart: gunakan value backend jika valid, kalau tidak fallback ke H-13 dari delivery
+      let calendarStart = item.calendarStart ? new Date(item.calendarStart) : null;
+      if (!calendarStart || isNaN(calendarStart)) {
+        calendarStart = addDays(deliveryDate, -13);
+      }
+  
+      // calendar: gunakan production_schedule kalau ada, kalau string parse dulu
+      const calendar = item.production_schedule
+        ? typeof item.production_schedule === "string"
           ? JSON.parse(item.production_schedule)
-          : item.production_schedule)
-        : buildCalendar(
-          addDays(
-            new Date(data.delivery_date + "T00:00:00"),
-            -13
-          )
-        )
-    }));
-
+          : item.production_schedule
+        : buildCalendar(calendarStart, 14);
+  
+      return {
+        itemId: item.id || null,
+        itemCode: item.item_code,
+        description: item.description,
+        uom: item.uom || "PCS",
+        qty: item.qty,
+        pcs,
+        calendarStart,
+        calendar,
+      };
+    });
+  
+    console.log("MAPPED ITEMS FIXED", mappedItems.map(i => ({
+      itemId: i.itemId,
+      itemCode: i.itemCode,
+      pcs: i.pcs,
+      calendarStart: i.calendarStart,
+      calendarLength: i.calendar?.length,
+    })));
+  
     setItems(mappedItems);
   };
+
+// ====================== HANDLE GENERATE FINISHING ======================
+const handleGenerateFinishing = () => {
+  if (!items || items.length === 0)
+    return Swal.fire("Peringatan", "Tidak ada item untuk diproses", "warning");
+
+  if (!header.deliveryDate)
+    return Swal.fire("Peringatan", "Lengkapi tanggal kirim!", "warning");
+
+  const deliveryDate = new Date(header.deliveryDate + "T00:00:00");
+
+  const plottedItems = items.map((item) => {
+    let calendarStart = item.calendarStart ? new Date(item.calendarStart) : null;
+    if (!calendarStart || isNaN(calendarStart)) {
+      calendarStart = addDays(deliveryDate, -13);
+    }
+
+    const calendar = buildCalendar(calendarStart, 14);
+    const totalPcs = Number(item.pcs || 0);
+
+    if (totalPcs === 0) return { ...item, calendar, calendarStart };
+
+    const shiftKeys = ["shift3", "shift2", "shift1"];
+    let plotted = 0;
+    let dayIdx = calendar.length - 1;
+    let shiftIdx = shiftKeys.length - 1;
+
+    while (plotted < totalPcs && dayIdx >= 0) {
+      const shiftKey = shiftKeys[shiftIdx];
+      const remaining = totalPcs - plotted;
+      const qtyThisShift = remaining < 50 ? remaining : 50;
+
+      calendar[dayIdx].shifts[shiftKey] = {
+        active: true,
+        qty: qtyThisShift,
+        type: "finishing",
+      };
+
+      plotted += qtyThisShift;
+      shiftIdx--;
+      if (shiftIdx < 0) {
+        shiftIdx = shiftKeys.length - 1;
+        dayIdx--;
+      }
+    }
+
+    return { ...item, calendar, calendarStart };
+  });
+
+  setItems(plottedItems);
+  Swal.fire("Sukses!", "Finishing schedule berhasil digenerate (frontend)", "success");
+};
 
   /* ================= DETAIL VIEW ================= */
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-
+  
       const resItems = await api.get(`/demand/${so.demand_id}/items`);
       const itemsData = resItems.data || [];
-
+  
       setEditingDemandId(so.demand_id);
       setSelectedSO(so);
-
-      // ✅ HEADER ambil dari LIST (karena memang belum ada endpoint header)
+  
+      // HEADER
       setHeader({
         soNo: so.so_number,
         soDate: toInputDate(so.so_date),
@@ -264,27 +342,49 @@ export default function DemandList() {
         deliveryDate: toInputDate(so.delivery_date),
         productionDate: toInputDate(so.production_date),
       });
-
+  
+      // ✅ Pastikan deliveryDate valid
+      const deliveryDate = so.delivery_date
+        ? new Date(so.delivery_date + "T00:00:00")
+        : new Date(); // fallback ke sekarang kalau null
+  
       const mappedItems = itemsData.map((it) => {
-        const parsed =
-          typeof it.production_schedule === "string"
-            ? JSON.parse(it.production_schedule)
-            : it.production_schedule;
-
+        const parsedCalendar =
+          it.production_schedule
+            ? typeof it.production_schedule === "string"
+              ? JSON.parse(it.production_schedule)
+              : it.production_schedule
+            : null;
+  
+        // pastikan calendarStart valid
+        let calendarStart = it.calendarStart ? new Date(it.calendarStart) : null;
+        if (!calendarStart || isNaN(calendarStart)) {
+          calendarStart = addDays(deliveryDate, -13); // H-13 dari delivery
+        }
+  
         return {
           itemId: it.id,
           itemCode: it.item_code,
           description: it.description,
-          uom: it.uom,
+          uom: it.uom || "PCS",
           qty: it.total_qty,
-          pcs: it.pcs,
-          calendar: parsed || [],
+          pcs: it.pcs || it.total_pcs || 0,
+          calendarStart,
+          calendar: parsedCalendar || buildCalendar(calendarStart, 14),
         };
       });
-
+  
+      console.log("MAPPED ITEMS FIXED", mappedItems.map(i => ({
+        itemId: i.itemId,
+        itemCode: i.itemCode,
+        pcs: i.pcs,
+        calendarStart: i.calendarStart,
+        calendarLength: i.calendar?.length,
+      })));
+  
       setItems(mappedItems);
       setView("detail");
-
+  
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Gagal memuat detail", "error");

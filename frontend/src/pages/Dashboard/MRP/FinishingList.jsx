@@ -326,24 +326,28 @@ export default function FinishingList() {
       productionDate: toInputDate(data.production_date),
     });
 
-    const mappedItems = data.items.map((item) => ({
-      itemId: item.id || null,
-      itemCode: item.item_code,
-      description: item.description,
-      uom: item.uom || "PCS",
-      qty: item.qty,
-      pcs: item.total_pcs || 0,
-      calendar: item.production_schedule
+    const mappedItems = data.items.map((item) => {
+      const calendarStart = item.calendarStart
+        ? new Date(item.calendarStart)
+        : addDays(new Date(data.delivery_date + "T00:00:00"), -13);
+
+      const calendar = item.production_schedule
         ? (typeof item.production_schedule === "string"
           ? JSON.parse(item.production_schedule)
           : item.production_schedule)
-        : buildCalendar(
-          addDays(
-            new Date(data.delivery_date + "T00:00:00"),
-            -13
-          )
-        )
-    }));
+        : buildCalendar(calendarStart);
+
+      return {
+        itemId: item.id || null,
+        itemCode: item.item_code,
+        description: item.description,
+        uom: item.uom || "PCS",
+        qty: item.qty,
+        pcs: item.total_pcs || 0,
+        calendarStart, // ✅ penting agar generate tidak kosong
+        calendar,
+      };
+    });
 
     setItems(mappedItems);
   };
@@ -440,60 +444,136 @@ export default function FinishingList() {
   };
 
   const handleSubmit = async () => {
-    if (!header.deliveryDate || !header.productionDate) {
-      return Swal.fire("Peringatan", "Lengkapi tanggal!", "warning");
-    }
+    if (!header.deliveryDate || !header.productionDate) return Swal.fire("Peringatan", "Lengkapi tanggal!", "warning");
+
     try {
       setLoading(true);
 
-      if (editingDemandId) {
-        // UPDATE
-        await api.put(`/demand/${editingDemandId}`, {
-          header,
-          items
-        });
+      // generate finishing visual sebelum save
+      const itemRoutings = items.map(it => ({ item_code: it.itemCode, sequence: 0, pcs: 50, cycle_time_min: 1 }));
+      const lastPackingCalendar = items[0]?.calendar || buildCalendar(new Date(header.deliveryDate + "T00:00:00"));
+      const itemsWithFinishing = autoPlotFinishingVisual(items, itemRoutings, lastPackingCalendar);
 
+      const itemsToSave = itemsWithFinishing.map(it => ({
+        ...it,
+        calendar: it.calendar,
+        pcs: it.pcs || 0,
+        itemCode: it.itemCode || "",
+      }));
+
+      if (editingDemandId) {
+        await api.put(`/demand/${editingDemandId}`, { header, items: itemsToSave });
         Swal.fire("Berhasil!", "Demand berhasil diupdate.", "success");
       } else {
-        // CREATE
-        await api.post("/demand", { header, items });
+        await api.post("/demand", { header, items: itemsToSave });
         Swal.fire("Berhasil!", "Demand berhasil dibuat.", "success");
       }
 
       fetchDemands();
-
-      // Refresh matrix setelah save
-
     } catch (error) {
       Swal.fire("Error", "Gagal menyimpan data", "error");
     } finally {
       setLoading(false);
     }
   };
+
   const handleGenerateFinishing = () => {
-    if (!items || items.length === 0) return Swal.fire("Peringatan", "Tidak ada item untuk diproses", "warning");
-    if (!header.deliveryDate) return Swal.fire("Peringatan", "Lengkapi tanggal kirim!", "warning");
+    if (!items || items.length === 0)
+      return Swal.fire("Peringatan", "Tidak ada item untuk diproses", "warning");
+
+    if (!header.deliveryDate)
+      return Swal.fire("Peringatan", "Lengkapi tanggal kirim!", "warning");
+
+    // Buat calendar baru untuk setiap item
+    const plottedItems = items.map((item) => {
+      // Pastikan targetPcs diambil dari state yang sudah diedit
+      const totalPcs = Number(item.pcs || 0); 
+      
+      // Validasi Tanggal Mulai
+      let start = item.calendarStart ? new Date(item.calendarStart) : null;
+      if (!start || isNaN(start.getTime())) {
+         start = addDays(new Date(header.deliveryDate + "T00:00:00"), -13);
+      }
   
-    // 1. Tentukan kalender terakhir dari packing (atau pakai calendarStart)
-    const lastPackingCalendar = items[0]?.calendar || [];
-  
-    // 2. Dummy itemRoutings, seharusnya dari API /item_routings
-    const itemRoutings = items.map((it) => ({
-      item_code: it.itemCode,
-      sequence: 0,
-      pcs: 50,
-      cycle_time_min: 1
-    }));
-  
-    // 3. Generate visual finishing plot
-    const plottedItems = autoPlotFinishingVisual(items, itemRoutings, lastPackingCalendar);
-  
-    // 4. Update state items langsung
+      const calendar = buildCalendar(start, 14);
+      if (totalPcs === 0) return { ...item, calendar, calendarStart: start };
+
+      const routing = { pcs: 50, sequence: 0, cycle_time_min: 1 };
+      const maxPerShift = Number(routing.pcs || 50);
+
+      const shiftKeys = ["shift3", "shift2", "shift1"];
+      let plotted = 0;
+      let dayIdx = calendar.length - 1;
+      let shiftIdx = shiftKeys.length - 1;
+
+      while (plotted < totalPcs && dayIdx >= 0) {
+        const shiftKey = shiftKeys[shiftIdx];
+        const remaining = totalPcs - plotted;
+        const qtyThisShift = remaining < maxPerShift ? remaining : maxPerShift;
+
+        calendar[dayIdx].shifts[shiftKey] = {
+          active: true,
+          qty: qtyThisShift,
+          type: "finishing",
+        };
+
+        plotted += qtyThisShift;
+        shiftIdx--;
+        if (shiftIdx < 0) {
+          shiftIdx = shiftKeys.length - 1;
+          dayIdx--;
+        }
+      }
+
+      return { ...item, calendar, calendarStart: start };
+    });
+
     setItems(plottedItems);
-  
     Swal.fire("Sukses!", "Finishing schedule berhasil digenerate (frontend)", "success");
   };
-  
+
+  const autoPlotFinishingSafe = (items, itemRoutings, lastPackingCalendar) => {
+    if (!items || items.length === 0) return [];
+
+    return items.map((item) => {
+      const routing = itemRoutings?.find(r => r.item_code === item.itemCode && r.sequence === 0);
+      if (!routing) return item;
+
+      const totalQty = Number(item.pcs ?? item.total_pcs ?? 0);
+      if (totalQty === 0) return { ...item, calendar: buildCalendar(item.calendarStart ?? new Date(), 14) };
+
+      const maxPerShift = Number(routing.pcs ?? 50);
+      const calendar = item.calendar && item.calendar.length > 0 ? [...item.calendar] : buildCalendar(item.calendarStart ?? addDays(new Date(), -13), 14);
+
+      const shiftKeys = ["shift3", "shift2", "shift1"];
+      let dayIdx = calendar.length - 1;
+      let shiftIdx = shiftKeys.length - 1;
+      let plotted = 0;
+
+      while (plotted < totalQty && dayIdx >= 0) {
+        const shiftKey = shiftKeys[shiftIdx];
+        const remaining = totalQty - plotted;
+        const qtyThisShift = remaining < maxPerShift ? remaining : maxPerShift;
+
+        calendar[dayIdx].shifts[shiftKey] = { active: true, qty: qtyThisShift };
+        plotted += qtyThisShift;
+
+        shiftIdx--;
+        if (shiftIdx < 0) { shiftIdx = shiftKeys.length - 1; dayIdx--; }
+      }
+
+      return { ...item, calendar };
+    });
+  };
+
+  const handleGenerateFinishingSafe = async (itemRoutings, lastPackingCalendar) => {
+    if (!items || items.length === 0) return Swal.fire("Peringatan", "Tidak ada item untuk diproses", "warning");
+    if (!header.deliveryDate) return Swal.fire("Peringatan", "Lengkapi tanggal kirim!", "warning");
+
+    const plottedItems = autoPlotFinishingSafe(items, itemRoutings, lastPackingCalendar);
+    setItems(plottedItems);
+    Swal.fire("Sukses!", "Finishing schedule berhasil digenerate (frontend, pcs terbaru digunakan)", "success");
+  };
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -610,7 +690,15 @@ export default function FinishingList() {
                                   didOpen: () => Swal.showLoading(),
                                 });
 
-                                // generate finishing di backend
+                                // 1️⃣ Pastikan data terbaru dikirim ke backend dulu
+                                if (items && items.length > 0) {
+                                  await api.put(`/demand/${so.demand_id}`, {
+                                    header,
+                                    items, // items terbaru termasuk pcs & qty
+                                  });
+                                }
+
+                                // 2️⃣ Generate finishing schedule di backend
                                 await api.post(`/demand/${so.demand_id}/generate-finishing`);
 
                                 Swal.close();
@@ -620,10 +708,10 @@ export default function FinishingList() {
                                   text: "Finishing schedule berhasil digenerate",
                                 });
 
-                                // LANGSUNG load detail view tanpa harus klik manual
+                                // 3️⃣ Langsung load detail view
                                 await handleShowDetail(so);
 
-                                // pastikan view di-set ke 'detail'
+                                // 4️⃣ Pastikan view tetap 'detail'
                                 setView("detail");
 
                               } catch (err) {
