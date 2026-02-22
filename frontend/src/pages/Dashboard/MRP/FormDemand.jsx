@@ -1,7 +1,9 @@
 // FormDemand.js
 import { useEffect, useState, useCallback } from "react";
+import Select from "react-select";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
+import { useMemo } from "react";
 
 const ITEM_COLORS = ["bg-green-600", "bg-blue-600", "bg-purple-600", "bg-orange-600", "bg-pink-600", "bg-teal-600"];
 
@@ -11,6 +13,7 @@ const addDays = (date, d) => {
   n.setDate(n.getDate() + d);
   return n;
 };
+
 
 const isSameDay = (d1, d2) => {
   if (!d1 || !d2) return false;
@@ -304,19 +307,41 @@ export default function FormDemand() {
     }
   };
 
+  const options = useMemo(() => salesOrders.map((so) => ({
+    value: so.id,
+    label: `${so.so_number} - ${so.customer_name}`,
+  })), [salesOrders]);
+
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full" onMouseUp={() => setDrag(null)}>
+    <div
+      className="min-h-screen p-6 bg-white rounded-lg border border-gray-300 w-full overflow-y-auto"
+      onMouseUp={() => setDrag(null)}
+    >
       <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
         Demand Planner – Cumulative Backward
       </h1>
 
       {/* Select SO */}
       <div className="mb-6">
-        <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">Pilih Sales Order</label>
-        <select value={selectedSO} onChange={handleSelectSO} className="border border-gray-300 p-2 rounded text-sm w-full bg-white shadow-sm">
-          <option value="">-- Pilih Sales Order --</option>
-          {salesOrders.map((so) => <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>)}
-        </select>
+        <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">
+          Pilih Sales Order
+        </label>
+
+        <Select
+          options={options}
+          value={options.find((opt) => opt.value === selectedSO) || null}
+          onChange={(selected) => {
+            // Trigger fungsi handleSelectSO yang sudah ada di kode Anda
+            handleSelectSO({ target: { value: selected ? selected.value : "" } });
+          }}
+          isSearchable={true}
+          isClearable={true}
+          placeholder="-- Cari SO Number atau Nama Customer --"
+          className="text-sm"
+          // Agar dropdown tidak terpotong container:
+          menuPortalTarget={document.body}
+          styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+        />
       </div>
 
       {/* Header Info */}
