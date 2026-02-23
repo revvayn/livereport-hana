@@ -394,7 +394,7 @@ function SalesDropdown({ collapsed, currentPath }) {
 }
 
 function DemandDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/demand/form", "/dashboard/demand/list", "/dashboard/demand/finishing"];
+  const paths = ["/dashboard/demand/form", "/dashboard/demand/list", "/dashboard/demand/finishing", "/dashboard/demand/assembly"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);

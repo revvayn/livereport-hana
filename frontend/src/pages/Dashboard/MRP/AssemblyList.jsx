@@ -6,7 +6,7 @@ export default function AssemblyList() {
   /* ================= STATE ================= */
   const [demands, setDemands] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState("so"); // 'so' or 'detail'
+  const [view, setView] = useState("so");
   const [selectedSO, setSelectedSO] = useState(null);
   const [items, setItems] = useState([]);
   const [editingDemandId, setEditingDemandId] = useState(null);
@@ -74,13 +74,13 @@ export default function AssemblyList() {
 
       await api.post(`/demand/${so.demand_id}/generate-assembly`);
 
-      // PENTING: Refresh data agar is_assembly_generated menjadi true di state
+      // Sinkronisasi: Update list utama agar tombol menghilang
       await fetchDemands();
 
       Swal.close();
       Swal.fire("Berhasil!", "Assembly berhasil digenerate", "success");
 
-      // Langsung buka metrix detail sesuai permintaan Anda
+      // Otomatis buka detail setelah generate
       handleShowDetail(so);
 
     } catch (err) {
@@ -92,20 +92,18 @@ export default function AssemblyList() {
   /* ================= QTY CHANGE ================= */
   const handleQtyChange = (itemIndex, dayIndex, shiftKey, value) => {
     const newItems = [...items];
-    const qty = Number(value);
+    const qty = value === "" ? 0 : Number(value);
     if (isNaN(qty) || qty < 0) return;
 
-    // Pastikan object path ada
     if (!newItems[itemIndex].calendar[dayIndex].shifts[shiftKey]) {
       newItems[itemIndex].calendar[dayIndex].shifts[shiftKey] = {};
     }
 
-    // Update data
     newItems[itemIndex].calendar[dayIndex].shifts[shiftKey] = {
       ...newItems[itemIndex].calendar[dayIndex].shifts[shiftKey],
       qty: qty,
       active: qty > 0,
-      type: "assembly" // Paksa jadi assembly karena ini halaman assembly
+      type: qty > 0 ? "assembly" : "" // Set type assembly jika ada qty
     };
 
     setItems(newItems);
@@ -115,9 +113,10 @@ export default function AssemblyList() {
   const handleSaveSchedule = async () => {
     try {
       Swal.fire({ title: "Menyimpan...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      // Gunakan endpoint update-finishing karena strukturnya sama (mengupdate kolom production_schedule)
       await api.put(`/demand/${editingDemandId}/update-finishing`, { items });
       Swal.close();
-      Swal.fire("Berhasil!", "Jadwal berhasil disimpan", "success");
+      Swal.fire("Berhasil!", "Jadwal assembly berhasil disimpan", "success");
       fetchDemands();
     } catch (err) {
       Swal.close();
@@ -143,7 +142,6 @@ export default function AssemblyList() {
     }
   };
 
-  /* ================= RENDER ================= */
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -154,7 +152,7 @@ export default function AssemblyList() {
             {view === "so" ? "ASSEMBLY PLANNING LIST" : `PLANNING DETAIL: ${selectedSO?.so_number}`}
           </div>
           {view === "detail" && (
-            <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase">
+            <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase transition-all">
               Kembali
             </button>
           )}
@@ -166,26 +164,26 @@ export default function AssemblyList() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 border-b uppercase text-[11px] text-left">
-                  <th className="pb-2">SO Number</th>
-                  <th className="pb-2">Customer</th>
-                  <th className="pb-2 text-center">Items</th>
-                  <th className="pb-2 text-center">Delivery</th>
-                  <th className="pb-2 text-right">Action</th>
+                  <th className="py-2 px-1">SO Number</th>
+                  <th className="py-2 px-1">Customer</th>
+                  <th className="py-2 px-1 text-center">Items</th>
+                  <th className="py-2 px-1 text-center">Delivery</th>
+                  <th className="py-2 px-1 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y text-gray-700">
                 {demands.map((so) => (
-                  <tr key={so.demand_id} className="hover:bg-gray-50">
-                    <td className="py-4 font-bold text-indigo-600">{so.so_number}</td>
-                    <td>{so.customer_name}</td>
-                    <td className="text-center">{so.total_items}</td>
-                    <td className="text-center">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
-                    <td className="text-right flex justify-end gap-2 py-4">
-                      {/* Tombol ini otomatis hilang jika is_assembly_generated bernilai true */}
-                      {so.is_generated && !so.is_assembly_generated && (
+                  <tr key={so.demand_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-4 px-1 font-bold text-indigo-600">{so.so_number}</td>
+                    <td className="py-4 px-1">{so.customer_name}</td>
+                    <td className="py-4 px-1 text-center">{so.total_items}</td>
+                    <td className="py-4 px-1 text-center">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
+                    <td className="py-4 px-1 text-right flex justify-end gap-2">
+                      {/* Tombol Generate muncul jika Finishing sudah ada tapi Assembly BELUM ada */}
+                      {so.is_generated && so.is_assembly_generated !== true && (
                         <button
                           onClick={() => handleGenerateAssembly(so)}
-                          className="bg-yellow-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-yellow-600 transition-colors"
+                          className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition-colors"
                         >
                           Generate Assembly
                         </button>
@@ -194,11 +192,11 @@ export default function AssemblyList() {
                       <button
                         onClick={() => handleShowDetail(so)}
                         disabled={!so.is_generated}
-                        className={`px-3 py-1.5 rounded text-xs font-bold ${so.is_generated ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${so.is_generated ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
                       >
                         View Detail
                       </button>
-                      <button onClick={() => handleDelete(so.demand_id)} className="text-red-500 border border-red-100 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-50 transition-colors">
+                      <button onClick={() => handleDelete(so.demand_id)} className="bg-white border border-red-200 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition-all">
                         Delete
                       </button>
                     </td>
@@ -216,14 +214,11 @@ export default function AssemblyList() {
               <table className="w-full text-[10px] border-collapse bg-white">
                 <thead className="sticky top-0 z-30 shadow-sm">
                   <tr className="bg-gray-100 text-gray-600 font-bold uppercase">
-                    {/* Kolom Info Item yang Sticky */}
                     <th className="border p-2 sticky left-0 bg-gray-100 z-40 min-w-[150px] text-left">Item Info</th>
                     <th className="border p-2 min-w-[150px] text-left">Description</th>
                     <th className="border p-2 w-12 text-center">UoM</th>
                     <th className="border p-2 w-16 text-center">Qty</th>
                     <th className="border p-2 w-16 text-center bg-indigo-50 text-indigo-700">Pcs</th>
-
-                    {/* Kolom Tanggal */}
                     {items[0]?.calendar?.map((day, i) => (
                       <th key={i} colSpan="3" className="border p-1 text-center bg-indigo-50 text-indigo-700">
                         {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
@@ -232,15 +227,11 @@ export default function AssemblyList() {
                   </tr>
                   <tr className="bg-gray-50 text-[8px] text-gray-400 font-bold">
                     <th className="border p-1 sticky left-0 bg-gray-50 z-40"></th>
-                    <th className="border"></th>
-                    <th className="border"></th>
-                    <th className="border"></th>
+                    <th className="border"></th><th className="border"></th><th className="border"></th>
                     <th className="border bg-indigo-50/30"></th>
                     {items[0]?.calendar?.map((_, i) => (
                       <React.Fragment key={i}>
-                        <th className="border py-1">S1</th>
-                        <th className="border py-1">S2</th>
-                        <th className="border py-1">S3</th>
+                        <th className="border py-1">S1</th><th className="border py-1">S2</th><th className="border py-1">S3</th>
                       </React.Fragment>
                     ))}
                   </tr>
@@ -253,22 +244,16 @@ export default function AssemblyList() {
 
                     return (
                       <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                        {/* KOLOM PERTAMA: Item Code & Status Sisa */}
                         <td className="border p-2 sticky left-0 bg-white z-20 shadow-[1px_0_2px_rgba(0,0,0,0.1)]">
-                          {/* Pastikan baris di bawah ini ada agar Item Code muncul */}
                           <div className="font-bold text-indigo-700">{item.itemCode}</div>
                           <div className={`text-[9px] font-black mt-1 ${sisa <= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                             {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
                           </div>
                         </td>
-
-                        {/* Kolom Detail Lainnya */}
                         <td className="border p-2 text-gray-500 text-[9px] leading-tight">{item.description}</td>
                         <td className="border text-center text-gray-500">{item.uom}</td>
                         <td className="border text-center text-gray-500">{item.qty}</td>
                         <td className="border text-center font-bold bg-gray-50">{item.pcs}</td>
-
-                        {/* Input Matriks Jadwal */}
                         {item.calendar?.map((day, dIdx) =>
                           ["shift1", "shift2", "shift3"].map(s => {
                             const qty = day.shifts[s]?.qty || 0;
@@ -278,7 +263,7 @@ export default function AssemblyList() {
                             if (day.shifts[s]?.active) {
                               if (type === "packing") bgColor = "bg-emerald-500 text-white";
                               else if (type === "finishing") bgColor = "bg-purple-600 text-white";
-                              else if (type === "assembly") bgColor = "bg-lime-400 text-white";
+                              else if (type === "assembly") bgColor = "bg-lime-400 text-white text-black"; // Text black for lime contrast
                             }
 
                             return (
@@ -301,15 +286,15 @@ export default function AssemblyList() {
               </table>
             </div>
 
-            {/* FOOTER ACTION */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg flex flex-wrap justify-between items-center gap-4">
+            {/* LEGEND & ACTION */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg flex flex-wrap justify-between items-center gap-4 border border-dashed border-gray-300">
               <div className="flex gap-6 text-[10px] font-bold uppercase tracking-wider text-gray-600">
                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-emerald-500 rounded shadow-sm"></div> Packing</div>
                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-purple-600 rounded shadow-sm"></div> Finishing</div>
                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-lime-400 rounded shadow-sm"></div> Assembly</div>
               </div>
 
-              <button onClick={handleSaveSchedule} className="bg-indigo-600 text-white px-8 py-2.5 rounded shadow-lg hover:bg-indigo-700 transition-all font-bold text-xs uppercase tracking-widest">
+              <button onClick={handleSaveSchedule} className="bg-indigo-600 text-white px-8 py-2.5 rounded shadow-lg hover:bg-indigo-700 transition-all font-bold text-xs uppercase tracking-widest active:scale-95">
                 Simpan Perubahan Jadwal
               </button>
             </div>

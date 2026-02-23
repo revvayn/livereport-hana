@@ -115,6 +115,7 @@ exports.getAllDemands = async (req, res) => {
   d.delivery_date,
   d.production_date,
   d.is_generated,
+  d.is_assembly_generated,
   COUNT(di.id) as total_items
 FROM demands d
 LEFT JOIN demand_items di ON d.id = di.demand_id
@@ -169,138 +170,133 @@ exports.deleteDemand = async (req, res) => {
  */
 exports.exportToExcel = async (req, res) => {
     const { header, items } = req.body;
-
     try {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Production Plan");
+        const borderStyle = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
 
-        const borderStyle = {
-            top: { style: 'thin' }, left: { style: 'thin' },
-            bottom: { style: 'thin' }, right: { style: 'thin' }
-        };
+        // --- 1. HEADER INFO (SO Number, Customer, dll) ---
+        worksheet.mergeCells('A1:E1');
+        const title = worksheet.getCell('A1');
+        title.value = "DEMAND PRODUCTION PLAN";
+        title.font = { size: 16, bold: true, color: { argb: 'FF4F46E5' } };
 
-        // 1. Header Info (Styling lebih profesional)
-        const titleCell = worksheet.getCell('A1');
-        titleCell.value = "DEMAND PRODUCTION PLAN";
-        titleCell.font = { size: 16, bold: true, color: { argb: 'FF4F46E5' } };
-
-        worksheet.addRow(["SO Number", ": " + (header.soNo || "-")]);
-        worksheet.addRow(["SO Date", ": " + (header.soDate ? new Date(header.soDate).toLocaleDateString("id-ID") : "-")]);
-        worksheet.addRow(["Customer", ": " + (header.customer || "-")]);
-        worksheet.addRow(["Delivery Date", ": " + (header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("id-ID") : "-")]);
-        worksheet.addRow(["Production Date", ": " + (header.productionDate || "-")]);
+        const info = [
+            ["SO Number", ": " + (header.soNo || "-")],
+            ["SO Date", ": " + (header.soDate || "-")],
+            ["Customer", ": " + (header.customer || "-")],
+            ["Delivery Date", ": " + (header.deliveryDate || "-")],
+            ["Production Date", ": " + (header.productionDate || "-")]
+        ];
+        info.forEach(item => worksheet.addRow(item).getCell(1).font = { bold: true });
         worksheet.addRow([]); // Spacer
 
-        if (!items || items.length === 0) return res.status(400).send("No items to export");
-
-        // 2. Tentukan Baris Mulai Tabel
-        const headerRowIndex = 8;
-
-        // 3. Header Kolom (Ditambah kolom Pcs di E)
-        const firstHeader = ["Item Code", "Description", "UoM", "Qty (m3)", "Pcs"];
+        // --- 2. HEADER TABEL (Tanggal & Shift) ---
+        const headerRowIndex = worksheet.lastRow.number + 1;
+        const firstHeader = ["Item Code", "Description", "UoM", "Qty", "Pcs"];
         const secondHeader = ["", "", "", "", ""];
+        const refCal = items[0].calendar;
 
-        const refCalendar = items[0].calendar ||
-            (typeof items[0].production_schedule === 'string'
-                ? JSON.parse(items[0].production_schedule)
-                : items[0].production_schedule);
-
-        refCalendar.forEach(day => {
-            const dateStr = new Date(day.date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' });
-            firstHeader.push(dateStr, "", "");
+        refCal.forEach(day => {
+            const d = new Date(day.date).toLocaleDateString("id-ID", {day:'2-digit', month:'short'});
+            firstHeader.push(d, "", "");
             secondHeader.push("S1", "S2", "S3");
         });
 
-        const row1 = worksheet.addRow(firstHeader);
-        const row2 = worksheet.addRow(secondHeader);
+        const r1 = worksheet.addRow(firstHeader);
+        const r2 = worksheet.addRow(secondHeader);
 
-        // 4. Merging Static Headers (A sampai E)
-        // Karena kita nambah kolom 'Pcs', maka range merge jadi A-E
-        ['A', 'B', 'C', 'D', 'E'].forEach(col => {
-            worksheet.mergeCells(`${col}${headerRowIndex}:${col}${headerRowIndex + 1}`);
-        });
-
-        // 5. Merging Date Headers (Mulai dari kolom F / index 6)
+        // Styling Header Tabel (Biru)
+        ['A','B','C','D','E'].forEach(col => worksheet.mergeCells(`${col}${headerRowIndex}:${col}${headerRowIndex+1}`));
         let colStart = 6;
-        refCalendar.forEach(() => {
+        refCal.forEach(() => {
             worksheet.mergeCells(headerRowIndex, colStart, headerRowIndex, colStart + 2);
             colStart += 3;
         });
 
-        // Styling Headers
-        [row1, row2].forEach((row, idx) => {
-            row.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: idx === 0 ? 'FF4F46E5' : '6366F1' } // Indigo shades
-                };
-                cell.border = borderStyle;
-                cell.alignment = { horizontal: 'center', vertical: 'middle' };
-            });
-        });
+        [r1, r2].forEach(row => row.eachCell(cell => {
+            cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF4F46E5'} };
+            cell.font = { color:{argb:'FFFFFFFF'}, bold:true };
+            cell.alignment = { horizontal:'center', vertical:'middle' };
+            cell.border = borderStyle;
+        }));
 
-        // 6. Data Rows
+        // --- 3. DATA ROWS & PEWARNAAN MUNDUR ---
         items.forEach(item => {
-            const cal = item.calendar ||
-                (typeof item.production_schedule === 'string'
-                    ? JSON.parse(item.production_schedule)
-                    : item.production_schedule);
+            // Target Qty yang harus dicapai
+            const targetPcs = parseFloat(item.pcs || 0);
+            
+            const rowData = [item.itemCode, item.description, item.uom, item.qty, item.pcs];
+            const cellTypes = [null, null, null, null, null]; // Simpan tipe untuk warna sel
 
-            const rowData = [
-                item.itemCode || item.item_code,
-                item.description,
-                item.uom,
-                Number(item.qty || item.total_qty || 0),
-                Number(item.pcs || 0)
-            ];
-
-            cal.forEach(day => {
-                rowData.push(day.shifts?.shift1?.active ? day.shifts.shift1.qty : "-");
-                rowData.push(day.shifts?.shift2?.active ? day.shifts.shift2.qty : "-");
-                rowData.push(day.shifts?.shift3?.active ? day.shifts.shift3.qty : "-");
+            // Ambil semua shift secara linear
+            item.calendar.forEach(day => {
+                ["shift1", "shift2", "shift3"].forEach(s => {
+                    const shift = day.shifts[s];
+                    if (shift?.active && shift.qty > 0) {
+                        rowData.push(shift.qty);
+                        cellTypes.push(shift.type);
+                    } else {
+                        rowData.push("-");
+                        cellTypes.push(null);
+                    }
+                });
             });
 
             const row = worksheet.addRow(rowData);
+            
+            // Berikan warna berdasarkan tipe yang sudah di-generate mundur di backend
             row.eachCell((cell, colNum) => {
                 cell.border = borderStyle;
+                cell.alignment = { horizontal: 'center' };
 
-                // Alignment spesifik
-                if (colNum <= 2) cell.alignment = { horizontal: 'left' };
-                else cell.alignment = { horizontal: 'center' };
-
-                // Styling angka Pcs dan Qty
-                if (colNum === 4 || colNum === 5) {
-                    cell.font = { bold: true };
-                    cell.numFmt = '#,##0.00';
-                }
-
-                // Highlight Active Shifts (Emerald Green)
-                if (colNum > 5 && cell.value !== "-") {
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }; // Light green bg
-                    cell.font = { color: { argb: 'FF065F46' }, bold: true }; // Dark green text
+                if (colNum > 5) {
+                    const type = cellTypes[colNum - 1];
+                    if (type === "packing") {
+                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF10B981'} }; // Hijau Emerald
+                        cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
+                    } else if (type === "finishing") {
+                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF7C3AED'} }; // Ungu
+                        cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
+                    } else if (type === "assembly") {
+                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFA3E635'} }; // Lime (Kuning-Hijau)
+                        cell.font = { color: {argb:'FF000000'}, bold: true }; // Teks hitam agar jelas
+                    }
                 }
             });
         });
 
-        // Set Lebar Kolom agar tidak terpotong
-        worksheet.getColumn(1).width = 18; // Code
-        worksheet.getColumn(2).width = 35; // Description
-        worksheet.getColumn(3).width = 7;  // UoM
-        worksheet.getColumn(4).width = 10; // Qty
-        worksheet.getColumn(5).width = 10; // Pcs
+        // --- 4. KETERANGAN WARNA (LEGEND) ---
+        worksheet.addRow([]);
+        const legendStart = worksheet.lastRow.number + 1;
+        worksheet.getCell(`B${legendStart}`).value = "KETERANGAN WARNA:";
+        worksheet.getCell(`B${legendStart}`).font = { bold: true };
+
+        const legends = [
+            { label: "PACKING", bg: "FF10B981", text: "FFFFFFFF" },
+            { label: "FINISHING", bg: "FF7C3AED", text: "FFFFFFFF" },
+            { label: "ASSEMBLY", bg: "FFA3E635", text: "FF000000" }
+        ];
+
+        legends.forEach((leg, idx) => {
+            const cell = worksheet.getCell(`B${legendStart + 1 + idx}`);
+            cell.value = leg.label;
+            cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb: leg.bg} };
+            cell.font = { color:{argb: leg.text}, bold: true };
+            cell.alignment = { horizontal: 'center' };
+            cell.border = borderStyle;
+        });
+
+        // Pengaturan Lebar Kolom
+        worksheet.getColumn(1).width = 15;
+        worksheet.getColumn(2).width = 40;
 
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", `attachment; filename=Demand_${header.soNo || 'Export'}.xlsx`);
-
+        res.setHeader("Content-Disposition", `attachment; filename=Production_Plan_${header.soNo}.xlsx`);
         await workbook.xlsx.write(res);
         res.end();
 
-    } catch (err) {
-        console.error("EXPORT EXCEL ERROR:", err);
-        if (!res.headersSent) res.status(500).send("Gagal ekspor ke Excel");
-    }
+    } catch (err) { res.status(500).send("Export Gagal"); }
 };
 
 /**
@@ -491,43 +487,72 @@ exports.generateFinishing = async (req, res) => {
 };
 
 exports.generateAssembly = async (req, res) => {
-    const { id } = req.params;
+    const { id } = req.params; // Ini adalah ID dari tabel demands
     try {
-        const result = await pool.query("SELECT id, pcs, production_schedule, item_id FROM demand_items WHERE demand_id = $1", [id]);
+        const query = `
+            SELECT 
+                di.id, 
+                di.pcs as target_pcs, 
+                di.production_schedule, 
+                di.item_id,
+                ir.pcs as routing_capacity
+            FROM demand_items di
+            LEFT JOIN item_routings ir ON di.item_id = ir.item_id 
+            WHERE di.demand_id = $1 
+            AND ir.sequence = 1
+        `;
+        const result = await pool.query(query, [id]);
 
         for (const item of result.rows) {
-            let calendar = typeof item.production_schedule === 'string' ? JSON.parse(item.production_schedule) : item.production_schedule;
-            let remaining = parseFloat(item.pcs);
+            let calendar = typeof item.production_schedule === 'string' 
+                ? JSON.parse(item.production_schedule) 
+                : item.production_schedule;
+            
+            let remaining = parseFloat(item.target_pcs);
+            
+            // 1. Kapasitas per shift (default 50 jika routing tidak ada)
+            let maxPerShift = parseFloat(item.routing_capacity);
+            if (!maxPerShift || maxPerShift <= 0) {
+                maxPerShift = 50; 
+            }
 
-            // 1. Bersihkan data assembly lama
+            // 2. Reset data assembly lama agar tidak double
             calendar.forEach(d => {
-                ["shift1", "shift2", "shift3"].forEach(s => {
-                    if (d.shifts[s]?.type === "assembly") d.shifts[s] = { active: false, qty: 0 };
+                Object.keys(d.shifts).forEach(s => {
+                    if (d.shifts[s].type === "assembly") {
+                        d.shifts[s] = { active: false, qty: 0, type: "" };
+                    }
                 });
             });
 
-            // 2. Cari index Finishing pertama (titik berhenti assembly)
+            // 3. Mapping slot waktu secara linear
             let allSlots = [];
             calendar.forEach((d, dIdx) => {
                 ["shift1", "shift2", "shift3"].forEach(s => allSlots.push({ dIdx, s }));
             });
 
-            const firstFinishingIdx = allSlots.findIndex(slot => 
-                calendar[slot.dIdx].shifts[slot.s]?.type === "finishing"
-            );
+            // 4. Cari index pertama di mana ada proses Finishing/Packing
+            const firstBusyIdx = allSlots.findIndex(slot => {
+                const shift = calendar[slot.dIdx].shifts[slot.s];
+                return shift && (shift.type === "finishing" || shift.type === "packing") && shift.qty > 0;
+            });
 
-            // Plotting mundur mulai dari sebelum finishing atau dari akhir jadwal
-            let startIdx = firstFinishingIdx !== -1 ? firstFinishingIdx - 1 : allSlots.length - 1;
-            const maxPerShift = 100; // Sesuaikan dengan kapasitas routing
+            // Start plotting 1 shift sebelum finishing, atau di paling akhir jika finishing kosong
+            let startIdx = firstBusyIdx !== -1 ? firstBusyIdx - 1 : allSlots.length - 1;
 
+            // 5. Plotting Backward (Mundur)
             for (let i = startIdx; i >= 0; i--) {
                 if (remaining <= 0) break;
-                const slot = allSlots[i];
                 
-                // Isi hanya jika slot kosong
-                if (!calendar[slot.dIdx].shifts[slot.s]?.active) {
+                const { dIdx, s } = allSlots[i];
+                const currentShift = calendar[dIdx].shifts[s];
+                
+                // Pastikan tidak menimpa slot finishing/packing yang sudah ada isinya
+                const isFinishingOrPacking = currentShift && (currentShift.type === "finishing" || currentShift.type === "packing") && currentShift.qty > 0;
+
+                if (!isFinishingOrPacking) {
                     const take = Math.min(remaining, maxPerShift);
-                    calendar[slot.dIdx].shifts[slot.s] = {
+                    calendar[dIdx].shifts[s] = {
                         active: true,
                         qty: take,
                         type: "assembly"
@@ -536,8 +561,23 @@ exports.generateAssembly = async (req, res) => {
                 }
             }
 
-            await pool.query("UPDATE demand_items SET production_schedule = $1 WHERE id = $2", [JSON.stringify(calendar), item.id]);
+            // 6. Update per item ke tabel demand_items
+            await pool.query(
+                "UPDATE demand_items SET production_schedule = $1 WHERE id = $2", 
+                [JSON.stringify(calendar), item.id]
+            );
         }
-        res.json({ message: "Assembly plotted adjacent to finishing" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+
+        // --- PERBAIKAN DI SINI ---
+        // Menggunakan 'id' sesuai dengan struktur tabel demands kamu agar tidak error "column demand_id does not exist"
+        await pool.query(
+            "UPDATE demands SET is_assembly_generated = true WHERE id = $1",
+            [id]
+        );
+
+        res.json({ message: "Assembly updated and status saved!" });
+    } catch (err) { 
+        console.error("Error generating assembly:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 };
