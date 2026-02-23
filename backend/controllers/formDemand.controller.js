@@ -311,6 +311,35 @@ exports.runMRP = async (req, res) => {
     res.json({ message: `Item ID ${demand_item_id} diproses oleh sistem MRP!` });
 };
 
+exports.updateFinishing = async (req, res) => {
+    const { id } = req.params;
+    const { items } = req.body;
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        for (const item of items) {
+            // Update hanya bagian production_schedule
+            await client.query(
+                `UPDATE demand_items 
+                 SET production_schedule = $1 
+                 WHERE demand_id = $2 AND id = $3`,
+                [JSON.stringify(item.calendar), id, item.itemId]
+            );
+        }
+
+        await client.query("COMMIT");
+        res.json({ message: "Jadwal berhasil diperbarui" });
+    } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("UPDATE ERROR:", err.message);
+        res.status(500).json({ error: "Gagal update: " + err.message });
+    } finally {
+        client.release();
+    }
+};
+
 exports.updateDemand = async (req, res) => {
     const { id } = req.params;
     const { header, items } = req.body;
@@ -459,4 +488,56 @@ exports.generateFinishing = async (req, res) => {
         console.error(err);
         res.status(500).json({ error: "Generate finishing gagal: " + err.message });
     }
+};
+
+exports.generateAssembly = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query("SELECT id, pcs, production_schedule, item_id FROM demand_items WHERE demand_id = $1", [id]);
+
+        for (const item of result.rows) {
+            let calendar = typeof item.production_schedule === 'string' ? JSON.parse(item.production_schedule) : item.production_schedule;
+            let remaining = parseFloat(item.pcs);
+
+            // 1. Bersihkan data assembly lama
+            calendar.forEach(d => {
+                ["shift1", "shift2", "shift3"].forEach(s => {
+                    if (d.shifts[s]?.type === "assembly") d.shifts[s] = { active: false, qty: 0 };
+                });
+            });
+
+            // 2. Cari index Finishing pertama (titik berhenti assembly)
+            let allSlots = [];
+            calendar.forEach((d, dIdx) => {
+                ["shift1", "shift2", "shift3"].forEach(s => allSlots.push({ dIdx, s }));
+            });
+
+            const firstFinishingIdx = allSlots.findIndex(slot => 
+                calendar[slot.dIdx].shifts[slot.s]?.type === "finishing"
+            );
+
+            // Plotting mundur mulai dari sebelum finishing atau dari akhir jadwal
+            let startIdx = firstFinishingIdx !== -1 ? firstFinishingIdx - 1 : allSlots.length - 1;
+            const maxPerShift = 100; // Sesuaikan dengan kapasitas routing
+
+            for (let i = startIdx; i >= 0; i--) {
+                if (remaining <= 0) break;
+                const slot = allSlots[i];
+                
+                // Isi hanya jika slot kosong
+                if (!calendar[slot.dIdx].shifts[slot.s]?.active) {
+                    const take = Math.min(remaining, maxPerShift);
+                    calendar[slot.dIdx].shifts[slot.s] = {
+                        active: true,
+                        qty: take,
+                        type: "assembly"
+                    };
+                    remaining -= take;
+                }
+            }
+
+            await pool.query("UPDATE demand_items SET production_schedule = $1 WHERE id = $2", [JSON.stringify(calendar), item.id]);
+        }
+        res.json({ message: "Assembly plotted adjacent to finishing" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 };

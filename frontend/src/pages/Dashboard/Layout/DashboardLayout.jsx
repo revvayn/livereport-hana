@@ -417,6 +417,7 @@ function DemandDropdown({ collapsed, currentPath }) {
           <SubMenuLink to="/dashboard/demand/form" icon={Form} label="Form Demand" />
           <SubMenuLink to="/dashboard/demand/list" icon={Form} label="List Demand" />
           <SubMenuLink to="/dashboard/demand/finishing" icon={Form} label="List Finishing" />
+          <SubMenuLink to="/dashboard/demand/assembly" icon={Form} label="List Assembly" />
         </div>
       )}
     </div>
