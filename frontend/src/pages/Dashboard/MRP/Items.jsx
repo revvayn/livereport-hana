@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 
 export default function Items() {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ item_code: "", description: "", uom: "", item_type: "FG" });
+  const [form, setForm] = useState({ item_code: "", description: "", uom: "", warehouse: "GPAK" });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,8 +30,9 @@ export default function Items() {
   /* ================= ADD / UPDATE ================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.item_code || !form.item_type) {
-      return Swal.fire("Error", "Item code dan type wajib diisi", "warning");
+    // Perbaikan: Validasi menggunakan form.warehouse, bukan item_type
+    if (!form.item_code || !form.warehouse) {
+      return Swal.fire("Error", "Item code dan Warehouse wajib diisi", "warning");
     }
 
     try {
@@ -43,7 +44,8 @@ export default function Items() {
         await api.post("/items", form);
         Swal.fire("Berhasil", "Item berhasil ditambahkan", "success");
       }
-      setForm({ item_code: "", description: "", uom: "", item_type: "FG" });
+      // Perbaikan: Reset form menggunakan field yang benar
+      setForm({ item_code: "", description: "", uom: "", warehouse: "GPAK" });
       setEditId(null);
       fetchItems();
     } catch (err) {
@@ -60,7 +62,7 @@ export default function Items() {
       item_code: item.item_code,
       description: item.description || "",
       uom: item.uom || "",
-      item_type: item.item_type || "FG",
+      warehouse: item.warehouse || "GPAK",
     });
     setEditId(item.id);
   };
@@ -95,7 +97,7 @@ export default function Items() {
     <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto">
       <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Master Data Items</h1>
 
-      {/* Form Sederhana - Menggunakan Wrap agar rapi di layar kecil */}
+      {/* Form Sederhana */}
       <form onSubmit={handleSubmit} className="mb-6 flex gap-2 flex-wrap">
         <input
           type="text"
@@ -118,21 +120,20 @@ export default function Items() {
           value={form.uom}
           onChange={(e) => setForm({ ...form, uom: e.target.value })}
         />
-        <select
+        <input
+          type="text"
           className="border border-gray-300 p-2 rounded text-sm w-28 focus:outline-none focus:border-blue-500 bg-white"
-          value={form.item_type}
-          onChange={(e) => setForm({ ...form, item_type: e.target.value })}
-        >
-          <option value="FG">FG</option>
-          <option value="WIP">WIP</option>
-          <option value="RM">RM</option>
-        </select>
+          placeholder="Warehouse"
+          value={form.warehouse}
+          onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
+        />
 
         <button
           type="submit"
           disabled={loading}
-          className={`px-6 rounded text-sm font-bold text-white transition-colors ${editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
-            }`}
+          className={`px-6 rounded text-sm font-bold text-white transition-colors ${
+            editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
           {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
         </button>
@@ -147,7 +148,7 @@ export default function Items() {
               <th className="border border-gray-200 p-3 w-40">Kode</th>
               <th className="border border-gray-200 p-3">Deskripsi</th>
               <th className="border border-gray-200 p-3 w-20">UOM</th>
-              <th className="border border-gray-200 p-3 w-24">Tipe</th>
+              <th className="border border-gray-200 p-3 w-24">Warehouse</th>
               <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
             </tr>
           </thead>
@@ -160,10 +161,8 @@ export default function Items() {
                   <td className="border border-gray-200 p-3">{i.description}</td>
                   <td className="border border-gray-200 p-3 text-center">{i.uom}</td>
                   <td className="border border-gray-200 p-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${i.item_type === 'FG' ? 'bg-green-100 text-green-700' :
-                        i.item_type === 'WIP' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                      {i.item_type}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                      {i.warehouse}
                     </span>
                   </td>
                   <td className="border border-gray-200 p-3 text-center">

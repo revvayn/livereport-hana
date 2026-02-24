@@ -24,6 +24,7 @@ import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 {/* MRP */}
 import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
+import FinishingItems from "../pages/Dashboard/MRP/FinishingItems"; // Import tunggal di sini
 import Machines from "../pages/Dashboard/MRP/Machines";
 import Operations from "../pages/Dashboard/MRP/Operations";
 import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
@@ -38,7 +39,6 @@ import ProductionSchedule from "../pages/Dashboard/MRP/PlannedOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
 
-
 function AppRoutes() {
   return (
     <Routes>
@@ -51,7 +51,7 @@ function AppRoutes() {
 
         {/*ADMIN ONLY*/}
         <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
-          <Route path="user" element={<User />}></Route>
+          <Route path="user" element={<User />} />
         </Route>
 
         {/* REPORTER ONLY */}
@@ -65,10 +65,7 @@ function AppRoutes() {
           <Route path="reject-rate/grading-fg" element={<RejectRateFG />} />
           <Route path="reject-rate/grading-fi" element={<RejectRateFI />} />
           <Route path="reject-rate/hotpress" element={<RejectRateHotpress />} />
-          <Route
-            path="reject-rate/blow-detector"
-            element={<RejectRateBlowdetector />}
-          />
+          <Route path="reject-rate/blow-detector" element={<RejectRateBlowdetector />} />
           <Route path="reject-rate/sanding" element={<RejectRateSanding />} />
 
           {/* Bahan Baku */}
@@ -77,11 +74,11 @@ function AppRoutes() {
         </Route>
 
         {/* ADMIN & PLANNER */}
-        <Route
-          element={<ProtectedRoute allowedRoles={["Planner"]} />}
-        >
+        <Route element={<ProtectedRoute allowedRoles={["Planner", "Admin"]} />}> 
+          {/* Menambahkan Admin ke Planner routes agar Admin bisa akses master data juga jika perlu */}
           <Route path="master/customers" element={<Customers />} />
           <Route path="master/items" element={<Items />} />
+          <Route path="master/finishing-items" element={<FinishingItems />} />
           <Route path="master/machines" element={<Machines />} />
           <Route path="master/operations" element={<Operations />} />
           <Route path="master/item-routings" element={<ItemRoutings />} />
@@ -96,8 +93,9 @@ function AppRoutes() {
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
         </Route>
-        <Route
-          element={<ProtectedRoute allowedRoles={["Planner", "Reporter"]} />}>
+
+        {/* PROFILE ACCESSIBLE BY ALL ROLES */}
+        <Route element={<ProtectedRoute allowedRoles={["Planner", "Reporter", "Admin"]} />}>
           <Route path="profile" element={<Profile />} />
         </Route>
       </Route>

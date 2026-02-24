@@ -333,7 +333,7 @@ function EntryDropdown({ collapsed, currentPath }) {
 }
 
 function MasterDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/master/customers", "/dashboard/master/items", "/dashboard/master/machines", "/dashboard/master/operations", "/dashboard/master/item-routings"];
+  const paths = ["/dashboard/master/customers", "/dashboard/master/items", "/dashboard/master/finishing-items", "/dashboard/master/machines", "/dashboard/master/operations", "/dashboard/master/item-routings"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
@@ -355,6 +355,7 @@ function MasterDropdown({ collapsed, currentPath }) {
         <div className="mt-1 space-y-1">
           <SubMenuLink to="/dashboard/master/customers" icon={Form} label="Customers" />
           <SubMenuLink to="/dashboard/master/items" icon={Form} label="Items" />
+          <SubMenuLink to="/dashboard/master/finishing-items" icon={Form} label="Finishing Items" />
           <SubMenuLink to="/dashboard/master/machines" icon={Form} label="Machines" />
           <SubMenuLink to="/dashboard/master/operations" icon={Form} label="Operations" />
           <SubMenuLink to="/dashboard/master/item-routings" icon={Form} label="Item Routing" />
