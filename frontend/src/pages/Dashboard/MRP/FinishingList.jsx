@@ -31,33 +31,34 @@ export default function FinishingList() {
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-      const resItems = await api.get(`/demand/${so.demand_id}/items`);
+      const resItems = await api.get(`/finishing/${so.demand_id}/finishing-items`);
       const itemsData = resItems.data || [];
 
-      setEditingDemandId(so.demand_id);
-      setSelectedSO(so);
-
       const mappedItems = itemsData.map((it) => {
-        const parsed =
-          typeof it.production_schedule === "string"
-            ? JSON.parse(it.production_schedule)
-            : it.production_schedule || [];
+        // Pastikan production_schedule adalah array
+        const calData = Array.isArray(it.production_schedule)
+          ? it.production_schedule
+          : [];
 
         return {
-          itemId: it.id,
-          itemCode: it.item_code,
-          description: it.description,
-          uom: it.uom,
-          qty: it.total_qty,
-          pcs: it.pcs,
-          calendar: parsed,
+          demandItemId: it.demand_item_id,
+          finishingId: it.finishing_id,
+          itemCode: it.finishing_code || "N/A", // Menggunakan it.finishing_code
+          description: it.description || "-",    // Menggunakan it.description
+          uom: "PCS",
+          qty: it.target_pcs || 0,
+          pcs: it.target_pcs || 0,
+          calendar: Array.isArray(it.production_schedule) ? it.production_schedule : [],
         };
       });
 
+      setEditingDemandId(so.demand_id);
+      setSelectedSO(so);
       setItems(mappedItems);
       setView("detail");
     } catch (err) {
-      Swal.fire("Error", "Gagal memuat detail", "error");
+      console.error("Error Detail:", err);
+      Swal.fire("Error", "Gagal memuat detail finishing", "error");
     } finally {
       setLoading(false);
     }
@@ -84,11 +85,19 @@ export default function FinishingList() {
 
   const handleGenerateFinishing = async (so) => {
     try {
-      Swal.fire({ title: "Mohon tunggu...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await api.post(`/demand/${so.demand_id}/generate-finishing`);
+      Swal.fire({
+        title: "Mohon tunggu...",
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      await api.post(`/finishing/${so.demand_id}/generate-finishing`);
+      await fetchDemands();
       Swal.close();
+
+      const updatedSO = demands.find(d => d.demand_id === so.demand_id) || so;
       Swal.fire("Berhasil!", "Finishing berhasil digenerate", "success");
-      await handleShowDetail(so);
+      await handleShowDetail(updatedSO);
     } catch (err) {
       Swal.close();
       Swal.fire("Error", err.response?.data?.error || "Gagal generate", "error");
@@ -97,11 +106,10 @@ export default function FinishingList() {
 
   const handleQtyChange = (itemIndex, dayIndex, shiftKey, value) => {
     const newItems = [...items];
-    const qty = value === "" ? 0 : Number(value); // Fix: handle empty string
+    const qty = value === "" ? 0 : Number(value);
     if (isNaN(qty) || qty < 0) return;
-    
+
     newItems[itemIndex].calendar[dayIndex].shifts[shiftKey].qty = qty;
-    newItems[itemIndex].calendar[dayIndex].shifts[shiftKey].active = qty > 0;
     setItems(newItems);
   };
 
@@ -116,6 +124,16 @@ export default function FinishingList() {
       Swal.close();
       Swal.fire("Error", "Gagal menyimpan jadwal", "error");
     }
+  };
+
+  const formatHeaderDate = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string') return "-";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return "-";
+    const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
+    const day = parts[2];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    return `${day} ${months[monthIndex]}`;
   };
 
   return (
@@ -192,8 +210,10 @@ export default function FinishingList() {
                     <th className="border p-2 w-16 text-center">Qty</th>
                     <th className="border p-2 w-16 text-center bg-indigo-50 text-indigo-700">Pcs</th>
                     {items[0]?.calendar?.map((day, i) => (
-                      <th key={i} colSpan="3" className="border p-1 text-center">
-                        {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
+                      <th key={i} colSpan="3" className="border p-1 text-center bg-gray-100">
+                        <div className="text-[10px] text-indigo-600 font-bold">
+                          {formatHeaderDate(day.date)}
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -210,53 +230,51 @@ export default function FinishingList() {
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const totalInput = item.calendar?.reduce((sum, day) =>
-                      sum + (Number(day.shifts.shift1.qty) || 0) + (Number(day.shifts.shift2.qty) || 0) + (Number(day.shifts.shift3.qty) || 0), 0) || 0;
-                    const sisa = Number(item.pcs) - totalInput;
-
-                    // Logika Warna Reverse
-                    const allShifts = [];
-                    item.calendar?.forEach((day, dIdx) => {
-                      ["shift1", "shift2", "shift3"].forEach((s) => {
-                        allShifts.push({ dIdx, s, qty: Number(day.shifts[s].qty) || 0 });
-                      });
-                    });
-
-                    let revCumulative = 0;
-                    const shiftTypes = {};
-                    // Scan dari belakang untuk Packing
-                    for (let i = allShifts.length - 1; i >= 0; i--) {
-                      const sh = allShifts[i];
-                      if (sh.qty > 0) {
-                        revCumulative += sh.qty;
-                        shiftTypes[`${sh.dIdx}-${sh.s}`] = revCumulative <= item.pcs ? "packing" : "finishing";
-                      }
-                    }
+                    // Hitung Sisa PCS
+                    const targetPcs = Number(item.pcs || 0);
+                    const totalInput = (item.calendar || []).reduce((sum, day) => {
+                      const s1 = Number(day.shifts?.shift1?.qty || 0);
+                      const s2 = Number(day.shifts?.shift2?.qty || 0);
+                      const s3 = Number(day.shifts?.shift3?.qty || 0);
+                      return sum + s1 + s2 + s3;
+                    }, 0);
+                    const sisa = targetPcs - totalInput;
 
                     return (
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
+                        {/* Kolom Info Item */}
                         <td className="border p-2 sticky left-0 bg-white z-20 shadow-[1px_0_2px_rgba(0,0,0,0.1)]">
-                          <div className="font-bold text-indigo-700">{item.itemCode}</div>
+                          {/* PERBAIKAN: Gunakan item.itemCode bukan it.finishing_code */}
+                          <div className="font-bold text-purple-700 uppercase">{item.itemCode}</div>
                           <div className={`text-[9px] font-black mt-1 ${sisa <= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
+                            {sisa <= 0 ? "PAS ✅" : `BUTUH: ${sisa.toLocaleString()} PCS`}
                           </div>
                         </td>
-                        <td className="border p-2 text-gray-500 text-[9px] leading-tight">{item.description}</td>
+
+                        <td className="border p-2 text-gray-700 text-[10px] leading-tight font-medium">
+                          {/* PERBAIKAN: Gunakan item.description bukan it.description */}
+                          {item.description}
+                        </td>
+
                         <td className="border text-center text-gray-500">{item.uom}</td>
                         <td className="border text-center text-gray-500">{item.qty}</td>
                         <td className="border text-center font-bold bg-indigo-50/20">{item.pcs}</td>
+
+                        {/* Kolom Kalender (Shift) - Tetap seperti kode Anda */}
                         {item.calendar?.map((day, dIdx) =>
                           ["shift1", "shift2", "shift3"].map((s) => {
-                            const qty = day.shifts[s].qty || 0;
-                            const type = shiftTypes[`${dIdx}-${s}`];
+                            const val = day.shifts?.[s]?.qty ?? 0;
+                            const numVal = Number(val);
+                            const bgColor = numVal > 0 ? "bg-purple-600" : "bg-white";
+                            const textColor = numVal > 0 ? "text-white" : "text-gray-400";
+
                             return (
-                              <td key={`${dIdx}-${s}`} className={`border p-0 text-center font-bold transition-all ${qty > 0 ? (type === "packing" ? "bg-emerald-500 text-white" : "bg-purple-600 text-white") : "bg-white"
-                                }`}>
+                              <td key={`${dIdx}-${s}`} className={`border p-0 text-center font-bold transition-all ${bgColor}`}>
                                 <input
                                   type="number"
-                                  value={qty || ""}
+                                  value={numVal === 0 ? "" : numVal}
                                   onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                  className="w-10 h-8 text-center bg-transparent outline-none focus:ring-1 focus:ring-indigo-300 rounded"
+                                  className={`w-10 h-8 text-center bg-transparent outline-none focus:ring-1 focus:ring-indigo-300 rounded ${textColor}`}
                                   placeholder="0"
                                 />
                               </td>
@@ -270,12 +288,9 @@ export default function FinishingList() {
               </table>
             </div>
 
+            {/* LEGEND & ACTION (Legend Packing Dihapus) */}
             <div className="mt-5 flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-dashed border-gray-300">
               <div className="flex gap-6 text-[10px] font-bold">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
-                  <span className="text-gray-600 uppercase">Packing Stage</span>
-                </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-purple-600 rounded-sm"></div>
                   <span className="text-gray-600 uppercase">Finishing Stage</span>

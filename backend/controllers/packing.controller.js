@@ -36,7 +36,8 @@ exports.getDemandFromSalesOrder = async (req, res) => {
              FROM sales_order_items soi
              INNER JOIN items i ON i.id = soi.item_id
              WHERE soi.sales_order_id = $1
-             ORDER BY soi.id ASC`, // <--- TAMBAHKAN INI AGAR URUTAN SESUAI INPUT SO
+             AND i.parent_id IS NULL
+             ORDER BY soi.id ASC`,
             [id]
         );
 
@@ -72,18 +73,30 @@ exports.saveDemand = async (req, res) => {
 
         // Di controllers/formDemand.controller.js
         for (const item of items) {
+
+            // Validasi item benar-benar ada
+            const checkItem = await client.query(
+                "SELECT id FROM items WHERE id = $1",
+                [item.itemId]
+            );
+        
+            if (!checkItem.rows.length) {
+                throw new Error(`Item ID ${item.itemId} tidak ditemukan`);
+            }
+        
             await client.query(
                 `INSERT INTO demand_items (
-            demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                    demand_id,
+                    item_id,
+                    total_qty,
+                    pcs,
+                    production_schedule
+                ) VALUES ($1,$2,$3,$4,$5)`,
                 [
                     demandId,
                     item.itemId,
-                    item.itemCode,
-                    item.description,
-                    item.uom,
-                    parseFloat(item.qty) || 0, // Pastikan jadi Float/Decimal
-                    parseFloat(item.pcs) || 0, // Pastikan jadi Float/Decimal
+                    parseFloat(item.qty) || 0,
+                    parseFloat(item.pcs) || 0,
                     JSON.stringify(item.calendar)
                 ]
             );
@@ -108,23 +121,30 @@ exports.getAllDemands = async (req, res) => {
     try {
         const query = `
             SELECT 
-  d.id as demand_id,
-  d.so_number,
-  d.so_date,
-  d.customer_name,
-  d.delivery_date,
-  d.production_date,
-  d.is_generated,
-  d.is_assembly_generated,
-  COUNT(di.id) as total_items
-FROM demands d
-LEFT JOIN demand_items di ON d.id = di.demand_id
-GROUP BY d.id
-ORDER BY d.created_at DESC;
+                d.id as demand_id,
+                d.so_number,
+                d.so_date,
+                d.customer_name,
+                d.delivery_date,
+                d.production_date,
+                -- Logika baru: Cek apakah demand ini sudah punya data di demand_finishing
+                EXISTS (
+                    SELECT 1 
+                    FROM demand_finishing df
+                    JOIN demand_items di ON df.demand_item_id = di.id
+                    WHERE di.demand_id = d.id
+                ) as is_generated,
+                d.is_assembly_generated,
+                COUNT(di.id) as total_items
+            FROM demands d
+            LEFT JOIN demand_items di ON d.id = di.demand_id
+            GROUP BY d.id
+            ORDER BY d.created_at DESC;
         `;
         const result = await pool.query(query);
         res.json(result.rows);
     } catch (err) {
+        console.error("GET ALL DEMAND ERROR:", err);
         res.status(500).json({ error: "Gagal memuat data Demand" });
     }
 };
@@ -136,12 +156,25 @@ ORDER BY d.created_at DESC;
 exports.getDemandItems = async (req, res) => {
     const { id } = req.params;
     try {
-        // Mengambil semua kolom termasuk 'pcs'
         const result = await pool.query(
-            "SELECT id, item_code, description, uom, total_qty, pcs, production_schedule FROM demand_items WHERE demand_id = $1 ORDER BY id ASC",
+            `SELECT 
+                di.id,
+                i.id as item_id,
+                i.item_code,
+                i.description,
+                i.uom,
+                di.total_qty,
+                di.pcs,
+                di.production_schedule
+            FROM demand_items di
+            JOIN items i ON di.item_id = i.id
+            WHERE di.demand_id = $1
+            ORDER BY di.id ASC`,
             [id]
         );
+
         res.json(result.rows);
+
     } catch (err) {
         res.status(500).json({ error: "Gagal memuat item detail" });
     }
@@ -255,12 +288,6 @@ exports.exportToExcel = async (req, res) => {
                     if (type === "packing") {
                         cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF10B981'} }; // Hijau Emerald
                         cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
-                    } else if (type === "finishing") {
-                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF7C3AED'} }; // Ungu
-                        cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
-                    } else if (type === "assembly") {
-                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFA3E635'} }; // Lime (Kuning-Hijau)
-                        cell.font = { color: {argb:'FF000000'}, bold: true }; // Teks hitam agar jelas
                     }
                 }
             });
@@ -274,8 +301,6 @@ exports.exportToExcel = async (req, res) => {
 
         const legends = [
             { label: "PACKING", bg: "FF10B981", text: "FFFFFFFF" },
-            { label: "FINISHING", bg: "FF7C3AED", text: "FFFFFFFF" },
-            { label: "ASSEMBLY", bg: "FFA3E635", text: "FF000000" }
         ];
 
         legends.forEach((leg, idx) => {
@@ -307,34 +332,6 @@ exports.runMRP = async (req, res) => {
     res.json({ message: `Item ID ${demand_item_id} diproses oleh sistem MRP!` });
 };
 
-exports.updateFinishing = async (req, res) => {
-    const { id } = req.params;
-    const { items } = req.body;
-    const client = await pool.connect();
-
-    try {
-        await client.query("BEGIN");
-
-        for (const item of items) {
-            // Update hanya bagian production_schedule
-            await client.query(
-                `UPDATE demand_items 
-                 SET production_schedule = $1 
-                 WHERE demand_id = $2 AND id = $3`,
-                [JSON.stringify(item.calendar), id, item.itemId]
-            );
-        }
-
-        await client.query("COMMIT");
-        res.json({ message: "Jadwal berhasil diperbarui" });
-    } catch (err) {
-        await client.query("ROLLBACK");
-        console.error("UPDATE ERROR:", err.message);
-        res.status(500).json({ error: "Gagal update: " + err.message });
-    } finally {
-        client.release();
-    }
-};
 
 exports.updateDemand = async (req, res) => {
     const { id } = req.params;
@@ -369,16 +366,23 @@ exports.updateDemand = async (req, res) => {
 
         // Insert ulang item (lebih aman)
         for (const item of items) {
+
+            const checkItem = await client.query(
+                "SELECT id FROM items WHERE id = $1",
+                [item.itemId]
+            );
+        
+            if (!checkItem.rows.length) {
+                throw new Error(`Item ID ${item.itemId} tidak ditemukan`);
+            }
+        
             await client.query(
                 `INSERT INTO demand_items
-                (demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                (demand_id, item_id, total_qty, pcs, production_schedule)
+                VALUES ($1,$2,$3,$4,$5)`,
                 [
                     id,
                     item.itemId,
-                    item.itemCode,
-                    item.description,
-                    item.uom,
                     parseFloat(item.qty) || 0,
                     parseFloat(item.pcs) || 0,
                     JSON.stringify(item.calendar)

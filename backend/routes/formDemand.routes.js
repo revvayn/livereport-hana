@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/formDemand.controller");
+const finishingCtrl = require("../controllers/finishing.controller");
+
+router.get("/:id/finishing-items", finishingCtrl.getFinishingItems);
+router.post("/:id/generate-finishing", finishingCtrl.generateFinishing);
 
 router.get("/", controller.getAllDemands);
 router.get("/from-so/:id", controller.getDemandFromSalesOrder);

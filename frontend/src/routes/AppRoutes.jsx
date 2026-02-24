@@ -31,7 +31,7 @@ import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
 import SalesOrders from "../pages/Dashboard/MRP/SalesOrders";
 import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
-import DemandList from "../pages/Dashboard/MRP/DemandList";
+import PackingList from "../pages/Dashboard/MRP/PackingList";
 import FinishingList from "../pages/Dashboard/MRP/FinishingList";
 import AssemblyList from "../pages/Dashboard/MRP/AssemblyList";
 import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
@@ -85,9 +85,9 @@ function AppRoutes() {
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
-          <Route path="demand/list" element={<DemandList />} />
-          <Route path="demand/finishing" element={<FinishingList />} />
-          <Route path="demand/assembly" element={<AssemblyList />} />
+          <Route path="packing" element={<PackingList />} />
+          <Route path="finishing" element={<FinishingList />} />
+          <Route path="assembly" element={<AssemblyList />} />
           <Route path="production/order" element={<ProductionOrder />} />
           <Route path="production/schedule" element={<ProductionSchedule />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />

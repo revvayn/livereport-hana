@@ -12,11 +12,7 @@ router.post("/mrp/run", controller.runMRP);
 router.post("/export-excel", controller.exportToExcel);
 
 // file router
-router.put("/:id/update-finishing", controller.updateFinishing); // <-- TAMBAHKAN INI
 router.put("/:id", controller.updateDemand);
-router.put("/:id", controller.updateDemand); // ✅ FIXED
-router.post("/:id/generate-finishing", controller.generateFinishing);
-router.post("/:id/generate-assembly", controller.generateAssembly);
 
 router.delete("/:id", controller.deleteDemand);
 

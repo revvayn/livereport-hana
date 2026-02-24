@@ -395,7 +395,7 @@ function SalesDropdown({ collapsed, currentPath }) {
 }
 
 function DemandDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/demand/form", "/dashboard/demand/list", "/dashboard/demand/finishing", "/dashboard/demand/assembly"];
+  const paths = ["/dashboard/demand/form", "/dashboard/packing", "/dashboard/finishing", "/dashboard/assembly"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
@@ -416,9 +416,9 @@ function DemandDropdown({ collapsed, currentPath }) {
       {!collapsed && open && (
         <div className="mt-1 space-y-1">
           <SubMenuLink to="/dashboard/demand/form" icon={Form} label="Form Demand" />
-          <SubMenuLink to="/dashboard/demand/list" icon={Form} label="List Demand" />
-          <SubMenuLink to="/dashboard/demand/finishing" icon={Form} label="List Finishing" />
-          <SubMenuLink to="/dashboard/demand/assembly" icon={Form} label="List Assembly" />
+          <SubMenuLink to="/dashboard/packing" icon={Form} label="List Packing" />
+          <SubMenuLink to="/dashboard/finishing" icon={Form} label="List Finishing" />
+          <SubMenuLink to="/dashboard/assembly" icon={Form} label="List Assembly" />
         </div>
       )}
     </div>

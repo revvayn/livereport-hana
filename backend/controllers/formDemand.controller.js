@@ -108,19 +108,25 @@ exports.getAllDemands = async (req, res) => {
     try {
         const query = `
             SELECT 
-  d.id as demand_id,
-  d.so_number,
-  d.so_date,
-  d.customer_name,
-  d.delivery_date,
-  d.production_date,
-  d.is_generated,
-  d.is_assembly_generated,
-  COUNT(di.id) as total_items
-FROM demands d
-LEFT JOIN demand_items di ON d.id = di.demand_id
-GROUP BY d.id
-ORDER BY d.created_at DESC;
+                d.id as demand_id,
+                d.so_number,
+                d.so_date,
+                d.customer_name,
+                d.delivery_date,
+                d.production_date,
+                -- Cek secara realtime apakah data finishing sudah ada
+                EXISTS (
+                    SELECT 1 
+                    FROM demand_finishing df
+                    JOIN demand_items di ON df.demand_item_id = di.id
+                    WHERE di.demand_id = d.id
+                ) as is_generated,
+                d.is_assembly_generated,
+                COUNT(di.id) as total_items
+            FROM demands d
+            LEFT JOIN demand_items di ON d.id = di.demand_id
+            GROUP BY d.id
+            ORDER BY d.created_at DESC;
         `;
         const result = await pool.query(query);
         res.json(result.rows);
