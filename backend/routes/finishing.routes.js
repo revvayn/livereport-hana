@@ -3,15 +3,18 @@ const router = express.Router();
 const finishingCtrl = require("../controllers/finishing.controller");
 const itemCtrl = require("../controllers/items.controller");
 
+// 1. Route Statis (Taruh paling atas)
 router.get("/", itemCtrl.getItems);
-router.get("/item/:itemId", finishingCtrl.getFinishingByItem);
-// routes/finishing.js (atau demand.js tergantung struktur Anda)
-router.post("/:id/generate-finishing", finishingCtrl.generateFinishing);
-router.get("/:id/finishing-items", finishingCtrl.getFinishingItems);
-router.put("/:id/update-finishing", finishingCtrl.updateFinishingSchedule); // Buat fungsi update di controller
+router.put("/update-schedule", finishingCtrl.updateFinishingSchedule); // PINDAH KE SINI
 
+// 2. Master Data Finishing
+router.get("/item/:itemId", finishingCtrl.getFinishingByItem);
 router.post("/", finishingCtrl.createFinishing);
-router.put("/:id", finishingCtrl.updateFinishing);
+
+// 3. Route Dinamis (Yang pakai :id taruh di bawah)
+router.put("/:id", finishingCtrl.updateFinishing); 
+router.post("/:id/generate-finishing", finishingCtrl.generateFinishing);
+router.get("/:demandId/finishing-items", finishingCtrl.getFinishingItems);
 router.delete("/:id", finishingCtrl.deleteFinishing);
 
 module.exports = router;

@@ -341,60 +341,57 @@ exports.updateDemand = async (req, res) => {
     try {
         await client.query("BEGIN");
 
-        // Update header
+        // 1. Update Header Tetap Sama
         await client.query(
-            `UPDATE demands 
-             SET delivery_date = $1,
-                 production_date = $2,
-                 so_date = $3,
-                 customer_name = $4
-             WHERE id = $5`,
-            [
-                header.deliveryDate,
-                header.productionDate,
-                header.soDate,
-                header.customer,
-                id
-            ]
+            `UPDATE demands SET delivery_date=$1, production_date=$2, so_date=$3, customer_name=$4 WHERE id=$5`,
+            [header.deliveryDate, header.productionDate, header.soDate, header.customer, id]
         );
 
-        // Hapus item lama
-        await client.query(
-            "DELETE FROM demand_items WHERE demand_id = $1",
-            [id]
-        );
+        const currentItemIds = [];
 
-        // Insert ulang item (lebih aman)
+        // 2. Loop Items: Update jika ada, Insert jika benar-benar baru
         for (const item of items) {
+            // Cek apakah item ini sudah ada di demand ini sebelumnya
+            const existing = await client.query(
+                "SELECT id FROM demand_items WHERE demand_id = $1 AND item_id = $2",
+                [id, item.itemId]
+            );
 
-            const checkItem = await client.query(
-                "SELECT id FROM items WHERE id = $1",
-                [item.itemId]
-            );
-        
-            if (!checkItem.rows.length) {
-                throw new Error(`Item ID ${item.itemId} tidak ditemukan`);
+            let demandItemId;
+
+            if (existing.rows.length > 0) {
+                // UPDATE data yang sudah ada (Supaya ID TIDAK BERUBAH)
+                demandItemId = existing.rows[0].id;
+                await client.query(
+                    `UPDATE demand_items 
+                     SET total_qty = $1, pcs = $2, production_schedule = $3 
+                     WHERE id = $4`,
+                    [parseFloat(item.qty), parseFloat(item.pcs), JSON.stringify(item.calendar), demandItemId]
+                );
+            } else {
+                // INSERT hanya jika item baru ditambahkan ke SO
+                const insertRes = await client.query(
+                    `INSERT INTO demand_items (demand_id, item_id, total_qty, pcs, production_schedule)
+                     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+                    [id, item.itemId, parseFloat(item.qty), parseFloat(item.pcs), JSON.stringify(item.calendar)]
+                );
+                demandItemId = insertRes.rows[0].id;
             }
-        
-            await client.query(
-                `INSERT INTO demand_items
-                (demand_id, item_id, total_qty, pcs, production_schedule)
-                VALUES ($1,$2,$3,$4,$5)`,
-                [
-                    id,
-                    item.itemId,
-                    parseFloat(item.qty) || 0,
-                    parseFloat(item.pcs) || 0,
-                    JSON.stringify(item.calendar)
-                ]
-            );
+            currentItemIds.push(demandItemId);
         }
 
         await client.query("COMMIT");
-        res.json({ message: "Demand updated successfully" });
+
+        // 3. Generate Ulang Finishing (Sekarang aman karena ID tetap)
+        for (const dId of currentItemIds) {
+            await exports.generateFinishingForItem(dId);
+        }
+
+        res.json({ message: "Update sukses, data Finishing sinkron!" });
 
     } catch (err) {
         await client.query("ROLLBACK");
+        console.error(err);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

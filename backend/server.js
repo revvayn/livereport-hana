@@ -47,6 +47,7 @@ app.use("/api/item-routings", require("./routes/itemRoutings.routes"));
 app.use("/api/sales-orders", require("./routes/salesOrders.routes"));
 app.use("/api/sales-order-items", require("./routes/salesOrderItems.routes"));
 app.use("/api/demand", require("./routes/formDemand.routes"));
+app.use("/api/production", require("./routes/production.routes"));
 app.use("/api/finishing", require("./routes/finishing.routes"));
 app.use("/api/packing", require("./routes/packing.routes"));
 app.use("/api/bom-calculation", require("./routes/bomCalculation.routes"));

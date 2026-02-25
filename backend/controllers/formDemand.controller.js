@@ -114,13 +114,8 @@ exports.getAllDemands = async (req, res) => {
                 d.customer_name,
                 d.delivery_date,
                 d.production_date,
-                -- Cek secara realtime apakah data finishing sudah ada
-                EXISTS (
-                    SELECT 1 
-                    FROM demand_finishing df
-                    JOIN demand_items di ON df.demand_item_id = di.id
-                    WHERE di.demand_id = d.id
-                ) as is_generated,
+                d.is_generated,
+                d.is_finishing_generated,   -- ← tambah ini
                 d.is_assembly_generated,
                 COUNT(di.id) as total_items
             FROM demands d
@@ -179,7 +174,7 @@ exports.exportToExcel = async (req, res) => {
     try {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Production Plan");
-        const borderStyle = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        const borderStyle = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
 
         // --- 1. HEADER INFO (SO Number, Customer, dll) ---
         worksheet.mergeCells('A1:E1');
@@ -204,7 +199,7 @@ exports.exportToExcel = async (req, res) => {
         const refCal = items[0].calendar;
 
         refCal.forEach(day => {
-            const d = new Date(day.date).toLocaleDateString("id-ID", {day:'2-digit', month:'short'});
+            const d = new Date(day.date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' });
             firstHeader.push(d, "", "");
             secondHeader.push("S1", "S2", "S3");
         });
@@ -213,7 +208,7 @@ exports.exportToExcel = async (req, res) => {
         const r2 = worksheet.addRow(secondHeader);
 
         // Styling Header Tabel (Biru)
-        ['A','B','C','D','E'].forEach(col => worksheet.mergeCells(`${col}${headerRowIndex}:${col}${headerRowIndex+1}`));
+        ['A', 'B', 'C', 'D', 'E'].forEach(col => worksheet.mergeCells(`${col}${headerRowIndex}:${col}${headerRowIndex + 1}`));
         let colStart = 6;
         refCal.forEach(() => {
             worksheet.mergeCells(headerRowIndex, colStart, headerRowIndex, colStart + 2);
@@ -221,9 +216,9 @@ exports.exportToExcel = async (req, res) => {
         });
 
         [r1, r2].forEach(row => row.eachCell(cell => {
-            cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF4F46E5'} };
-            cell.font = { color:{argb:'FFFFFFFF'}, bold:true };
-            cell.alignment = { horizontal:'center', vertical:'middle' };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
             cell.border = borderStyle;
         }));
 
@@ -231,7 +226,7 @@ exports.exportToExcel = async (req, res) => {
         items.forEach(item => {
             // Target Qty yang harus dicapai
             const targetPcs = parseFloat(item.pcs || 0);
-            
+
             const rowData = [item.itemCode, item.description, item.uom, item.qty, item.pcs];
             const cellTypes = [null, null, null, null, null]; // Simpan tipe untuk warna sel
 
@@ -250,7 +245,7 @@ exports.exportToExcel = async (req, res) => {
             });
 
             const row = worksheet.addRow(rowData);
-            
+
             // Berikan warna berdasarkan tipe yang sudah di-generate mundur di backend
             row.eachCell((cell, colNum) => {
                 cell.border = borderStyle;
@@ -259,14 +254,14 @@ exports.exportToExcel = async (req, res) => {
                 if (colNum > 5) {
                     const type = cellTypes[colNum - 1];
                     if (type === "packing") {
-                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF10B981'} }; // Hijau Emerald
-                        cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } }; // Hijau Emerald
+                        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
                     } else if (type === "finishing") {
-                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF7C3AED'} }; // Ungu
-                        cell.font = { color: {argb:'FFFFFFFF'}, bold: true };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } }; // Ungu
+                        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
                     } else if (type === "assembly") {
-                        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFA3E635'} }; // Lime (Kuning-Hijau)
-                        cell.font = { color: {argb:'FF000000'}, bold: true }; // Teks hitam agar jelas
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFA3E635' } }; // Lime (Kuning-Hijau)
+                        cell.font = { color: { argb: 'FF000000' }, bold: true }; // Teks hitam agar jelas
                     }
                 }
             });
@@ -287,8 +282,8 @@ exports.exportToExcel = async (req, res) => {
         legends.forEach((leg, idx) => {
             const cell = worksheet.getCell(`B${legendStart + 1 + idx}`);
             cell.value = leg.label;
-            cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb: leg.bg} };
-            cell.font = { color:{argb: leg.text}, bold: true };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: leg.bg } };
+            cell.font = { color: { argb: leg.text }, bold: true };
             cell.alignment = { horizontal: 'center' };
             cell.border = borderStyle;
         });
@@ -317,12 +312,10 @@ exports.updateFinishing = async (req, res) => {
     const { id } = req.params;
     const { items } = req.body;
     const client = await pool.connect();
-
     try {
         await client.query("BEGIN");
 
         for (const item of items) {
-            // Update hanya bagian production_schedule
             await client.query(
                 `UPDATE demand_items 
                  SET production_schedule = $1 
@@ -331,70 +324,56 @@ exports.updateFinishing = async (req, res) => {
             );
         }
 
+        // Reset finishing agar harus generate ulang
+        await client.query(
+            `UPDATE demands SET is_finishing_generated = false WHERE id = $1`, [id]
+        );
+        await client.query(
+            `DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]
+        );
+
         await client.query("COMMIT");
         res.json({ message: "Jadwal berhasil diperbarui" });
     } catch (err) {
         await client.query("ROLLBACK");
-        console.error("UPDATE ERROR:", err.message);
         res.status(500).json({ error: "Gagal update: " + err.message });
     } finally {
         client.release();
     }
 };
-
 exports.updateDemand = async (req, res) => {
     const { id } = req.params;
     const { header, items } = req.body;
     const client = await pool.connect();
-
     try {
         await client.query("BEGIN");
 
-        // Update header
         await client.query(
             `UPDATE demands 
-             SET delivery_date = $1,
-                 production_date = $2,
-                 so_date = $3,
-                 customer_name = $4
+             SET delivery_date = $1, production_date = $2, so_date = $3, customer_name = $4,
+             is_finishing_generated = false,
+             is_generated = false,
+             is_assembly_generated = false
              WHERE id = $5`,
-            [
-                header.deliveryDate,
-                header.productionDate,
-                header.soDate,
-                header.customer,
-                id
-            ]
+            [header.deliveryDate, header.productionDate, header.soDate, header.customer, id]
         );
 
-        // Hapus item lama
-        await client.query(
-            "DELETE FROM demand_items WHERE demand_id = $1",
-            [id]
-        );
+        // Hapus finishing & items lama dulu sebelum insert baru
+        await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
+        await client.query(`DELETE FROM demand_items WHERE demand_id = $1`, [id]); // ← INI YANG KURANG
 
-        // Insert ulang item (lebih aman)
         for (const item of items) {
             await client.query(
                 `INSERT INTO demand_items
                 (demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-                [
-                    id,
-                    item.itemId,
-                    item.itemCode,
-                    item.description,
-                    item.uom,
-                    parseFloat(item.qty) || 0,
-                    parseFloat(item.pcs) || 0,
-                    JSON.stringify(item.calendar)
-                ]
+                [id, item.itemId, item.itemCode, item.description, item.uom,
+                    parseFloat(item.qty) || 0, parseFloat(item.pcs) || 0, JSON.stringify(item.calendar)]
             );
         }
 
         await client.query("COMMIT");
         res.json({ message: "Demand updated successfully" });
-
     } catch (err) {
         await client.query("ROLLBACK");
         res.status(500).json({ error: err.message });
@@ -406,7 +385,7 @@ exports.updateDemand = async (req, res) => {
 // POST /demand/:id/generate-finishing
 exports.generateFinishing = async (req, res) => {
     const { id } = req.params;
-  
+
     try {
         const demandItems = await pool.query(
             "SELECT id, item_id, pcs, production_schedule FROM demand_items WHERE demand_id = $1",
@@ -424,8 +403,8 @@ exports.generateFinishing = async (req, res) => {
             );
             const maxPerShift = routing.rows.length ? routing.rows[0].pcs : 50;
 
-            let calendar = (typeof item.production_schedule === "string") 
-                ? JSON.parse(item.production_schedule) 
+            let calendar = (typeof item.production_schedule === "string")
+                ? JSON.parse(item.production_schedule)
                 : item.production_schedule;
 
             // --- LOGIKA PERBAIKAN: MENCARI AWAL PACKING ---
@@ -458,18 +437,18 @@ exports.generateFinishing = async (req, res) => {
             // --- PLOTTING MUNDUR (KE KIRI) ---
             while (remaining > 0 && currentDay >= 0) {
                 const shiftKey = `shift${currentShift}`;
-                
+
                 // Hanya isi jika slot benar-benar kosong (bukan bekas packing)
                 if (!calendar[currentDay].shifts[shiftKey]?.active) {
                     const plotQty = remaining > maxPerShift ? maxPerShift : remaining;
-                    calendar[currentDay].shifts[shiftKey] = { 
-                        active: true, 
-                        qty: plotQty, 
-                        type: "finishing" 
+                    calendar[currentDay].shifts[shiftKey] = {
+                        active: true,
+                        qty: plotQty,
+                        type: "finishing"
                     };
                     remaining -= plotQty;
                 }
-        
+
                 currentShift--;
                 if (currentShift < 1) {
                     currentShift = 3;
@@ -482,10 +461,10 @@ exports.generateFinishing = async (req, res) => {
                 [JSON.stringify(calendar), item.id]
             );
         }
-  
+
         await pool.query("UPDATE demands SET is_generated = true WHERE id = $1", [id]);
         res.json({ message: "Finishing generated mundur berhasil" });
-  
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Generate finishing gagal: " + err.message });
@@ -510,16 +489,16 @@ exports.generateAssembly = async (req, res) => {
         const result = await pool.query(query, [id]);
 
         for (const item of result.rows) {
-            let calendar = typeof item.production_schedule === 'string' 
-                ? JSON.parse(item.production_schedule) 
+            let calendar = typeof item.production_schedule === 'string'
+                ? JSON.parse(item.production_schedule)
                 : item.production_schedule;
-            
+
             let remaining = parseFloat(item.target_pcs);
-            
+
             // 1. Kapasitas per shift (default 50 jika routing tidak ada)
             let maxPerShift = parseFloat(item.routing_capacity);
             if (!maxPerShift || maxPerShift <= 0) {
-                maxPerShift = 50; 
+                maxPerShift = 50;
             }
 
             // 2. Reset data assembly lama agar tidak double
@@ -549,10 +528,10 @@ exports.generateAssembly = async (req, res) => {
             // 5. Plotting Backward (Mundur)
             for (let i = startIdx; i >= 0; i--) {
                 if (remaining <= 0) break;
-                
+
                 const { dIdx, s } = allSlots[i];
                 const currentShift = calendar[dIdx].shifts[s];
-                
+
                 // Pastikan tidak menimpa slot finishing/packing yang sudah ada isinya
                 const isFinishingOrPacking = currentShift && (currentShift.type === "finishing" || currentShift.type === "packing") && currentShift.qty > 0;
 
@@ -569,7 +548,7 @@ exports.generateAssembly = async (req, res) => {
 
             // 6. Update per item ke tabel demand_items
             await pool.query(
-                "UPDATE demand_items SET production_schedule = $1 WHERE id = $2", 
+                "UPDATE demand_items SET production_schedule = $1 WHERE id = $2",
                 [JSON.stringify(calendar), item.id]
             );
         }
@@ -582,8 +561,8 @@ exports.generateAssembly = async (req, res) => {
         );
 
         res.json({ message: "Assembly updated and status saved!" });
-    } catch (err) { 
+    } catch (err) {
         console.error("Error generating assembly:", err);
-        res.status(500).json({ error: err.message }); 
+        res.status(500).json({ error: err.message });
     }
 };
