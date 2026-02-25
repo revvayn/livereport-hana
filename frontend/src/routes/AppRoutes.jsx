@@ -86,7 +86,7 @@ function AppRoutes() {
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
-          <Route path="production/kalender" element={<Kalender/>}/>
+          <Route path="production/kalender/:itemId" element={<Kalender/>}/>
           <Route path="packing" element={<PackingList />} />
           <Route path="finishing" element={<FinishingList />} />
           <Route path="assembly" element={<AssemblyList />} />
