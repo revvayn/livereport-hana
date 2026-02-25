@@ -9,4 +9,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  // TAMBAHKAN BLOK SERVER DI BAWAH INI
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000", // Pastikan ini port server Node.js Anda
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 });

@@ -341,7 +341,7 @@ exports.updateDemand = async (req, res) => {
     try {
         await client.query("BEGIN");
 
-        // 1. Update Header Tetap Sama
+        // 1. Update Header
         await client.query(
             `UPDATE demands SET delivery_date=$1, production_date=$2, so_date=$3, customer_name=$4 WHERE id=$5`,
             [header.deliveryDate, header.productionDate, header.soDate, header.customer, id]
@@ -349,18 +349,15 @@ exports.updateDemand = async (req, res) => {
 
         const currentItemIds = [];
 
-        // 2. Loop Items: Update jika ada, Insert jika benar-benar baru
+        // 2. Loop Items
         for (const item of items) {
-            // Cek apakah item ini sudah ada di demand ini sebelumnya
             const existing = await client.query(
                 "SELECT id FROM demand_items WHERE demand_id = $1 AND item_id = $2",
                 [id, item.itemId]
             );
 
             let demandItemId;
-
             if (existing.rows.length > 0) {
-                // UPDATE data yang sudah ada (Supaya ID TIDAK BERUBAH)
                 demandItemId = existing.rows[0].id;
                 await client.query(
                     `UPDATE demand_items 
@@ -369,7 +366,6 @@ exports.updateDemand = async (req, res) => {
                     [parseFloat(item.qty), parseFloat(item.pcs), JSON.stringify(item.calendar), demandItemId]
                 );
             } else {
-                // INSERT hanya jika item baru ditambahkan ke SO
                 const insertRes = await client.query(
                     `INSERT INTO demand_items (demand_id, item_id, total_qty, pcs, production_schedule)
                      VALUES ($1,$2,$3,$4,$5) RETURNING id`,
@@ -382,16 +378,24 @@ exports.updateDemand = async (req, res) => {
 
         await client.query("COMMIT");
 
-        // 3. Generate Ulang Finishing (Sekarang aman karena ID tetap)
+        // --- SOLUSI CIRCULAR DEPENDENCY DI SINI ---
+        // Panggil require di dalam fungsi agar tidak terjadi loop saat booting server
+        const finishingCtrl = require("./finishing.controller"); 
+
         for (const dId of currentItemIds) {
-            await exports.generateFinishingForItem(dId);
+            // Pastikan fungsi ini ada di finishing.controller.js
+            if (typeof finishingCtrl.generateFinishingForItem === 'function') {
+                await finishingCtrl.generateFinishingForItem(dId);
+            } else {
+                console.warn(`Warning: generateFinishingForItem bukan sebuah fungsi di finishing.controller`);
+            }
         }
 
         res.json({ message: "Update sukses, data Finishing sinkron!" });
 
     } catch (err) {
         await client.query("ROLLBACK");
-        console.error(err);
+        console.error("UPDATE DEMAND ERROR:", err);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

@@ -5,10 +5,10 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute";
 import Profile from "../pages/Dashboard/Profile";
 
-{/* Admin */}
+{/* Admin */ }
 import User from "../pages/Dashboard/Admin/User";
 
-{/* Live Report */}
+{/* Live Report */ }
 import RencanaPengiriman from "../pages/Dashboard/Live Report/RencanaPengiriman";
 import DataSync from "../pages/Dashboard/Live Report/DataSync";
 import EntryBahanbaku from "../pages/Dashboard/Live Report/EntryBahanbaku";
@@ -21,7 +21,7 @@ import RejectRateSanding from "../pages/Dashboard/Live Report/RejectRateSanding"
 import BBPerforma from "../pages/Dashboard/Live Report/BBPerforma";
 import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 
-{/* MRP */}
+{/* MRP */ }
 import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
 import FinishingItems from "../pages/Dashboard/MRP/FinishingItems"; // Import tunggal di sini
@@ -75,7 +75,7 @@ function AppRoutes() {
         </Route>
 
         {/* ADMIN & PLANNER */}
-        <Route element={<ProtectedRoute allowedRoles={["Planner", "Admin"]} />}> 
+        <Route element={<ProtectedRoute allowedRoles={["Planner", "Admin"]} />}>
           {/* Menambahkan Admin ke Planner routes agar Admin bisa akses master data juga jika perlu */}
           <Route path="master/customers" element={<Customers />} />
           <Route path="master/items" element={<Items />} />
@@ -86,7 +86,8 @@ function AppRoutes() {
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
           <Route path="demand/form" element={<FormDemand />} />
-          <Route path="production/kalender/:itemId" element={<Kalender/>}/>
+          <Route path="production/kalender" element={<Kalender />} />
+          <Route path="production/kalender/:itemId" element={<Kalender />} />
           <Route path="packing" element={<PackingList />} />
           <Route path="finishing" element={<FinishingList />} />
           <Route path="assembly" element={<AssemblyList />} />
