@@ -153,10 +153,57 @@ const getAllFinishingSchedules = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+// Mendapatkan satu schedule Assembly berdasarkan ID
+const getAssemblySchedule = async (req, res) => {
+    const { itemId } = req.params;
+    try {
+        const result = await pool.query(
+            "SELECT production_schedule FROM demand_item_assembly WHERE id = $1",
+            [itemId]
+        );
 
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Item Assembly tidak ditemukan" });
+        }
+
+        const raw = result.rows[0].production_schedule;
+        const schedule = robustParse(raw);
+
+        res.json({ assembly_schedule: schedule });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Mendapatkan SEMUA schedule Assembly (Digabungkan)
+const getAllAssemblySchedules = async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT id, production_schedule FROM demand_item_assembly"
+        );
+
+        let finalFlatData = [];
+        result.rows.forEach(row => {
+            const schedule = robustParse(row.production_schedule);
+            if (Array.isArray(schedule)) {
+                finalFlatData = finalFlatData.concat(schedule);
+            }
+        });
+
+        console.log("Total assembly entries combined:", finalFlatData.length);
+        res.json({ assembly_schedule: finalFlatData });
+    } catch (err) {
+        console.error("Error backend assembly:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Update exports
 module.exports = { 
     getProductionSchedule, 
     getAllProductionSchedules,
-    getFinishingSchedule,       // Export fungsi baru
-    getAllFinishingSchedules    // Export fungsi baru
+    getFinishingSchedule,
+    getAllFinishingSchedules,
+    getAssemblySchedule,      // Export fungsi baru
+    getAllAssemblySchedules   // Export fungsi baru
 };

@@ -9,4 +9,6 @@ router.get("/all/schedule", productionController.getAllProductionSchedules);
 router.get("/:itemId/schedule", productionController.getProductionSchedule);
 router.get("/finishing/:itemId", productionController.getFinishingSchedule);
 router.get("/finishing-all", productionController.getAllFinishingSchedules);
+router.get("/assembly-schedule/all", productionController.getAllAssemblySchedules);
+router.get("/assembly-schedule/:itemId", productionController.getAssemblySchedule);
 module.exports = router;

@@ -36,8 +36,6 @@ import Kalender from "../pages/Dashboard/MRP/Kalender";
 import PackingList from "../pages/Dashboard/MRP/PackingList";
 import FinishingList from "../pages/Dashboard/MRP/FinishingList";
 import AssemblyList from "../pages/Dashboard/MRP/AssemblyList";
-import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
-import ProductionSchedule from "../pages/Dashboard/MRP/PlannedOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
 
@@ -94,8 +92,6 @@ function AppRoutes() {
           <Route path="packing" element={<PackingList />} />
           <Route path="finishing" element={<FinishingList />} />
           <Route path="assembly" element={<AssemblyList />} />
-          <Route path="production/order" element={<ProductionOrder />} />
-          <Route path="production/schedule" element={<ProductionSchedule />} />
           <Route path="demand/bom-calculation" element={<BOMCalculation />} />
           <Route path="bom/entry" element={<EntryBOM />} />
         </Route>

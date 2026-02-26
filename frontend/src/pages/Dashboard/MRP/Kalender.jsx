@@ -39,14 +39,18 @@ export default function Kalender() {
     const fetchSchedule = useCallback(async () => {
         setLoading(true);
         try {
-            const [resProd, resFin] = await Promise.all([
+            // Panggil ketiga endpoint secara paralel
+            const [resProd, resFin, resAssy] = await Promise.all([
                 axios.get(`/api/production/all/schedule`),
-                axios.get(`/api/production/finishing-all`)
+                axios.get(`/api/production/finishing-all`),
+                axios.get(`/api/production/assembly-schedule/all`) // Endpoint baru
             ]);
+
             setShiftData({
                 packing: processScheduleArray(resProd.data.production_schedule),
                 finishing: processScheduleArray(resFin.data.finishing_schedule),
-                assembly: {} 
+                // Sekarang data assembly diproses dari response backend
+                assembly: processScheduleArray(resAssy.data.assembly_schedule)
             });
         } catch (err) {
             console.error("Fetch Error:", err);
@@ -66,10 +70,9 @@ export default function Kalender() {
 
     const activeCat = CATEGORIES.find(c => c.id === activeTab);
     const currentStore = shiftData[activeTab] || {};
-
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-8 bg-slate-50 min-h-screen font-sans text-slate-900">
-            
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
                 <div>
@@ -83,8 +86,8 @@ export default function Kalender() {
                 {/* Tab Switcher */}
                 <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
                     {CATEGORIES.map(cat => (
-                        <button 
-                            key={cat.id} 
+                        <button
+                            key={cat.id}
                             onClick={() => setActiveTab(cat.id)}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
                             ${activeTab === cat.id ? `${cat.color} text-white shadow-md` : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`}
@@ -122,8 +125,8 @@ export default function Kalender() {
 
                     <div className="flex flex-wrap items-center justify-center gap-3 bg-slate-50 p-2 rounded-[1.5rem] border border-slate-100">
                         {/* Pilih Bulan */}
-                        <select 
-                            value={month} 
+                        <select
+                            value={month}
                             onChange={(e) => setMonth(parseInt(e.target.value))}
                             className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
                         >
@@ -131,8 +134,8 @@ export default function Kalender() {
                         </select>
 
                         {/* Pilih Tahun */}
-                        <select 
-                            value={year} 
+                        <select
+                            value={year}
                             onChange={(e) => setYear(parseInt(e.target.value))}
                             className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
                         >
@@ -177,12 +180,18 @@ export default function Kalender() {
                                 const hasData = date && (vals.shift1 > 0 || vals.shift2 > 0 || vals.shift3 > 0);
                                 const totalQty = Number(vals.shift1) + Number(vals.shift2) + Number(vals.shift3);
 
+                                // Gunakan template literal untuk warna border dinamis
+                                const borderColorClass = activeTab === 'packing' 
+                                    ? 'border-emerald-100' 
+                                    : activeTab === 'finishing' 
+                                        ? 'border-blue-100' 
+                                        : 'border-orange-100';
                                 return (
                                     <div key={idx}
                                         className={`min-h-[140px] rounded-[1.5rem] border-2 p-3 transition-all flex flex-col group
-                                        ${!date ? "bg-transparent border-transparent" : "bg-white border-slate-50 shadow-sm hover:border-slate-200 hover:shadow-md"}
-                                        ${isToday ? `ring-2 ${activeCat.ring} ring-offset-4 border-transparent` : ""}
-                                        ${hasData ? `${activeCat.light} border-${activeCat.id === 'packing' ? 'emerald' : activeCat.id === 'finishing' ? 'blue' : 'orange'}-100` : ""}`}>
+        ${!date ? "bg-transparent border-transparent" : "bg-white border-slate-50 shadow-sm hover:border-slate-200 hover:shadow-md"}
+        ${isToday ? `ring-2 ${activeCat.ring} ring-offset-4 border-transparent` : ""}
+        ${hasData ? `${activeCat.light} ${borderColorClass}` : ""}`}>
 
                                         {date && (
                                             <>

@@ -168,7 +168,6 @@ export default function DashboardLayout() {
               <MasterDropdown collapsed={collapsed} currentPath={location.pathname} />
               <SalesDropdown collapsed={collapsed} currentPath={location.pathname} />
               <DemandDropdown collapsed={collapsed} currentPath={location.pathname} />
-              <ProductionDropdown collapsed={collapsed} currentPath={location.pathname} />
               <EntryMRPDropdown collapsed={collapsed} currentPath={location.pathname} />
             </>
           )}
@@ -421,35 +420,6 @@ function DemandDropdown({ collapsed, currentPath }) {
           <SubMenuLink to="/dashboard/packing" icon={Form} label="List Packing" />
           <SubMenuLink to="/dashboard/finishing" icon={Form} label="List Finishing" />
           <SubMenuLink to="/dashboard/assembly" icon={Form} label="List Assembly" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProductionDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/production/order","/dashboard/production/schedule"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
-  const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
-  return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <ListTodo size={18} />
-          {!collapsed && "Production"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/production/order" icon={Form} label="Production Order" />
-          <SubMenuLink to="/dashboard/production/schedule" icon={Form} label="Production Schedule" />
         </div>
       )}
     </div>
