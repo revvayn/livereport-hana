@@ -37,47 +37,44 @@ export default function AssemblyList() {
   /* ================= DETAIL VIEW (Unified) ================= */
   const handleShowDetail = async (so) => {
     try {
-      setLoading(true);
-      const targetId = so.id || so.demand_id;
+        setLoading(true);
+        const targetId = so.id || so.demand_id;
 
-      const [resItems, resBOM] = await Promise.all([
-        api.get(`/finishing/${targetId}/finishing-items`),
-        api.get(`/bom-calculation/${targetId}/bom-calc`).catch(() => ({ data: {} })) 
-      ]);
+        // Ambil data dari tabel demand_item_assembly
+        const [resItems, resBOM] = await Promise.all([
+            api.get(`/assembly-items/${targetId}/items`), 
+            api.get(`/bom-calculation/${targetId}/bom-calc`).catch(() => ({ data: {} })) 
+        ]);
 
-      if (!resItems.data || resItems.data.length === 0) {
-        Swal.fire("Data Kosong", "Data finishing belum tersedia. Silahkan Generate terlebih dahulu.", "warning");
-        return;
-      }
-
-      const mappedItems = resItems.data.map((it) => {
-        let schedule = it.production_schedule;
-        if (typeof schedule === "string") {
-          try { schedule = JSON.parse(schedule); } catch { schedule = []; }
+        if (!resItems.data || resItems.data.length === 0) {
+            Swal.fire("Data Kosong", "Data assembly belum di-generate.", "warning");
+            return;
         }
-        return {
-          id: it.id,
-          itemCode: it.item_code,
-          description: it.description,
-          pcs: Number(it.pcs || 0),
-          uom: it.uom,
-          qty: Number(it.total_qty || 0),
-          calendar: Array.isArray(schedule) ? schedule : [],
-        };
-      });
 
-      setItems(mappedItems);
-      setBomData(resBOM.data || {});
-      setSelectedSO(so);
-      setView("detail");
-      setActiveTab("schedule");
+        const mappedItems = resItems.data.map((it) => {
+            return {
+                id: it.id,
+                // Pastikan menggunakan nama kolom dari demand_item_assembly
+                itemCode: it.item_code,     // misal: FGD00158
+                description: it.description, // misal: FG DOORCORE MRE
+                uom: it.uom,
+                qty: Number(it.total_qty || 0),
+                pcs: Number(it.pcs || 0),      
+                calendar: Array.isArray(it.production_schedule) ? it.production_schedule : [],
+            };
+        });
+
+        setItems(mappedItems);
+        setBomData(resBOM.data || {});
+        setSelectedSO(so);
+        setView("detail");
     } catch (err) {
-      console.error("Error view detail:", err);
-      Swal.fire("Error", "Gagal memuat detail data.", "error");
+        console.error("Error view detail:", err);
+        Swal.fire("Error", "Gagal memuat detail data.", "error");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   /* ================= ACTION HANDLERS ================= */
   const handleDelete = async (demandId) => {
@@ -99,15 +96,19 @@ export default function AssemblyList() {
     }
   };
 
-  const handleGenerateFinishing = async (so) => {
+  const handleGenerateAssembly = async (so) => {
     try {
-      Swal.fire({ title: "Processing...", didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: "Generating Assembly...", didOpen: () => Swal.showLoading() });
       const targetId = so.id || so.demand_id;
-      await api.post(`/finishing/${targetId}/generate-finishing`);
-      await fetchDemands();
-      Swal.fire("Berhasil", "Data Berhasil dibuat", "success");
+
+      // Panggil endpoint assembly baru
+      await api.post(`/assembly-items/${targetId}/generate-assembly`);
+
+      await fetchDemands(); // Refresh list
+      Swal.fire("Berhasil", "Data Assembly berhasil dibuat", "success");
     } catch (err) {
-      Swal.fire("Error", "Gagal generate", "error");
+      console.error(err);
+      Swal.fire("Error", err.response?.data?.error || "Gagal generate assembly", "error");
     }
   };
 
@@ -117,7 +118,7 @@ export default function AssemblyList() {
     if (isNaN(qty) || qty < 0) return;
 
     if (!newItems[itemIndex].calendar[dayIndex].shifts) {
-        newItems[itemIndex].calendar[dayIndex].shifts = { shift1: {qty:0}, shift2: {qty:0}, shift3: {qty:0} };
+      newItems[itemIndex].calendar[dayIndex].shifts = { shift1: { qty: 0 }, shift2: { qty: 0 }, shift3: { qty: 0 } };
     }
     newItems[itemIndex].calendar[dayIndex].shifts[shiftKey].qty = qty;
     setItems(newItems);
@@ -143,7 +144,20 @@ export default function AssemblyList() {
     const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
     return `${parts[2]} ${months[parseInt(parts[1], 10) - 1]}`;
   };
-
+  const updateSchedule = async (req, res) => {
+    const { items } = req.body; // Array of items dari React
+    try {
+        for (const item of items) {
+            await pool.query(
+                'UPDATE demand_item_assembly SET production_schedule = $1 WHERE id = $2',
+                [JSON.stringify(item.calendar), item.id] // calendar dari React di-stringify
+            );
+        }
+        res.json({ message: "Update Success" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -154,10 +168,10 @@ export default function AssemblyList() {
           </div>
           {view === "detail" && (
             <div className="flex gap-2">
-               <button onClick={() => setActiveTab('schedule')} className={`text-[10px] px-3 py-1 rounded font-bold uppercase transition-all ${activeTab === 'schedule' ? 'bg-orange-600 text-white shadow-md shadow-orange-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Jadwal</button>
-               <button onClick={() => setActiveTab('bom')} className={`text-[10px] px-3 py-1 rounded font-bold uppercase transition-all ${activeTab === 'bom' ? 'bg-orange-600 text-white shadow-md shadow-orange-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>BOM</button>
-               <div className="w-px bg-gray-200 mx-1"></div>
-               <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase transition-all">Kembali</button>
+              <button onClick={() => setActiveTab('schedule')} className={`text-[10px] px-3 py-1 rounded font-bold uppercase transition-all ${activeTab === 'schedule' ? 'bg-orange-600 text-white shadow-md shadow-orange-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Jadwal</button>
+              <button onClick={() => setActiveTab('bom')} className={`text-[10px] px-3 py-1 rounded font-bold uppercase transition-all ${activeTab === 'bom' ? 'bg-orange-600 text-white shadow-md shadow-orange-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>BOM</button>
+              <div className="w-px bg-gray-200 mx-1"></div>
+              <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase transition-all">Kembali</button>
             </div>
           )}
         </div>
@@ -185,15 +199,25 @@ export default function AssemblyList() {
                     <td className="py-4 px-1 text-center">{so.total_items}</td>
                     <td className="py-4 px-1 text-center font-medium">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
                     <td className="py-4 px-1 text-right flex justify-end gap-2">
-                      {!so.is_finishing_generated && (
-                        <button onClick={() => handleGenerateFinishing(so)} className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-emerald-700 transition-colors">
-                          Generate
+                      {!so.is_assembly_generated && (
+                        <button
+                          onClick={() => handleGenerateAssembly(so)}
+                          disabled={!so.is_finishing_generated} // LOCK jika finishing belum ada
+                          className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${so.is_finishing_generated
+                              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            }`}
+                        >
+                          {so.is_finishing_generated ? "Generate Assembly" : "Waiting Finishing"}
                         </button>
                       )}
                       <button
                         onClick={() => handleShowDetail(so)}
-                        disabled={!so.is_finishing_generated}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${so.is_finishing_generated ? "bg-orange-600 text-white hover:bg-orange-700 shadow-md shadow-orange-100" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                        disabled={!so.is_assembly_generated} // LOCK jika assembly belum ada
+                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${so.is_assembly_generated
+                            ? "bg-orange-600 text-white hover:bg-orange-700 shadow-md"
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          }`}
                       >
                         View Detail
                       </button>

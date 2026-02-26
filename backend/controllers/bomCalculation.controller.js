@@ -50,15 +50,11 @@ exports.getDemandItems = async (req, res) => {
 exports.calculateDemandBOM = async (req, res) => {
     const { id } = req.params;
     try {
-        // Ganti bagian query di exports.calculateDemandBOM
-        // Ganti query di exports.calculateDemandBOM
-        // Ganti query di exports.calculateDemandBOM
-        // Update pada exports.calculateDemandBOM di controller Anda
         const query = `
 WITH demand_base AS (
     SELECT 
-        di.item_code as fg_code,
-        di.pcs as parent_pcs, 
+        dia.item_code as fg_code,      -- Mengambil kode assembly (misal: WCD00001)
+        dia.pcs as parent_pcs, 
         b.linenum, 
         b.component_code, 
         b.component_description,
@@ -66,23 +62,27 @@ WITH demand_base AS (
         b.quantity as qty_bom_standar,
         b.qtypcs_item as pcs_bom_standar,
         b.ratio_component,
-        -- RUMUS: ((Quantity / QtyPcs_Item) * Pcs_Demand) * Ratio_Component
+        -- RUMUS DISESUAIKAN: Menggunakan PCS dari tabel Assembly
         ROUND(
             (
-                ( (b.quantity::FLOAT / NULLIF(b.qtypcs_item, 0)::FLOAT) * di.pcs::FLOAT ) 
-                / b.ratio_component::FLOAT
+                ( (b.quantity::FLOAT / NULLIF(b.qtypcs_item, 0)::FLOAT) * dia.pcs::FLOAT ) 
+                / NULLIF(b.ratio_component, 0)::FLOAT
             )::NUMERIC, 
             4
         ) AS required_qty
-    FROM demand_items di
-    JOIN bill_of_materials b ON di.item_code = b.product_item
-    WHERE di.demand_id = $1
+    FROM demand_item_assembly dia
+    -- Join BOM berdasarkan item_code assembly yang baru saja di-generate
+    JOIN bill_of_materials b ON dia.item_code = b.product_item
+    WHERE dia.demand_id = $1
 )
 SELECT * FROM demand_base 
 ORDER BY fg_code ASC, linenum ASC;
 `;
 
         const result = await pool.query(query, [id]);
+
+        // Jika data di demand_item_assembly kosong, berikan fallback ke demand_items (opsional)
+        // atau beri pesan bahwa assembly belum di-generate.
 
         const grouped = result.rows.reduce((acc, row) => {
             if (!acc[row.fg_code]) acc[row.fg_code] = [];
