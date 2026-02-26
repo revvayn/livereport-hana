@@ -25,6 +25,7 @@ import BBAsalLog from "../pages/Dashboard/Live Report/BBAsalLog";
 import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
 import FinishingItems from "../pages/Dashboard/MRP/FinishingItems"; // Import tunggal di sini
+import AssemblyItems from "../pages/Dashboard/MRP/AssemblyItems";
 import Machines from "../pages/Dashboard/MRP/Machines";
 import Operations from "../pages/Dashboard/MRP/Operations";
 import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
@@ -39,6 +40,7 @@ import ProductionOrder from "../pages/Dashboard/MRP/ProductionOrder";
 import ProductionSchedule from "../pages/Dashboard/MRP/PlannedOrder";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
+
 
 function AppRoutes() {
   return (
@@ -80,6 +82,7 @@ function AppRoutes() {
           <Route path="master/customers" element={<Customers />} />
           <Route path="master/items" element={<Items />} />
           <Route path="master/finishing-items" element={<FinishingItems />} />
+          <Route path="master/assembly-items" element={<AssemblyItems />} />
           <Route path="master/machines" element={<Machines />} />
           <Route path="master/operations" element={<Operations />} />
           <Route path="master/item-routings" element={<ItemRoutings />} />

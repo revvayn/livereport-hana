@@ -7,5 +7,6 @@ router.get("/all/schedule", productionController.getAllProductionSchedules);
 
 // 2. Baru yang menggunakan ID di bawahnya
 router.get("/:itemId/schedule", productionController.getProductionSchedule);
-
+router.get("/finishing/:itemId", productionController.getFinishingSchedule);
+router.get("/finishing-all", productionController.getAllFinishingSchedules);
 module.exports = router;

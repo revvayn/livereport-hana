@@ -1,6 +1,27 @@
 // production.controller.js
 const pool = require("../db");
 
+const robustParse = (data) => {
+    if (!data) return [];
+    let parsed = data;
+    try {
+        while (typeof parsed === 'string' && parsed.trim() !== "") {
+            try {
+                parsed = JSON.parse(parsed);
+            } catch (e) {
+                // Jika gagal parse, bersihkan manual tanda kutip ganda di awal dan akhir
+                let cleaned = parsed.replace(/^"+|"+$/g, '');
+                if (cleaned === parsed) break; // Berhenti jika tidak ada perubahan
+                parsed = JSON.parse(cleaned);
+            }
+        }
+    } catch (err) {
+        console.error("Gagal total saat parsing JSON:", err.message);
+        return [];
+    }
+    return Array.isArray(parsed) ? parsed : [];
+};
+
 function parseSchedule(raw) {
     if (!raw) return [];
     
@@ -93,7 +114,49 @@ const getAllProductionSchedules = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+const getFinishingSchedule = async (req, res) => {
+    const { itemId } = req.params;
+    try {
+        const result = await pool.query(
+            "SELECT production_schedule FROM demand_item_finishing WHERE id = $1",
+            [itemId]
+        );
+
+        if (result.rows.length === 0) return res.status(404).json({ message: "Item Finishing tidak ditemukan" });
+
+        const raw = result.rows[0].production_schedule;
+        const schedule = robustParse(raw);
+
+        res.json({ finishing_schedule: schedule });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Mendapatkan SEMUA schedule finishing (Digabungkan)
+const getAllFinishingSchedules = async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT id, production_schedule FROM demand_item_finishing"
+        );
+
+        let finalFlatData = [];
+        result.rows.forEach(row => {
+            const schedule = robustParse(row.production_schedule);
+            finalFlatData = finalFlatData.concat(schedule);
+        });
+
+        console.log("Total finishing entries combined:", finalFlatData.length);
+        res.json({ finishing_schedule: finalFlatData });
+    } catch (err) {
+        console.error("Error backend finishing:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = { 
     getProductionSchedule, 
-    getAllProductionSchedules // <-- WAJIB DITAMBAHKAN
+    getAllProductionSchedules,
+    getFinishingSchedule,       // Export fungsi baru
+    getAllFinishingSchedules    // Export fungsi baru
 };

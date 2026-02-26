@@ -157,7 +157,7 @@ export default function FinishingList() {
         {/* HEADER */}
         <div className="flex items-center justify-between mb-6">
           <div className="text-sm font-bold text-indigo-600 uppercase">
-            {view === "so" ? "FINISHING LIST" : `DETAIL: ${selectedSO?.so_number}`}
+            {view === "so" ? "FINISHING SCHEDULE" : `DETAIL: ${selectedSO?.so_number}`}
           </div>
           {view === "detail" && (
             <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase transition-all">

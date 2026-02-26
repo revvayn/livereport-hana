@@ -1,83 +1,55 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Package, Zap, Wrench, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Package, Zap, Wrench, Loader2, Filter } from "lucide-react";
 import axios from "axios";
-import { useParams } from "react-router-dom";
 
 const weekdays = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
+
+// Update Warna sesuai permintaan: Packing Hijau, Finishing Biru, Assembly Oren
 const CATEGORIES = [
-    { id: "packing", label: "Packing", icon: <Package size={16} />, color: "bg-blue-600", ring: "ring-blue-500" },
-    { id: "finishing", label: "Finishing", icon: <Zap size={16} />, color: "bg-amber-500", ring: "ring-amber-400" },
-    { id: "assembly", label: "Assembly", icon: <Wrench size={16} />, color: "bg-emerald-600", ring: "ring-emerald-500" },
+    { id: "packing", label: "Packing", icon: <Package size={16} />, color: "bg-emerald-600", ring: "ring-emerald-500", light: "bg-emerald-50", text: "text-emerald-700" },
+    { id: "finishing", label: "Finishing", icon: <Zap size={16} />, color: "bg-blue-600", ring: "ring-blue-500", light: "bg-blue-50", text: "text-blue-700" },
+    { id: "assembly", label: "Assembly", icon: <Wrench size={16} />, color: "bg-orange-500", ring: "ring-orange-400", light: "bg-orange-50", text: "text-orange-700" },
 ];
 
-function isoToDateKey(isoString) {
-    return isoString.split("T")[0];
-}
+const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 export default function Kalender() {
-    const { itemId } = useParams();
-
     const today = new Date();
     const [month, setMonth] = useState(today.getMonth());
     const [year, setYear] = useState(today.getFullYear());
     const [activeTab, setActiveTab] = useState("packing");
     const [shiftData, setShiftData] = useState({ packing: {}, finishing: {}, assembly: {} });
     const [loading, setLoading] = useState(false);
-    const [debugInfo, setDebugInfo] = useState(null); // ← debug panel
 
-    const monthNames = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-    ];
-    function formatToLocalKey(isoString) {
-        const d = new Date(isoString);
-        // Kita ambil tanggal berdasarkan local time (WIB), bukan UTC
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-    }
-    // ── Fetch ──────────────────────────────────────────────────────────────────
+    const processScheduleArray = (arr) => {
+        const formatted = {};
+        if (!Array.isArray(arr)) return formatted;
+        arr.forEach((item) => {
+            if (item && item.date) {
+                const dateKey = String(item.date).substring(0, 10);
+                if (!formatted[dateKey]) formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0 };
+                formatted[dateKey].shift1 += Number(item.shifts?.shift1?.qty || 0);
+                formatted[dateKey].shift2 += Number(item.shifts?.shift2?.qty || 0);
+                formatted[dateKey].shift3 += Number(item.shifts?.shift3?.qty || 0);
+            }
+        });
+        return formatted;
+    };
+
     const fetchSchedule = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await axios.get(`/api/production/all/schedule`);
-            const scheduleArray = res.data.production_schedule || [];
-            const formatted = {};
-            let totalProcessed = 0;
-
-            scheduleArray.forEach((item) => {
-                if (item && item.date) {
-                    const dateKey = String(item.date).substring(0, 10);
-
-                    if (!formatted[dateKey]) {
-                        formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0 };
-                    }
-
-                    formatted[dateKey].shift1 += Number(item.shifts?.shift1?.qty || 0);
-                    formatted[dateKey].shift2 += Number(item.shifts?.shift2?.qty || 0);
-                    formatted[dateKey].shift3 += Number(item.shifts?.shift3?.qty || 0);
-                    totalProcessed++;
-                }
-            });
-
-            // PERUBAHAN DI SINI:
-            // Kita hanya mengisi 'packing' dengan data tersebut. 
-            // 'finishing' dan 'assembly' dikosongkan (objek {})
+            const [resProd, resFin] = await Promise.all([
+                axios.get(`/api/production/all/schedule`),
+                axios.get(`/api/production/finishing-all`)
+            ]);
             setShiftData({
-                packing: formatted,    // Data dari demand_items masuk sini
-                finishing: {},         // Kosongkan jika bukan kategorinya
-                assembly: {}           // Kosongkan jika bukan kategorinya
-            });
-
-            setDebugInfo({
-                totalRows: res.data.production_schedule ? "Fetched" : 0,
-                totalEntries: totalProcessed,
-                keys: Object.keys(formatted),
-                sample: scheduleArray.length > 0 ? scheduleArray[0] : null
+                packing: processScheduleArray(resProd.data.production_schedule),
+                finishing: processScheduleArray(resFin.data.finishing_schedule),
+                assembly: {} 
             });
         } catch (err) {
-            console.error("Frontend Error:", err);
+            console.error("Fetch Error:", err);
         } finally {
             setLoading(false);
         }
@@ -85,184 +57,185 @@ export default function Kalender() {
 
     useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
 
-    const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
-    const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
-
     const generateCalendar = (m, y) => {
         const startOffset = (new Date(y, m, 1).getDay() + 6) % 7;
         const totalDays = new Date(y, m + 1, 0).getDate();
         let cur = 1;
-        return Array.from({ length: 42 }, (_, i) =>
-            i < startOffset || cur > totalDays ? null : cur++
-        );
+        return Array.from({ length: 42 }, (_, i) => i < startOffset || cur > totalDays ? null : cur++);
     };
 
     const activeCat = CATEGORIES.find(c => c.id === activeTab);
     const currentStore = shiftData[activeTab] || {};
 
     return (
-        <div className="max-w-6xl mx-auto p-4 sm:p-6 bg-gray-50 min-h-screen font-sans">
-
-            {/* ══════════════════════════════════════════════════
-                DEBUG PANEL — hapus blok ini setelah beres
-            ══════════════════════════════════════════════════ */}
-            {debugInfo && (
-                <div className="mb-4 p-4 rounded-2xl border-2 text-xs font-mono bg-sky-50 border-sky-200 text-sky-900">
-                    <p className="font-bold mb-1">🔍 DEBUG MODE: ALL ITEMS</p>
-                    <p>Total Baris Database : {debugInfo.totalRows}</p>
-                    <p>Total Jadwal Ditemukan: {debugInfo.totalEntries}</p>
-                    <p>Tanggal Terisi      : {debugInfo.keys?.length || 0} hari</p>
-                    <details className="mt-2">
-                        <summary className="cursor-pointer font-bold text-blue-600">Lihat Daftar Tanggal</summary>
-                        <p className="mt-1 bg-white p-2 rounded border">{debugInfo.keys?.join(", ") || "Kosong"}</p>
-                    </details>
+        <div className="max-w-7xl mx-auto p-4 md:p-8 bg-slate-50 min-h-screen font-sans text-slate-900">
+            
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight mb-2">Jadwal Produksi</h1>
+                    <div className="flex items-center gap-2 text-slate-500 font-medium">
+                        <CalendarIcon size={18} />
+                        <span>Panel Monitoring Shift Kerja</span>
+                    </div>
                 </div>
-            )}
 
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-2 mb-6">
-                {CATEGORIES.map(cat => (
-                    <button key={cat.id} onClick={() => setActiveTab(cat.id)}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all
-                        ${activeTab === cat.id ? `${cat.color} text-white shadow-lg` : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"}`}>
-                        {cat.icon} {cat.label}
-                    </button>
-                ))}
+                {/* Tab Switcher */}
+                <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
+                    {CATEGORIES.map(cat => (
+                        <button 
+                            key={cat.id} 
+                            onClick={() => setActiveTab(cat.id)}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
+                            ${activeTab === cat.id ? `${cat.color} text-white shadow-md` : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`}
+                        >
+                            {cat.icon} {cat.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 relative">
-
+            <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/60 overflow-hidden border border-slate-100 relative">
                 {loading && (
-                    <div className="absolute inset-0 bg-white/70 z-20 flex items-center justify-center backdrop-blur-sm">
-                        <Loader2 className="animate-spin text-blue-600" size={40} />
+                    <div className="absolute inset-0 bg-white/60 z-30 flex items-center justify-center backdrop-blur-[2px]">
+                        <div className="flex flex-col items-center gap-3">
+                            <Loader2 className={`animate-spin ${activeCat.text}`} size={48} />
+                            <span className="font-bold text-slate-400 animate-pulse">Memuat Data...</span>
+                        </div>
                     </div>
                 )}
 
-                {/* Navigasi */}
-                <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                {/* Toolbar Kalender */}
+                <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 bg-white">
                     <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-2xl text-white shadow-md ${activeCat.color}`}>
-                            <CalendarIcon size={24} />
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${activeCat.color}`}>
+                            <Filter size={28} />
                         </div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                            {itemId ? `Item #${itemId}` : "ALL PRODUCTION"} · {activeTab}
-                            {/* Tambahkan keterangan jika data kosong */}
-                            {activeTab !== 'packing' && " (No Data for this category)"}
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-gray-100 p-2 rounded-2xl">
-                        <button onClick={prevMonth} className="p-2.5 bg-white hover:bg-blue-50 text-gray-600 rounded-xl shadow-sm">
-                            <ChevronLeft size={20} />
-                        </button>
-                        <div className="flex gap-2 px-2 font-bold text-sm text-gray-700">
-                            <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="bg-transparent outline-none cursor-pointer">
-                                {monthNames.map((n, i) => <option key={i} value={i}>{n}</option>)}
-                            </select>
-                            <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="bg-transparent outline-none cursor-pointer">
-                                {Array.from({ length: 10 }, (_, i) => today.getFullYear() - 5 + i).map(y => (
-                                    <option key={y} value={y}>{y}</option>
-                                ))}
-                            </select>
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Periode Aktif</span>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-2xl font-black">{monthNames[month]}</h2>
+                                <h2 className="text-2xl font-light text-slate-400">{year}</h2>
+                            </div>
                         </div>
-                        <button onClick={nextMonth} className="p-2.5 bg-white hover:bg-blue-50 text-gray-600 rounded-xl shadow-sm">
-                            <ChevronRight size={20} />
-                        </button>
                     </div>
 
-                    <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-800">
-                        Hari Ini
-                    </button>
-                </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 bg-slate-50 p-2 rounded-[1.5rem] border border-slate-100">
+                        {/* Pilih Bulan */}
+                        <select 
+                            value={month} 
+                            onChange={(e) => setMonth(parseInt(e.target.value))}
+                            className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
+                        >
+                            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                        </select>
 
-                {/* Grid */}
-                <div className="p-4 sm:p-6">
-                    <div className="grid grid-cols-7 gap-2 mb-3">
-                        {weekdays.map(wd => (
-                            <div key={wd} className="text-center text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] py-1">{wd}</div>
-                        ))}
-                    </div>
+                        {/* Pilih Tahun */}
+                        <select 
+                            value={year} 
+                            onChange={(e) => setYear(parseInt(e.target.value))}
+                            className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
+                        >
+                            {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map(y => (
+                                <option key={y} value={y}>{y}</option>
+                            ))}
+                        </select>
 
-                    <div className="grid grid-cols-7 gap-2">
-                        {generateCalendar(month, year).map((date, idx) => {
-                            const dateKey = date
-                                ? `${year}-${String(month + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}`
-                                : null;
+                        <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block" />
 
-                            const vals = dateKey
-                                ? (currentStore[dateKey] || { shift1: 0, shift2: 0, shift3: 0 })
-                                : { shift1: 0, shift2: 0, shift3: 0 };
-
-                            const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                            const hasData = date && (Number(vals.shift1) > 0 || Number(vals.shift2) > 0 || Number(vals.shift3) > 0);
-                            const inStore = dateKey && dateKey in currentStore;
-
-                            const shiftDots = [
-                                Number(vals.shift1) > 0 ? "bg-blue-400" : "bg-gray-200",
-                                Number(vals.shift2) > 0 ? "bg-amber-400" : "bg-gray-200",
-                                Number(vals.shift3) > 0 ? "bg-emerald-400" : "bg-gray-200",
-                            ];
-
-                            return (
-                                <div key={idx}
-                                    className={`min-h-[120px] rounded-2xl border-2 p-2 transition-all flex flex-col
-                                    ${!date ? "bg-transparent border-transparent" : "border-gray-100 bg-white hover:shadow-md group"}
-                                    ${isToday ? `ring-2 ${activeCat.ring} ring-offset-1` : ""}
-                                    ${hasData && !isToday ? "border-emerald-300 bg-emerald-50/60" : ""}
-                                    ${inStore && !hasData ? "border-dashed border-gray-300" : ""}`}>
-
-                                    {date && (
-                                        <>
-                                            <div className="flex items-start justify-between mb-1.5">
-                                                <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-lg
-                                                    ${isToday ? `${activeCat.color} text-white` : hasData ? "bg-emerald-100 text-emerald-700" : "text-gray-400"}`}>
-                                                    {date}
-                                                </span>
-                                                <div className="flex gap-0.5 mt-0.5">
-                                                    {shiftDots.map((c, i) => (
-                                                        <span key={i} className={`w-1.5 h-1.5 rounded-full ${c}`} />
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1 mt-auto">
-                                                {[1, 2, 3].map(s => {
-                                                    const v = Number(vals[`shift${s}`] || 0);
-                                                    return (
-                                                        <div key={s} className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1
-                                                            ${v > 0 ? "bg-emerald-100/70" : "bg-gray-50"}`}>
-                                                            <span className={`text-[9px] font-black w-3 shrink-0 ${v > 0 ? "text-emerald-600" : "text-gray-300"}`}>
-                                                                S{s}
-                                                            </span>
-                                                            <span className={`w-full text-[11px] font-bold text-right ${v > 0 ? "text-emerald-700" : "text-gray-300"}`}>
-                                                                {v > 0 ? v.toLocaleString() : "—"}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-
-                                            {hasData && (
-                                                <div className="mt-1.5 text-[9px] font-black text-emerald-600 text-right">
-                                                    ={(Number(vals.shift1) + Number(vals.shift2) + Number(vals.shift3)).toLocaleString()}
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
+                        <div className="flex gap-1">
+                            <button onClick={() => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
+                                <ChevronLeft size={20} />
+                            </button>
+                            <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}
+                                className="px-4 py-2 hover:bg-white hover:shadow-sm rounded-lg text-xs font-black uppercase text-slate-600">
+                                Hari Ini
+                            </button>
+                            <button onClick={() => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
+                                <ChevronRight size={20} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Legend */}
-                <div className="px-6 pb-5 pt-4 flex flex-wrap gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-t border-gray-100">
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" />    Shift 1</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" />   Shift 2</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Shift 3</span>
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-2 rounded bg-emerald-100 border border-emerald-300" /> Ada data</span>
-                    <span className="flex items-center gap-1.5"><span className="w-4 h-2 rounded border-2 border-dashed border-gray-300" /> Entry qty 0</span>
+                {/* Grid Kalender */}
+                <div className="p-6 md:p-8 overflow-x-auto">
+                    <div className="min-w-[800px]">
+                        <div className="grid grid-cols-7 gap-4 mb-6">
+                            {weekdays.map(wd => (
+                                <div key={wd} className="text-center text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">{wd}</div>
+                            ))}
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-4">
+                            {generateCalendar(month, year).map((date, idx) => {
+                                const dateKey = date ? `${year}-${String(month + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}` : null;
+                                const vals = currentStore[dateKey] || { shift1: 0, shift2: 0, shift3: 0 };
+                                const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                                const hasData = date && (vals.shift1 > 0 || vals.shift2 > 0 || vals.shift3 > 0);
+                                const totalQty = Number(vals.shift1) + Number(vals.shift2) + Number(vals.shift3);
+
+                                return (
+                                    <div key={idx}
+                                        className={`min-h-[140px] rounded-[1.5rem] border-2 p-3 transition-all flex flex-col group
+                                        ${!date ? "bg-transparent border-transparent" : "bg-white border-slate-50 shadow-sm hover:border-slate-200 hover:shadow-md"}
+                                        ${isToday ? `ring-2 ${activeCat.ring} ring-offset-4 border-transparent` : ""}
+                                        ${hasData ? `${activeCat.light} border-${activeCat.id === 'packing' ? 'emerald' : activeCat.id === 'finishing' ? 'blue' : 'orange'}-100` : ""}`}>
+
+                                        {date && (
+                                            <>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <span className={`text-sm font-black w-8 h-8 flex items-center justify-center rounded-xl transition-colors
+                                                        ${isToday ? `${activeCat.color} text-white shadow-lg shadow-${activeCat.id}/30` : hasData ? `${activeCat.text} bg-white shadow-sm` : "text-slate-300"}`}>
+                                                        {date}
+                                                    </span>
+                                                    {hasData && <div className={`w-2 h-2 rounded-full ${activeCat.color} animate-pulse`} />}
+                                                </div>
+
+                                                <div className="space-y-1.5 flex-grow">
+                                                    {[1, 2, 3].map(s => {
+                                                        const v = Number(vals[`shift${s}`] || 0);
+                                                        return (
+                                                            <div key={s} className={`flex items-center justify-between px-2 py-1 rounded-lg transition-colors ${v > 0 ? "bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" : "opacity-20"}`}>
+                                                                <span className="text-[9px] font-black text-slate-400">S{s}</span>
+                                                                <span className={`text-xs font-bold ${v > 0 ? activeCat.text : "text-slate-300"}`}>
+                                                                    {v > 0 ? v.toLocaleString() : "—"}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {hasData && (
+                                                    <div className={`mt-2 pt-2 border-t border-white flex justify-between items-center ${activeCat.text}`}>
+                                                        <span className="text-[8px] font-black uppercase opacity-60">Total</span>
+                                                        <span className="text-[11px] font-black">{totalQty.toLocaleString()}</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer / Legend */}
+                <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
+                    <div className="flex gap-6 items-center">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${activeCat.color}`} />
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{activeCat.label} Active</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-slate-200" />
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No Schedule</span>
+                        </div>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 italic">*Data diperbarui secara otomatis dari sistem ERP.</p>
                 </div>
             </div>
         </div>
