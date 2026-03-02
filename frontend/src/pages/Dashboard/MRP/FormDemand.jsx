@@ -13,15 +13,15 @@ const addDays = (date, d) => {
 };
 
 const isSameDay = (d1, d2) => {
-  if (!d1 || !d2) return false;
-  const date1 = new Date(d1);
-  const date2 = new Date(d2);
-  return date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate();
+  return d1 === d2;
 };
 
-const formatDate = (d) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+const formatDate = (d) =>
+  new Date(d).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
 const toInputDate = (dateStr) => {
   if (!dateStr) return "";
@@ -29,15 +29,29 @@ const toInputDate = (dateStr) => {
   return d.toISOString().split("T")[0];
 };
 
-const buildCalendar = (startDate, days = 14) => {
-  return Array.from({ length: days }, (_, i) => ({
-    date: addDays(startDate, i),
-    shifts: {
-      shift1: { active: false, qty: 0 },
-      shift2: { active: false, qty: 0 },
-      shift3: { active: false, qty: 0 },
-    },
-  }));
+const formatToYYYYMMDD = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const buildCalendar = (deliveryDate, days = 14) => {
+  return Array.from({ length: days }, (_, i) => {
+    // i=0 adalah H-13, i=13 adalah Hari Delivery
+    const offset = i - (days - 1); 
+    const newDate = new Date(deliveryDate);
+    newDate.setDate(newDate.getDate() + offset);
+    
+    return {
+      date: formatToYYYYMMDD(newDate),
+      shifts: {
+        shift1: { active: false, qty: 0 },
+        shift2: { active: false, qty: 0 },
+        shift3: { active: false, qty: 0 },
+      },
+    };
+  });
 };
 
 const createItem = (start) => ({
@@ -68,16 +82,15 @@ const getTotalPlottedQty = (calendar) => {
 const autoPlotGlobalBackward = (items, deliveryDate, capacity = 50) => {
   if (!deliveryDate || items.length === 0) return items;
 
-  const delivery = new Date(deliveryDate + "T00:00:00");
-  const startDate = addDays(delivery, -13);
-
+  // 1. Inisialisasi: Semua item dapat kalender yang sama (Delivery di Index 13)
   let updatedItems = items.map((it) => ({
     ...it,
-    calendarStart: startDate,
-    calendar: buildCalendar(startDate, 14),
+    calendar: buildCalendar(new Date(deliveryDate + "T00:00:00"), 14),
   }));
 
-  let currentDayIdx = 12;
+  // 2. Pointer Global: Mulai dari H-1 (Indeks 12) Shift 3
+  // Kita sisakan Indeks 13 khusus untuk label "DELIVERY"
+  let currentDayIdx = 12; 
   let currentShift = 3;
 
   updatedItems.forEach((item) => {
@@ -86,17 +99,17 @@ const autoPlotGlobalBackward = (items, deliveryDate, capacity = 50) => {
 
     let currentPlotted = 0;
 
+    // Plotting selama pcs belum habis dan hari (ke arah kiri) masih tersedia
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
       const sKey = `shift${currentShift}`;
       const remaining = targetPcs - currentPlotted;
-      
-      // Gunakan nilai capacity dari parameter
-      const amountToPlot = remaining < capacity ? remaining : capacity;
+      const amountToPlot = Math.min(remaining, capacity);
 
       item.calendar[currentDayIdx].shifts[sKey].active = true;
       item.calendar[currentDayIdx].shifts[sKey].qty = amountToPlot;
       currentPlotted += amountToPlot;
 
+      // Geser pointer global ke kiri
       currentShift--;
       if (currentShift < 1) {
         currentShift = 3;
@@ -107,7 +120,6 @@ const autoPlotGlobalBackward = (items, deliveryDate, capacity = 50) => {
 
   return updatedItems;
 };
-
 /* ================= COMPONENT ================= */
 export default function FormDemand() {
   const [salesOrders, setSalesOrders] = useState([]);
@@ -363,7 +375,7 @@ export default function FormDemand() {
 
           <div className="flex justify-between items-center mb-4">
             <div className="text-[11px] font-bold uppercase">
-              Sisa Plotting: 
+              Sisa Plotting:
               <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
                 {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
               </span>
@@ -373,7 +385,9 @@ export default function FormDemand() {
           <div className="overflow-x-auto pb-2">
             <div className="flex gap-2">
               {item.calendar.map((d, idx) => {
-                const isShip = header.deliveryDate && isSameDay(d.date, new Date(header.deliveryDate + "T00:00:00"));
+                const isShip =
+                  header.deliveryDate &&
+                  d.date === header.deliveryDate;
                 return (
                   <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
                     <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'text-blue-700' : 'text-gray-400'}`}>
@@ -410,7 +424,7 @@ export default function FormDemand() {
       ))}
 
       <div className="flex flex-col gap-3 mt-6">
-        <button onClick={() => setItems([...items, createItem(new Date())])} className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-100 uppercase">+ TAMBAH ITEM MANUAL</button>
+        <button onClick={() => setItems([...items, createItem(new Date(header.deliveryDate || new Date()))])} className="w-full border border-gray-300 py-2 rounded text-sm font-bold text-gray-500 hover:bg-gray-100 uppercase">+ TAMBAH ITEM MANUAL</button>
         <div className="flex gap-2">
           <button onClick={handleExportExcel} disabled={loading} className="flex-1 bg-white border border-green-600 text-green-700 py-2 rounded font-bold text-sm">EXPORT EXCEL</button>
           <button onClick={handleSubmit} disabled={loading} className="flex-[2] bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 shadow-md">

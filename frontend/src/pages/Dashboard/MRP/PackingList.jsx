@@ -21,9 +21,13 @@ export default function PackingList() {
   });
 
   /* ================= HELPERS ================= */
-  const toInputDate = (dateString) => {
-    if (!dateString) return "";
-    return new Date(dateString).toISOString().split("T")[0];
+  const toInputDate = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
   const addDays = (date, d) => {
@@ -33,14 +37,17 @@ export default function PackingList() {
   };
 
   const buildCalendar = (startDate, days = 14) => {
-    return Array.from({ length: days }, (_, i) => ({
-      date: addDays(startDate, i),
-      shifts: {
-        shift1: { qty: 0 },
-        shift2: { qty: 0 },
-        shift3: { qty: 0 },
-      },
-    }));
+    return Array.from({ length: days }, (_, i) => {
+      const currentDate = addDays(startDate, i);
+      return {
+        date: toInputDate(currentDate), // Simpan sebagai string YYYY-MM-DD
+        shifts: {
+          shift1: { qty: 0 },
+          shift2: { qty: 0 },
+          shift3: { qty: 0 },
+        },
+      };
+    });
   };
 
   /* ================= API CALLS ================= */
@@ -65,8 +72,10 @@ export default function PackingList() {
       setLoading(true);
       const resItems = await api.get(`/demand/${so.demand_id}/items`);
       const itemsData = resItems.data || [];
-
+  
       setSelectedSO(so);
+      
+      // Pastikan header menggunakan helper yang baru
       setHeader({
         soNo: so.so_number,
         soDate: toInputDate(so.so_date),
@@ -74,34 +83,36 @@ export default function PackingList() {
         deliveryDate: toInputDate(so.delivery_date),
         productionDate: toInputDate(so.production_date),
       });
-
+  
+      // Gunakan string "T00:00:00" untuk memaksa browser menggunakan local time
       const deliveryDate = so.delivery_date
-        ? new Date(so.delivery_date + "T00:00:00")
+        ? new Date(toInputDate(so.delivery_date) + "T00:00:00")
         : new Date();
-
+  
       const mappedItems = itemsData.map((it) => {
         const parsedCalendar = it.production_schedule
           ? typeof it.production_schedule === "string"
             ? JSON.parse(it.production_schedule)
             : it.production_schedule
           : null;
-
+  
+        // Jika tidak ada calendarStart, hitung mundur 13 hari dari delivery
         let calendarStart = it.calendarStart
-          ? new Date(it.calendarStart)
+          ? new Date(it.calendarStart + "T00:00:00")
           : addDays(deliveryDate, -13);
-
+  
         return {
-          itemId: it.id,          // ← ini adalah demand_items.id
+          itemId: it.id,
           itemCode: it.item_code,
           description: it.description,
           uom: it.uom || "PCS",
           qty: it.total_qty,
           pcs: it.pcs || it.total_pcs || 0,
-          calendarStart,
+          calendarStart: toInputDate(calendarStart), // Simpan sebagai string
           calendar: parsedCalendar || buildCalendar(calendarStart, 14),
         };
       });
-
+  
       setItems(mappedItems);
       setView("detail");
     } catch (err) {

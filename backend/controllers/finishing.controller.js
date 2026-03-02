@@ -3,35 +3,60 @@ const pool = require("../db");
 /* ==================== HELPER ==================== */
 const calculateFinishingSchedule = (packingSchedule) => {
     if (!packingSchedule || !Array.isArray(packingSchedule)) return [];
-    
-    let allPackingSlots = [];
+
+    // 1. Hitung TOTAL QTY yang harus di-finishing dari seluruh jadwal packing
+    let totalQtyToProcess = 0;
     packingSchedule.forEach(day => {
-        const cleanDate = typeof day.date === 'string' ? day.date.split('T')[0] : day.date;
         for (let s = 1; s <= 3; s++) {
-            const qty = day.shifts?.[`shift${s}`]?.qty || 0;
-            if (qty > 0) allPackingSlots.push({ date: cleanDate, shift: s, qty });
+            totalQtyToProcess += (day.shifts?.[`shift${s}`]?.qty || 0);
         }
     });
 
-    const finishingDataMap = {};
-    const getPrevSlot = (dateStr, shift) => {
-        const dateObj = new Date(dateStr);
-        if (shift > 1) {
-            // Shift 2 -> Finishing Shift 1 (Hari yang sama)
-            // Shift 3 -> Finishing Shift 2 (Hari yang sama)
-            return { date: dateStr, shift: shift - 1 };
-        } else {
-            // Shift 1 -> Finishing Shift 3 (Hari sebelumnya / H-1)
-            dateObj.setDate(dateObj.getDate() - 1);
-            return { date: dateObj.toISOString().split('T')[0], shift: 3 };
-        }
-    };
+    if (totalQtyToProcess === 0) return [];
 
-    allPackingSlots.forEach(slot => {
-        const prev = getPrevSlot(slot.date, slot.shift);
-        if (!finishingDataMap[prev.date]) {
-            finishingDataMap[prev.date] = {
-                date: prev.date,
+    // 2. Cari tanggal Packing PALING AWAL untuk menentukan titik mulai finishing
+    // Kita ingin finishing SELESAI tepat 1 shift sebelum packing pertama dimulai
+    const activeDays = packingSchedule
+        .filter(d => (d.shifts.shift1.qty + d.shifts.shift2.qty + d.shifts.shift3.qty) > 0)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (activeDays.length === 0) return [];
+    
+    // Titik mulai mundur: Hari pertama packing dimulai
+    const firstPackingDateStr = activeDays[0].date.split('T')[0];
+    const [year, month, day] = firstPackingDateStr.split("-").map(Number);
+    
+    // Cari shift pertama yang ada isinya di hari tersebut
+    let firstShift = 1;
+    for(let s=1; s<=3; s++) {
+        if(activeDays[0].shifts[`shift${s}`].qty > 0) {
+            firstShift = s;
+            break;
+        }
+    }
+
+    // Tentukan target Slot Finishing Pertama (Mundur 1 shift dari packing pertama)
+    let currentDayObj = new Date(year, month - 1, day);
+    let currentShift = firstShift - 1;
+    if (currentShift < 1) {
+        currentDayObj.setDate(currentDayObj.getDate() - 1);
+        currentShift = 3;
+    }
+
+    const finishingDataMap = {};
+    const capacityPerShift = 50; // Sesuaikan dengan kapasitas shift Anda
+    let remainingQty = totalQtyToProcess;
+
+    // 3. Plotting Mundur secara teratur
+    while (remainingQty > 0) {
+        const y = currentDayObj.getFullYear();
+        const m = String(currentDayObj.getMonth() + 1).padStart(2, "0");
+        const d = String(currentDayObj.getDate()).padStart(2, "0");
+        const dateKey = `${y}-${m}-${d}`;
+
+        if (!finishingDataMap[dateKey]) {
+            finishingDataMap[dateKey] = {
+                date: dateKey,
                 shifts: {
                     shift1: { qty: 0, active: false, type: "finishing" },
                     shift2: { qty: 0, active: false, type: "finishing" },
@@ -39,9 +64,20 @@ const calculateFinishingSchedule = (packingSchedule) => {
                 }
             };
         }
-        finishingDataMap[prev.date].shifts[`shift${prev.shift}`].qty += slot.qty;
-        finishingDataMap[prev.date].shifts[`shift${prev.shift}`].active = true;
-    });
+
+        const take = Math.min(remainingQty, capacityPerShift);
+        finishingDataMap[dateKey].shifts[`shift${currentShift}`].qty = take;
+        finishingDataMap[dateKey].shifts[`shift${currentShift}`].active = true;
+        
+        remainingQty -= take;
+
+        // Mundur ke slot sebelumnya
+        currentShift--;
+        if (currentShift < 1) {
+            currentDayObj.setDate(currentDayObj.getDate() - 1);
+            currentShift = 3;
+        }
+    }
 
     return Object.values(finishingDataMap);
 };
@@ -109,60 +145,42 @@ exports.deleteFinishing = async (req, res) => {
 exports.generateFinishing = async (req, res) => {
     const { id } = req.params;
     const client = await pool.connect();
+
     try {
         await client.query('BEGIN');
 
-        // Ambil data demand untuk mendapatkan delivery_date
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [id]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
-        // 1. CEK ITEM YANG TIDAK ADA DI MASTER FINISHING
-        // Kita bandingkan item_code di SO dengan item_code di Master Finishing
-        const missingCheck = await client.query(
-            `SELECT DISTINCT di.item_code 
-             FROM demand_items di
-             LEFT JOIN item_finishing itf ON itf.item_code = di.item_code
-             WHERE di.demand_id = $1 AND itf.id IS NULL`, [id]
-        );
-
-        if (missingCheck.rows.length > 0) {
-            const listMissing = missingCheck.rows.map(row => row.item_code).join(", ");
-            throw new Error(`Item berikut belum ada di Master Finishing: [ ${listMissing} ]`);
-        }
-
-        // 2. AMBIL DATA DENGAN JOIN (itf.item_code sebagai jembatan)
         const itemsRes = await client.query(
-            `SELECT 
-                di.id AS demand_item_id, 
-                di.item_id, 
-                di.item_code, 
-                di.uom, 
-                di.total_qty, 
-                di.pcs, 
-                di.production_schedule,
-                itf.finishing_code,    -- Ini Kode Finishing Asli dari Master
-                itf.description AS finishing_description
+            `SELECT di.id AS demand_item_id, di.item_id, di.item_code, di.uom, 
+                    di.total_qty, di.pcs, di.production_schedule,
+                    itf.finishing_code, itf.description AS finishing_description
              FROM demand_items di
              INNER JOIN item_finishing itf ON itf.item_code = di.item_code 
              WHERE di.demand_id = $1`, [id]
         );
 
-        // Bersihkan data lama untuk demand ini
         await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
 
         for (const item of itemsRes.rows) {
-            const packingSchedule = typeof item.production_schedule === 'string' 
+            const packingSchedule = typeof item.production_schedule === 'string'
                 ? JSON.parse(item.production_schedule) : (item.production_schedule || []);
-            
-            const finishingSchedule = calculateFinishingSchedule(packingSchedule);
-            
+
+            // DINAMIS: Gunakan item.pcs sebagai kapasitas per shift
+            const finishingSchedule = calculateFinishingSchedule(packingSchedule, item.pcs);
+
             const finalCalendar = [];
-            for (let i = 14; i >= -1; i--) {
+            const days = 15;
+
+            for (let i = days - 1; i >= 0; i--) {
                 const d = new Date(deliveryDate);
-                d.setDate(d.getDate() - i);
+                d.setDate(deliveryDate.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
+
                 const found = finishingSchedule.find(f => f.date === dateStr);
+
                 finalCalendar.push({
                     date: dateStr,
                     shifts: found ? found.shifts : {
@@ -173,23 +191,12 @@ exports.generateFinishing = async (req, res) => {
                 });
             }
 
-            // Simpan ke tabel transaksi finishing
-            // Kita simpan itf.finishing_code sebagai item_code di tabel tujuan
             await client.query(
                 `INSERT INTO demand_item_finishing
                 (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [
-                    id, 
-                    item.demand_item_id, 
-                    item.item_id, 
-                    item.finishing_code, // Kode finishing asli
-                    item.finishing_description, 
-                    item.uom, 
-                    item.total_qty, 
-                    item.pcs, 
-                    JSON.stringify(finalCalendar)
-                ]
+                [id, item.demand_item_id, item.item_id, item.finishing_code, 
+                 item.finishing_description, item.uom, item.total_qty, item.pcs, JSON.stringify(finalCalendar)]
             );
         }
 
@@ -198,7 +205,6 @@ exports.generateFinishing = async (req, res) => {
         res.json({ message: "Generate Finishing Berhasil" });
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Generate Error:", err.message);
         res.status(500).json({ error: err.message });
     } finally { client.release(); }
 };
@@ -219,7 +225,7 @@ exports.generateFinishingForItem = async (demandItemId) => {
         if (res.rows.length === 0) return;
 
         const row = res.rows[0];
-        const packingSchedule = typeof row.production_schedule === 'string' 
+        const packingSchedule = typeof row.production_schedule === 'string'
             ? JSON.parse(row.production_schedule) : row.production_schedule;
 
         // 2. Hitung jadwal finishing (Mundur 1 Shift)
@@ -236,7 +242,7 @@ exports.generateFinishingForItem = async (demandItemId) => {
                 total_qty = EXCLUDED.total_qty,
                 pcs = EXCLUDED.pcs`,
             [
-                row.demand_id, demandItemId, row.item_id, row.finishing_code, 
+                row.demand_id, demandItemId, row.item_id, row.finishing_code,
                 row.description, row.uom, row.total_qty, row.pcs, JSON.stringify(finishingData)
             ]
         );
