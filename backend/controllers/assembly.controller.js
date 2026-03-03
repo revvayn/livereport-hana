@@ -1,6 +1,81 @@
 // controllers/assemblyController.js
 const pool = require('../db'); // Sesuaikan dengan koneksi database Anda
 
+const calculateAssemblySchedule = (finishingSchedule) => {
+    if (!finishingSchedule || !Array.isArray(finishingSchedule)) return [];
+
+    let totalQtyToProcess = 0;
+    finishingSchedule.forEach(day => {
+        const shifts = day.shifts || {};
+        totalQtyToProcess += (shifts.shift1?.qty || 0) + (shifts.shift2?.qty || 0) + (shifts.shift3?.qty || 0);
+    });
+
+    if (totalQtyToProcess === 0) return [];
+
+    const activeDays = finishingSchedule
+        .filter(d => {
+            const s = d.shifts || {};
+            return ((s.shift1?.qty || 0) + (s.shift2?.qty || 0) + (s.shift3?.qty || 0)) > 0;
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (activeDays.length === 0) return [];
+
+    const firstFinishingDateStr = activeDays[0].date.split('T')[0];
+    const [year, month, day] = firstFinishingDateStr.split("-").map(Number);
+
+    let firstShift = 1;
+    for (let s = 1; s <= 3; s++) {
+        if ((activeDays[0].shifts[`shift${s}`]?.qty || 0) > 0) {
+            firstShift = s;
+            break;
+        }
+    }
+
+    let currentDayObj = new Date(year, month - 1, day);
+    let currentShift = firstShift - 1;
+    if (currentShift < 1) {
+        currentDayObj.setDate(currentDayObj.getDate() - 1);
+        currentShift = 3;
+    }
+
+    const assemblyDataMap = {};
+    const capacityPerShift = 100; // Statis 100
+    let remainingQty = totalQtyToProcess;
+
+    while (remainingQty > 0) {
+        const y = currentDayObj.getFullYear();
+        const m = String(currentDayObj.getMonth() + 1).padStart(2, "0");
+        const d = String(currentDayObj.getDate()).padStart(2, "0");
+        const dateKey = `${y}-${m}-${d}`;
+
+        if (!assemblyDataMap[dateKey]) {
+            assemblyDataMap[dateKey] = {
+                date: dateKey,
+                shifts: {
+                    shift1: { qty: 0, active: false, type: "assembly" },
+                    shift2: { qty: 0, active: false, type: "assembly" },
+                    shift3: { qty: 0, active: false, type: "assembly" }
+                }
+            };
+        }
+
+        const take = Math.min(remainingQty, capacityPerShift);
+        assemblyDataMap[dateKey].shifts[`shift${currentShift}`].qty = take;
+        assemblyDataMap[dateKey].shifts[`shift${currentShift}`].active = true;
+
+        remainingQty -= take;
+
+        currentShift--;
+        if (currentShift < 1) {
+            currentDayObj.setDate(currentDayObj.getDate() - 1);
+            currentShift = 3;
+        }
+    }
+
+    return Object.values(assemblyDataMap);
+};
+
 exports.getAll = async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM item_assembly ORDER BY id DESC');
@@ -86,42 +161,67 @@ exports.generateAssembly = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // Logic: Menghubungkan transaksi ke master assembly lewat finishing_id
+        const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [demandId]);
+        if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
+        const deliveryDate = new Date(demandRes.rows[0].delivery_date);
+
         const querySelect = `
-    SELECT 
-        dif.demand_id,
-        dif.demand_item_id,
-        dif.item_id,
-        ia.assembly_code,
-        ia.description AS assembly_desc,
-        dif.uom,
-        dif.total_qty,
-        dif.pcs,
-        dif.production_schedule
-    FROM demand_item_finishing dif
-    /* PERBAIKAN: Join dif.item_code ke ifin.finishing_code (bukan ifin.item_code) */
-    JOIN item_finishing ifin ON dif.item_code = ifin.finishing_code
-    JOIN item_assembly ia ON ifin.id = ia.finishing_id
-    WHERE dif.demand_id = $1
-`;
+            SELECT 
+                dif.demand_id,
+                dif.demand_item_id,
+                dif.item_id,
+                dif.uom,
+                dif.total_qty,
+                dif.production_schedule AS finishing_schedule,
+                ia.assembly_code,
+                ia.description AS assembly_desc,
+                ia.warehouse AS master_warehouse
+            FROM demand_item_finishing dif
+            JOIN item_finishing ifin ON dif.item_code = ifin.finishing_code
+            JOIN item_assembly ia ON ifin.id = ia.finishing_id
+            WHERE dif.demand_id = $1
+        `;
 
         const result = await client.query(querySelect, [demandId]);
 
         if (result.rows.length === 0) {
             return res.status(400).json({
-                error: "Data tidak ditemukan. Pastikan item Finishing sudah memiliki relasi di Master Assembly (kolom finishing_id)."
+                error: "Data Finishing belum tersedia."
             });
         }
 
+        await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [demandId]);
+
         for (const row of result.rows) {
-            // Pastikan data schedule dikonversi ke string JSON yang valid
-            const schedule = row.production_schedule ? JSON.stringify(row.production_schedule) : '[]';
+            const finishingSchedule = typeof row.finishing_schedule === 'string'
+                ? JSON.parse(row.finishing_schedule) : (row.finishing_schedule || []);
+
+            const assemblySlots = calculateAssemblySchedule(finishingSchedule);
+
+            const finalCalendar = [];
+            const daysToDisplay = 15;
+
+            for (let i = daysToDisplay - 1; i >= 0; i--) {
+                const d = new Date(deliveryDate);
+                d.setDate(deliveryDate.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+
+                const found = assemblySlots.find(f => f.date === dateStr);
+
+                finalCalendar.push({
+                    date: dateStr,
+                    shifts: found ? found.shifts : {
+                        shift1: { qty: 0, active: false, type: "assembly" },
+                        shift2: { qty: 0, active: false, type: "assembly" },
+                        shift3: { qty: 0, active: false, type: "assembly" }
+                    }
+                });
+            }
 
             await client.query(
                 `INSERT INTO demand_item_assembly 
                 (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'WIPA')
-                ON CONFLICT DO NOTHING`,
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
                 [
                     row.demand_id,
                     row.demand_item_id,
@@ -130,8 +230,9 @@ exports.generateAssembly = async (req, res) => {
                     row.assembly_desc,
                     row.uom,
                     row.total_qty,
-                    row.pcs,
-                    schedule
+                    100, // Simpan pcs statis 100
+                    JSON.stringify(finalCalendar),
+                    row.master_warehouse || 'WIPA'
                 ]
             );
         }
@@ -139,11 +240,10 @@ exports.generateAssembly = async (req, res) => {
         await client.query('UPDATE demands SET is_assembly_generated = true WHERE id = $1', [demandId]);
         await client.query('COMMIT');
 
-        res.json({ message: "Generate Assembly Berhasil berdasarkan finishing_id!" });
+        res.json({ message: "Generate Assembly Berhasil (Kapasitas Statis 100/Shift)" });
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Generate Assembly Error:", err);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
@@ -153,7 +253,6 @@ exports.generateAssembly = async (req, res) => {
 exports.getItemsByDemandId = async (req, res) => {
     try {
         const { demandId } = req.params;
-        // Sekarang cukup ambil langsung karena proses FILTER sudah dilakukan saat GENERATE
         const result = await pool.query(
             'SELECT * FROM demand_item_assembly WHERE demand_id = $1 ORDER BY id ASC',
             [demandId]
@@ -161,7 +260,7 @@ exports.getItemsByDemandId = async (req, res) => {
 
         const rows = result.rows.map(row => ({
             ...row,
-            production_schedule: typeof row.production_schedule === 'string'
+            calendar: typeof row.production_schedule === 'string'
                 ? JSON.parse(row.production_schedule)
                 : row.production_schedule || []
         }));
@@ -170,4 +269,23 @@ exports.getItemsByDemandId = async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+};
+
+exports.updateAssemblySchedule = async (req, res) => {
+    const { items } = req.body; // Array of item assembly
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const item of items) {
+            await client.query(
+                `UPDATE demand_item_assembly SET production_schedule=$1 WHERE id=$2`,
+                [JSON.stringify(item.calendar), item.id]
+            );
+        }
+        await client.query('COMMIT');
+        res.json({ message: "Update Jadwal Assembly Berhasil" });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    } finally { client.release(); }
 };

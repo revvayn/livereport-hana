@@ -44,7 +44,7 @@ const calculateFinishingSchedule = (packingSchedule) => {
     }
 
     const finishingDataMap = {};
-    const capacityPerShift = 50; // Sesuaikan dengan kapasitas shift Anda
+    const capacityPerShift = 100; // Sesuaikan dengan kapasitas shift Anda
     let remainingQty = totalQtyToProcess;
 
     // 3. Plotting Mundur secara teratur
