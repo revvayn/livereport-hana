@@ -32,7 +32,24 @@ export default function AssemblyList() {
   useEffect(() => {
     fetchDemands();
   }, []);
-
+  const handleDelete = async (demandId) => {
+    const result = await Swal.fire({
+      title: "Apakah Anda yakin?",
+      text: "Data akan dihapus permanen!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Ya, Hapus!",
+      confirmButtonColor: "#ea580c", // Orange-600
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.delete(`/demand/${demandId}`);
+      fetchDemands();
+      Swal.fire("Berhasil", "Data dihapus", "success");
+    } catch {
+      Swal.fire("Error", "Gagal hapus data", "error");
+    }
+  };
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
@@ -141,6 +158,9 @@ export default function AssemblyList() {
                         <button onClick={() => handleGenerateAssembly(so)} className="bg-emerald-600 text-white px-4 py-1.5 rounded text-[11px] font-bold">Generate</button>
                       )}
                       <button onClick={() => handleShowDetail(so)} disabled={!so.is_assembly_generated} className={`px-4 py-1.5 rounded text-[11px] font-bold ${so.is_assembly_generated ? "bg-orange-600 text-white shadow-md" : "bg-gray-200 text-gray-400"}`}>Buka Jadwal</button>
+                      <button onClick={() => handleDelete(so.id)} className="bg-white border border-red-100 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition-all">
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
