@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // ✅ tambah ini
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
 export default function PackingList() {
-  const navigate = useNavigate(); // ✅ tambah ini
+  const navigate = useNavigate();
 
   /* ================= STATE ================= */
   const [demands, setDemands] = useState([]);
@@ -40,7 +40,7 @@ export default function PackingList() {
     return Array.from({ length: days }, (_, i) => {
       const currentDate = addDays(startDate, i);
       return {
-        date: toInputDate(currentDate), // Simpan sebagai string YYYY-MM-DD
+        date: toInputDate(currentDate),
         shifts: {
           shift1: { qty: 0 },
           shift2: { qty: 0 },
@@ -72,10 +72,8 @@ export default function PackingList() {
       setLoading(true);
       const resItems = await api.get(`/demand/${so.demand_id}/items`);
       const itemsData = resItems.data || [];
-  
+
       setSelectedSO(so);
-      
-      // Pastikan header menggunakan helper yang baru
       setHeader({
         soNo: so.so_number,
         soDate: toInputDate(so.so_date),
@@ -83,24 +81,22 @@ export default function PackingList() {
         deliveryDate: toInputDate(so.delivery_date),
         productionDate: toInputDate(so.production_date),
       });
-  
-      // Gunakan string "T00:00:00" untuk memaksa browser menggunakan local time
+
       const deliveryDate = so.delivery_date
         ? new Date(toInputDate(so.delivery_date) + "T00:00:00")
         : new Date();
-  
+
       const mappedItems = itemsData.map((it) => {
         const parsedCalendar = it.production_schedule
           ? typeof it.production_schedule === "string"
             ? JSON.parse(it.production_schedule)
             : it.production_schedule
           : null;
-  
-        // Jika tidak ada calendarStart, hitung mundur 13 hari dari delivery
+
         let calendarStart = it.calendarStart
           ? new Date(it.calendarStart + "T00:00:00")
           : addDays(deliveryDate, -13);
-  
+
         return {
           itemId: it.id,
           itemCode: it.item_code,
@@ -108,11 +104,11 @@ export default function PackingList() {
           uom: it.uom || "PCS",
           qty: it.total_qty,
           pcs: it.pcs || it.total_pcs || 0,
-          calendarStart: toInputDate(calendarStart), // Simpan sebagai string
+          calendarStart: toInputDate(calendarStart),
           calendar: parsedCalendar || buildCalendar(calendarStart, 14),
         };
       });
-  
+
       setItems(mappedItems);
       setView("detail");
     } catch (err) {
@@ -122,7 +118,6 @@ export default function PackingList() {
     }
   };
 
-  /* ================= MATRIX LOGIC ================= */
   const handleQtyChange = (itemIdx, dayIdx, shiftKey, value) => {
     const newItems = [...items];
     newItems[itemIdx].calendar[dayIdx].shifts[shiftKey].qty =
@@ -147,16 +142,16 @@ export default function PackingList() {
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-
+        
         {/* HEADER SECTION */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-sm font-bold text-indigo-600 uppercase tracking-widest">
+          <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-widest">
             {view === "so" ? "Packing Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
           </h2>
           {view === "detail" && (
             <button
               onClick={() => setView("so")}
-              className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase"
+              className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase hover:bg-gray-200"
             >
               Kembali
             </button>
@@ -171,22 +166,26 @@ export default function PackingList() {
                 <tr>
                   <th className="py-3 px-4 text-left">SO Number</th>
                   <th className="py-3 px-4 text-left">Customer</th>
+                  <th className="py-3 px-4 text-center">SO Date</th>
                   <th className="py-3 px-4 text-center">Delivery</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {demands.map((so) => (
-                  <tr key={so.demand_id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-4 font-bold text-indigo-600">{so.so_number}</td>
+                  <tr key={so.demand_id} className="hover:bg-emerald-50/30 transition-colors">
+                    <td className="py-4 px-4 font-bold text-emerald-700">{so.so_number}</td>
                     <td className="py-4 px-4">{so.customer_name}</td>
-                    <td className="py-4 px-4 text-center font-mono">
+                    <td className="py-4 px-4 text-center font-mono text-gray-500">
+                      {new Date(so.so_date).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600">
                       {new Date(so.delivery_date).toLocaleDateString("id-ID")}
                     </td>
                     <td className="py-4 px-4 text-right">
                       <button
                         onClick={() => handleShowDetail(so)}
-                        className="bg-indigo-600 text-white px-4 py-1.5 rounded text-[11px] font-bold"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
                       >
                         Buka Jadwal
                       </button>
@@ -201,28 +200,55 @@ export default function PackingList() {
         {/* ── MATRIX DETAIL VIEW ── */}
         {view === "detail" && (
           <>
+            {/* SUB-HEADER INFO */}
+            <div className="grid grid-cols-4 gap-4 mb-6 bg-emerald-50/50 p-4 rounded-lg border border-emerald-100">
+               <div>
+                  <label className="block text-[8px] uppercase text-emerald-600 font-bold">SO Date</label>
+                  <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-emerald-600 font-bold">Customer</label>
+                  <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-emerald-600 font-bold">Delivery Date</label>
+                  <p className="text-sm font-bold text-orange-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-emerald-600 font-bold">Status</label>
+                  <p className="text-sm font-bold text-emerald-700">ACTIVE</p>
+               </div>
+            </div>
+
             <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50 max-h-[75vh]">
               <table className="w-full text-[10px] border-collapse bg-white">
                 <thead className="sticky top-0 z-30 shadow-sm">
-                  <tr className="bg-gray-100 text-gray-600 font-bold uppercase">
-                    {/* ✅ Tambah kolom Kalender */}
-                    <th className="border p-2 sticky left-0 bg-gray-100 z-40 min-w-[150px] text-left">
+                  <tr className="bg-emerald-600 text-white font-bold uppercase">
+                    <th className="border-r border-emerald-500 p-2 sticky left-0 bg-emerald-600 z-40 min-w-[180px] text-left">
                       Item Info
                     </th>
-                    <th className="border p-2 w-16 text-center bg-indigo-50 text-indigo-700">
-                      Target
+                    <th className="border-r border-emerald-500 p-2 w-12 text-center bg-emerald-700">
+                      UOM
                     </th>
-                    <th className="border p-2 w-24 text-center bg-emerald-50 text-emerald-700">
-                      Kalender
+                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-700">
+                      QTY
+                    </th>
+                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-800">
+                      PCS
+                    </th>
+                    <th className="border-r border-emerald-500 p-2 w-20 text-center bg-emerald-900">
+                      Action
                     </th>
                     {items[0]?.calendar?.map((day, i) => (
-                      <th key={i} colSpan="3" className="border p-1 text-center min-w-[100px]">
+                      <th key={i} colSpan="3" className="border-r border-emerald-500 p-1 text-center min-w-[100px]">
                         {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
                       </th>
                     ))}
                   </tr>
-                  <tr className="bg-gray-50 text-[8px] text-gray-400 font-bold">
-                    <th className="border p-1 sticky left-0 bg-gray-50 z-40"></th>
+                  <tr className="bg-emerald-50 text-[8px] text-emerald-800 font-bold">
+                    <th className="border p-1 sticky left-0 bg-emerald-50 z-40"></th>
+                    <th className="border"></th>
+                    <th className="border"></th>
                     <th className="border"></th>
                     <th className="border"></th>
                     {items[0]?.calendar?.map((_, i) => (
@@ -248,29 +274,36 @@ export default function PackingList() {
                     const sisa = Number(item.pcs) - totalInput;
 
                     return (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                      <tr key={index} className="hover:bg-emerald-50/20 transition-colors">
                         {/* Item Info */}
                         <td className="border p-2 sticky left-0 bg-white z-20 shadow-md">
-                          <div className="font-bold text-indigo-700">{item.itemCode}</div>
-                          <div className="text-[8px] text-gray-400 truncate max-w-[140px]">{item.description}</div>
+                          <div className="font-bold text-emerald-700">{item.itemCode}</div>
+                          <div className="text-[8px] text-gray-400 truncate max-w-[160px]">{item.description}</div>
                           <div className={`text-[8px] font-black mt-1 ${sisa <= 0 ? "text-emerald-600" : "text-red-500"}`}>
                             {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
                           </div>
                         </td>
 
-                        {/* Target */}
-                        <td className="border text-center font-bold bg-indigo-50/20">
+                        {/* UOM */}
+                        <td className="border text-center text-gray-500">{item.uom}</td>
+
+                        {/* QTY (M3) */}
+                        <td className="border text-center font-mono text-emerald-600 bg-gray-50/50">
+                          {item.qty}
+                        </td>
+
+                        {/* PCS */}
+                        <td className="border text-center font-bold bg-emerald-50/30 text-emerald-800">
                           {item.pcs}
                         </td>
 
-                        {/* ✅ Tombol Buka Kalender per item */}
+                        {/* Action */}
                         <td className="border text-center">
                           <button
                             onClick={() => navigate(`/dashboard/production/kalender/${item.itemId}`)}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[9px] font-bold transition-all"
-                            title={`Buka kalender item #${item.itemId}`}
+                            className="bg-emerald-100 hover:bg-emerald-500 hover:text-white text-emerald-700 px-2 py-1 rounded text-[9px] font-bold transition-all border border-emerald-200"
                           >
-                            📅 Buka
+                            Jadwal
                           </button>
                         </td>
 
@@ -281,13 +314,13 @@ export default function PackingList() {
                             return (
                               <td
                                 key={`${dIdx}-${s}`}
-                                className={`border p-0 text-center transition-all ${qty > 0 ? "bg-emerald-500 text-white" : "bg-white"}`}
+                                className={`border p-0 text-center transition-all ${qty > 0 ? "bg-emerald-600 text-white" : "bg-white"}`}
                               >
                                 <input
                                   type="number"
                                   value={qty || ""}
                                   onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                  className="w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold"
+                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${qty > 0 ? "placeholder-emerald-200" : "placeholder-gray-300"}`}
                                   placeholder="0"
                                 />
                               </td>
@@ -302,20 +335,20 @@ export default function PackingList() {
             </div>
 
             {/* LEGEND & SAVE */}
-            <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tighter">
+            <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-emerald-200 shadow-sm">
+              <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-emerald-500 rounded"></div>
-                  <span className="text-gray-600">Packing Stage</span>
+                  <div className="w-3 h-3 bg-emerald-600 rounded"></div>
+                  <span className="text-emerald-800">Aktifitas Packing</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-emerald-400 rounded"></div>
-                  <span className="text-gray-600">Tombol Kalender → Edit jadwal per item</span>
+                  <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
+                  <span className="text-gray-500">Kosong</span>
                 </div>
               </div>
               <button
                 onClick={handleSaveSchedule}
-                className="bg-indigo-600 text-white px-10 py-2.5 rounded text-xs font-bold hover:bg-indigo-700 transition-all"
+                className="bg-emerald-600 text-white px-10 py-2.5 rounded text-xs font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95"
               >
                 Simpan Perubahan Jadwal
               </button>

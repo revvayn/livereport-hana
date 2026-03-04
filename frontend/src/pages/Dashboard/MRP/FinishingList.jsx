@@ -1,21 +1,24 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
 
 export default function FinishingList() {
-  /* ================= MAIN STATE ================= */
-  const [editingDemandId, setEditingDemandId] = useState(null);
+  const navigate = useNavigate();
+
+  /* ================= STATE ================= */
   const [demands, setDemands] = useState([]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("so");
   const [selectedSO, setSelectedSO] = useState(null);
   const [items, setItems] = useState([]);
 
-  /* ================= FETCH DEMANDS ================= */
+  /* ================= API CALLS ================= */
   const fetchDemands = async () => {
     try {
       setLoading(true);
       const res = await api.get("/demand");
+      // Normalisasi ID agar konsisten
       const normalized = (res.data || []).map(so => ({
         ...so,
         id: so.id ?? so.demand_id,
@@ -28,187 +31,141 @@ export default function FinishingList() {
     }
   };
 
-
   useEffect(() => {
     fetchDemands();
   }, []);
 
-  /* ================= DETAIL VIEW ================= */
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-      // 1. Ambil target ID dengan pasti
-      const targetId = so.id; 
+      const resItems = await api.get(`/finishing/${so.id}/finishing-items`);
       
-      // 2. Request ke backend
-      const resItems = await api.get(`/finishing/${targetId}/finishing-items`);
-  
-      // 3. Cek apakah data kosong (Jika backend kirim 200 tapi array [])
       if (!resItems.data || resItems.data.length === 0) {
-        Swal.fire("Data Kosong", "Data belum digenerate atau tidak ditemukan.", "warning");
+        Swal.fire("Data Kosong", "Data belum digenerate.", "warning");
         return;
       }
-  
+
       const mappedItems = resItems.data.map((it) => {
         let schedule = it.production_schedule;
         if (typeof schedule === 'string') {
           try { schedule = JSON.parse(schedule); } catch { schedule = []; }
         }
-  
+
         return {
           id: it.id,
           itemCode: it.item_code,
           description: it.description,
+          uom: it.uom || "PCS",
+          qty: it.total_qty || 0,
           pcs: Number(it.pcs || 0),
-          uom: it.uom,
-          qty: Number(it.total_qty || 0),
           calendar: Array.isArray(schedule) ? schedule : []
         };
       });
-  
+
       setItems(mappedItems);
       setSelectedSO(so);
       setView("detail");
     } catch (err) {
-      console.error("Error view detail:", err);
-      
-      // 4. Jika error karena 404 dari backend (No data found)
-      if (err.response && err.response.status === 404) {
-         Swal.fire("Data Kosong", "Data finishing belum tersedia untuk SO ini.", "info");
-      } else {
-         Swal.fire("Error", "Gagal memuat detail data dari server", "error");
-      }
+      Swal.fire("Error", "Gagal memuat detail", "error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  /* ================= ACTION HANDLERS ================= */
-  const handleDelete = async (demandId) => {
-    const result = await Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Data akan dihapus permanen!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Ya, Hapus!",
-    });
-    if (!result.isConfirmed) return;
-    try {
-      await api.delete(`/demand/${demandId}`);
-      fetchDemands();
-      Swal.fire("Berhasil", "Data dihapus", "success");
-    } catch {
-      Swal.fire("Error", "Gagal hapus data", "error");
     }
   };
 
   const handleGenerateFinishing = async (so) => {
     try {
       Swal.fire({ title: "Processing...", didOpen: () => Swal.showLoading() });
-
-      const targetId = so.id || so.demand_id;
-      await api.post(`/finishing/${targetId}/generate-finishing`);
-
-      // Refresh list agar flag is_generated yang baru terbaca
+      await api.post(`/finishing/${so.id}/generate-finishing`);
       await fetchDemands();
-
       Swal.fire("Berhasil", "Data Finishing dibuat", "success");
     } catch (err) {
       Swal.fire("Error", "Gagal generate", "error");
     }
   };
 
-  const handleQtyChange = (itemIndex, dayIndex, shiftKey, value) => {
+  const handleQtyChange = (itemIdx, dayIdx, shiftKey, value) => {
     const newItems = [...items];
-    const qty = value === "" ? 0 : Number(value);
-    if (isNaN(qty) || qty < 0) return;
-
-    newItems[itemIndex].calendar[dayIndex].shifts[shiftKey].qty = qty;
+    newItems[itemIdx].calendar[dayIdx].shifts[shiftKey].qty =
+      value === "" ? 0 : Number(value);
     setItems(newItems);
   };
 
   const handleSaveSchedule = async () => {
     try {
-      Swal.fire({ title: "Menyimpan...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      setLoading(true);
       await api.put(`/finishing/update-schedule`, { items });
-      Swal.close();
-      Swal.fire("Berhasil!", "Jadwal berhasil disimpan", "success");
-      await fetchDemands(); // refresh agar tombol Generate muncul jika ada reset
-    } catch (err) {
-      Swal.close();
+      Swal.fire("Berhasil!", "Jadwal finishing telah disimpan.", "success");
+      fetchDemands();
+      setView("so");
+    } catch (error) {
       Swal.fire("Error", "Gagal menyimpan jadwal", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatHeaderDate = (dateStr) => {
-    if (!dateStr || typeof dateStr !== 'string') return "-";
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return "-";
-    const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"];
-    const day = parts[2];
-    const monthIndex = parseInt(parts[1], 10) - 1;
-    return `${day} ${months[monthIndex]}`;
-  };
-
-  /* ================= RENDER ================= */
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {/* HEADER */}
+        
+        {/* HEADER SECTION */}
         <div className="flex items-center justify-between mb-6">
-          <div className="text-sm font-bold text-indigo-600 uppercase">
-            {view === "so" ? "FINISHING SCHEDULE" : `DETAIL: ${selectedSO?.so_number}`}
-          </div>
+          <h2 className="text-sm font-bold text-blue-600 uppercase tracking-widest">
+            {view === "so" ? "Finishing Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
+          </h2>
           {view === "detail" && (
-            <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 font-bold text-gray-600 uppercase transition-all">
+            <button
+              onClick={() => setView("so")}
+              className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase hover:bg-gray-200"
+            >
               Kembali
             </button>
           )}
         </div>
 
-        {/* LIST VIEW */}
+        {/* ── LIST VIEW ── */}
         {view === "so" && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b uppercase text-[11px] text-left">
-                  <th className="py-2 px-1">SO Number</th>
-                  <th className="py-2 px-1">SO Date</th>
-                  <th className="py-2 px-1">Customer</th>
-                  <th className="py-2 px-1 text-center">Items</th>
-                  <th className="py-2 px-1 text-center">Delivery</th>
-                  <th className="py-2 px-1 text-right">Action</th>
+              <thead className="bg-gray-50 text-gray-400 text-[10px] uppercase">
+                <tr>
+                  <th className="py-3 px-4 text-left">SO Number</th>
+                  <th className="py-3 px-4 text-left">Customer</th>
+                  <th className="py-3 px-4 text-center">SO Date</th>
+                  <th className="py-3 px-4 text-center">Delivery</th>
+                  <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {demands.map((so) => (
-
-                  // Gunakan so.id karena query Backend menggunakan d.id
-                  <tr key={so.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-1 font-bold text-indigo-600">{so.so_number}</td>
-                    <td className="py-4 px-1">{new Date(so.so_date).toLocaleDateString("id-ID")}</td>
-                    <td className="py-4 px-1">{so.customer_name}</td>
-                    <td className="py-4 px-1 text-center">{so.total_items}</td>
-                    <td className="py-4 px-1 text-center font-medium">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
-                    <td className="py-4 px-1 text-right flex justify-end gap-2">
+                  <tr key={so.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="py-4 px-4 font-bold text-blue-700">{so.so_number}</td>
+                    <td className="py-4 px-4">{so.customer_name}</td>
+                    <td className="py-4 px-4 text-center font-mono text-gray-500">
+                      {new Date(so.so_date).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="py-4 px-4 text-center font-mono font-bold text-blue-600">
+                      {new Date(so.delivery_date).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="py-4 px-4 text-right space-x-2">
                       {!so.is_finishing_generated && (
-                        <button onClick={() => handleGenerateFinishing(so)} className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700 transition-colors">
+                        <button
+                          onClick={() => handleGenerateFinishing(so)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
+                        >
                           Generate
                         </button>
                       )}
                       <button
                         onClick={() => handleShowDetail(so)}
                         disabled={!so.is_finishing_generated}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${so.is_finishing_generated
-                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                          }`}
+                        className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${
+                          so.is_finishing_generated 
+                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md" 
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        }`}
                       >
-                        View Detail
-                      </button>
-                      {/* Gunakan so.id di sini juga */}
-                      <button onClick={() => handleDelete(so.id)} className="bg-white border border-red-200 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition-all">
-                        Delete
+                        Buka Jadwal
                       </button>
                     </td>
                   </tr>
@@ -218,77 +175,104 @@ export default function FinishingList() {
           </div>
         )}
 
-        {/* DETAIL VIEW */}
+        {/* ── MATRIX DETAIL VIEW ── */}
         {view === "detail" && (
           <>
-            <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50">
+            {/* SUB-HEADER INFO */}
+            <div className="grid grid-cols-4 gap-4 mb-6 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+               <div>
+                  <label className="block text-[8px] uppercase text-blue-600 font-bold">SO Date</label>
+                  <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Customer</label>
+                  <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Delivery Date</label>
+                  <p className="text-sm font-bold text-orange-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
+               </div>
+               <div>
+                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Stage</label>
+                  <p className="text-sm font-bold text-blue-700">FINISHING</p>
+               </div>
+            </div>
+
+            <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50 max-h-[75vh]">
               <table className="w-full text-[10px] border-collapse bg-white">
                 <thead className="sticky top-0 z-30 shadow-sm">
-                  <tr className="bg-gray-100 text-gray-600 font-bold uppercase">
-                    <th className="border p-2 sticky left-0 bg-gray-100 z-40 min-w-[150px] text-left">Item Info</th>
-                    <th className="border p-2 min-w-[150px] text-left">Description</th>
-                    <th className="border p-2 w-12 text-center">UoM</th>
-                    <th className="border p-2 w-16 text-center">Qty</th>
-                    <th className="border p-2 w-16 text-center bg-indigo-50 text-indigo-700">Pcs</th>
+                  <tr className="bg-blue-600 text-white font-bold uppercase">
+                    <th className="border-r border-blue-500 p-2 sticky left-0 bg-blue-600 z-40 min-w-[180px] text-left">
+                      Item Info
+                    </th>
+                    <th className="border-r border-blue-500 p-2 w-12 text-center bg-blue-700">UOM</th>
+                    <th className="border-r border-blue-500 p-2 w-16 text-center bg-blue-700">QTY</th>
+                    <th className="border-r border-blue-500 p-2 w-16 text-center bg-blue-800">PCS</th>
+                    <th className="border-r border-blue-500 p-2 w-20 text-center bg-blue-900 uppercase">Status</th>
                     {items[0]?.calendar?.map((day, i) => (
-                      <th key={i} colSpan="3" className="border p-1 text-center bg-gray-100">
-                        <div className="text-[10px] text-indigo-600 font-bold">
-                          {formatHeaderDate(day.date)}
-                        </div>
+                      <th key={i} colSpan="3" className="border-r border-blue-500 p-1 text-center min-w-[100px]">
+                        {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
                       </th>
                     ))}
                   </tr>
-                  <tr className="bg-gray-50 text-[8px] text-gray-400 font-bold">
-                    <th className="border p-1 sticky left-0 bg-gray-50 z-40"></th>
-                    <th className="border"></th><th className="border"></th><th className="border"></th>
-                    <th className="border bg-indigo-50/30"></th>
+                  <tr className="bg-blue-50 text-[8px] text-blue-800 font-bold">
+                    <th className="border p-1 sticky left-0 bg-blue-50 z-40"></th>
+                    <th className="border"></th>
+                    <th className="border"></th>
+                    <th className="border"></th>
+                    <th className="border"></th>
                     {items[0]?.calendar?.map((_, i) => (
                       <React.Fragment key={i}>
-                        <th className="border py-1">S1</th><th className="border py-1">S2</th><th className="border py-1">S3</th>
+                        <th className="border py-1">S1</th>
+                        <th className="border py-1">S2</th>
+                        <th className="border py-1">S3</th>
                       </React.Fragment>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const targetPcs = Number(item.pcs || 0);
-                    const totalInput = (item.calendar || []).reduce((sum, day) => {
-                      const s1 = Number(day.shifts?.shift1?.qty || 0);
-                      const s2 = Number(day.shifts?.shift2?.qty || 0);
-                      const s3 = Number(day.shifts?.shift3?.qty || 0);
-                      return sum + s1 + s2 + s3;
-                    }, 0);
-                    const sisa = targetPcs - totalInput;
-                    console.log("State Items saat ini:", items);
+                    const totalInput = item.calendar?.reduce(
+                      (sum, day) =>
+                        sum +
+                        (Number(day.shifts.shift1.qty) || 0) +
+                        (Number(day.shifts.shift2.qty) || 0) +
+                        (Number(day.shifts.shift3.qty) || 0),
+                      0
+                    ) || 0;
+
+                    const sisa = Number(item.pcs) - totalInput;
+
                     return (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
-                        <td className="border p-2 sticky left-0 bg-white z-20 shadow-[1px_0_2px_rgba(0,0,0,0.1)]">
-                          <div className="font-bold text-purple-700 uppercase">{item.itemCode || "NO CODE"}</div>
-                          <div className={`text-[9px] font-black mt-1 ${sisa <= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {sisa <= 0 ? "PAS ✅" : `BUTUH: ${sisa.toLocaleString()} PCS`}
+                      <tr key={index} className="hover:bg-blue-50/20 transition-colors">
+                        <td className="border p-2 sticky left-0 bg-white z-20 shadow-md">
+                          <div className="font-bold text-blue-700">{item.itemCode}</div>
+                          <div className="text-[8px] text-gray-400 truncate max-w-[160px]">{item.description}</div>
+                          <div className={`text-[8px] font-black mt-1 ${sisa <= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
                           </div>
                         </td>
-                        <td className="border p-2 text-gray-700 text-[10px] leading-tight font-medium">
-                          {item.description || "No Description"}
-                        </td>
                         <td className="border text-center text-gray-500">{item.uom}</td>
-                        <td className="border text-center text-gray-500">{item.qty}</td>
-                        <td className="border text-center font-bold bg-indigo-50/20">{item.pcs}</td>
+                        <td className="border text-center font-mono text-blue-600 bg-gray-50/50">{item.qty}</td>
+                        <td className="border text-center font-bold bg-blue-50/30 text-blue-800">{item.pcs}</td>
+                        <td className="border text-center">
+                           <span className="text-[9px] font-bold text-blue-500 uppercase tracking-tighter">Finishing</span>
+                        </td>
 
                         {item.calendar?.map((day, dIdx) =>
                           ["shift1", "shift2", "shift3"].map((s) => {
-                            const val = day.shifts?.[s]?.qty ?? 0;
-                            const bgColor = val > 0 ? "bg-purple-600" : "bg-white";
-                            const textColor = val > 0 ? "text-white" : "text-gray-400";
-
+                            const qty = day.shifts[s].qty || 0;
                             return (
-                              <td key={`${dIdx}-${s}`} className={`border p-0 text-center font-bold transition-all ${bgColor}`}>
+                              <td
+                                key={`${dIdx}-${s}`}
+                                className={`border p-0 text-center transition-all ${qty > 0 ? "bg-blue-600 text-white" : "bg-white"}`}
+                              >
                                 <input
                                   type="number"
-                                  value={val ?? 0}
+                                  value={qty || ""}
                                   onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                  className={`w-10 h-8 text-center bg-transparent outline-none focus:ring-1 focus:ring-indigo-300 rounded ${textColor}`}
-                                  min={0}
+                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${qty > 0 ? "placeholder-blue-200" : "placeholder-gray-300"}`}
+                                  placeholder="0"
                                 />
                               </td>
                             );
@@ -301,14 +285,22 @@ export default function FinishingList() {
               </table>
             </div>
 
-            <div className="mt-5 flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-dashed border-gray-300">
-              <div className="flex gap-6 text-[10px] font-bold">
+            {/* LEGEND & SAVE */}
+            <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+              <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-purple-600 rounded-sm"></div>
-                  <span className="text-gray-600 uppercase">Finishing Stage</span>
+                  <div className="w-3 h-3 bg-blue-600 rounded"></div>
+                  <span className="text-blue-800">Aktifitas Finishing</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
+                  <span className="text-gray-500">Kosong</span>
                 </div>
               </div>
-              <button onClick={handleSaveSchedule} className="bg-indigo-600 text-white px-8 py-2 rounded text-xs font-bold hover:bg-indigo-700 shadow-indigo-200 shadow-lg transition-all active:scale-95">
+              <button
+                onClick={handleSaveSchedule}
+                className="bg-blue-600 text-white px-10 py-2.5 rounded text-xs font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
+              >
                 Simpan Perubahan Jadwal
               </button>
             </div>
