@@ -26,6 +26,8 @@ import Customers from "../pages/Dashboard/MRP/Customers";
 import Items from "../pages/Dashboard/MRP/Items";
 import FinishingItems from "../pages/Dashboard/MRP/FinishingItems"; // Import tunggal di sini
 import AssemblyItems from "../pages/Dashboard/MRP/AssemblyItems";
+import AssemblyPannel from "../pages/Dashboard/MRP/AssemblyPannel";
+import AssemblyCore from "../pages/Dashboard/MRP/AssemblyCore";
 import Machines from "../pages/Dashboard/MRP/Machines";
 import Operations from "../pages/Dashboard/MRP/Operations";
 import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
@@ -81,6 +83,8 @@ function AppRoutes() {
           <Route path="master/items" element={<Items />} />
           <Route path="master/finishing-items" element={<FinishingItems />} />
           <Route path="master/assembly-items" element={<AssemblyItems />} />
+          <Route path="master/assembly/pannel" element={<AssemblyPannel />} />
+          <Route path="master/assembly/core" element={<AssemblyCore />} />
           <Route path="master/machines" element={<Machines />} />
           <Route path="master/operations" element={<Operations />} />
           <Route path="master/item-routings" element={<ItemRoutings />} />

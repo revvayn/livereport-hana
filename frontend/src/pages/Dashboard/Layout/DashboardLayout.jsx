@@ -332,7 +332,7 @@ function EntryDropdown({ collapsed, currentPath }) {
 }
 
 function MasterDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/master/customers", "/dashboard/master/items", "/dashboard/master/finishing-items", "/dashboard/master/assembly-items", "/dashboard/master/machines", "/dashboard/master/operations", "/dashboard/master/item-routings"];
+  const paths = ["/dashboard/master/customers", "/dashboard/master/items", "/dashboard/master/finishing-items", "/dashboard/master/assembly/pannel", "/dashboard/master/assembly/core", "/dashboard/master/machines", "/dashboard/master/operations", "/dashboard/master/item-routings"];
   const isActive = paths.some((path) => currentPath.startsWith(path));
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
@@ -355,7 +355,8 @@ function MasterDropdown({ collapsed, currentPath }) {
           <SubMenuLink to="/dashboard/master/customers" icon={Form} label="Customers" />
           <SubMenuLink to="/dashboard/master/items" icon={Form} label="Items" />
           <SubMenuLink to="/dashboard/master/finishing-items" icon={Form} label="Finishing Items" />
-          <SubMenuLink to="/dashboard/master/assembly-items" icon={Form} label="Assembly Items" />
+          <SubMenuLink to="/dashboard/master/assembly/pannel" icon={Form} label="Assembly Pannel" />
+          <SubMenuLink to="/dashboard/master/assembly/core" icon={Form} label="Assembly Core" />
           <SubMenuLink to="/dashboard/master/machines" icon={Form} label="Machines" />
           <SubMenuLink to="/dashboard/master/operations" icon={Form} label="Operations" />
           <SubMenuLink to="/dashboard/master/item-routings" icon={Form} label="Item Routing" />

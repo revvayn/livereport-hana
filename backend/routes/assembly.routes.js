@@ -1,14 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const assemblyController = require('../controllers/assembly.controller');
+const assemblyController = require('../controllers/assembly.controller'); // Pastikan nama file benar
 
-router.get('/', assemblyController.getAll);
-router.get('/finishing/:finishingId', assemblyController.getByFinishingId);
-router.get('/finishing-items', assemblyController.getFinishingItems);
-router.post('/', assemblyController.create);
-router.put('/:id', assemblyController.update);
-router.delete('/:id', assemblyController.delete);
-router.post('/:demandId/generate-assembly', assemblyController.generateAssembly);
-router.get('/:demandId/items', assemblyController.getItemsByDemandId);
+
+// === GROUP 1: ASSEMBLY PANNEL
+router.get('/pannel', assemblyController.getAllPannel); 
+router.post('/pannel', assemblyController.createPannel);
+router.put('/pannel/:id', assemblyController.updatePannel);
+router.delete('/pannel/:id', assemblyController.deletePannel);
+
+// === GROUP 2: ASSEMBLY CORE
+router.get('/core', assemblyController.getAllCore); 
+router.post('/core', assemblyController.createCore);
+router.put('/core/:id', assemblyController.updateCore);
+router.delete('/core/:id', assemblyController.deleteCore);
+
+// === GROUP 3: LOGIKA GENERATE ===
+router.post('/generate/:demandId', assemblyController.generateAssembly);
+router.get('/demand/:demandId/items', assemblyController.getItemsByDemandId);
+router.put('/update-schedule', assemblyController.updateAssemblySchedule);
 
 module.exports = router;

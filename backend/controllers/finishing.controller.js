@@ -1,6 +1,67 @@
 const pool = require("../db");
 
-/* ==================== HELPER ==================== */
+/* ==================== MASTER DATA CONTROLLERS ==================== */
+
+// Get All Finishing (Ganti getFinishingByItem)
+exports.getAllFinishing = async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM item_finishing ORDER BY id DESC"
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: "Gagal mengambil data master finishing" });
+    }
+};
+
+exports.createFinishing = async (req, res) => {
+    const { finishing_code, description, warehouse, item_code } = req.body; // Tambah item_code
+    try {
+        const result = await pool.query(
+            `INSERT INTO item_finishing (finishing_code, description, warehouse) 
+             VALUES ($1, $2, $3) RETURNING *`,
+            [finishing_code, description, warehouse]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        if (err.code === '23505') {
+            return res.status(400).json({ error: "Kode Finishing sudah ada" });
+        }
+        res.status(500).json({ error: "Gagal menambah master finishing" });
+    }
+};
+
+exports.updateFinishing = async (req, res) => {
+    const { id } = req.params;
+    const { finishing_code, description, warehouse } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE item_finishing 
+             SET finishing_code=$1, description=$2, warehouse=$3 
+             WHERE id=$4 RETURNING *`,
+            [finishing_code, description, warehouse, item_code, id] // Urutan parameter disesuaikan
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: "Data tidak ditemukan" });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: "Gagal update data finishing" });
+    }
+};
+
+exports.deleteFinishing = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query("DELETE FROM item_finishing WHERE id = $1 RETURNING *", [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Data tidak ditemukan" });
+        res.json({ message: "Data finishing dihapus" });
+    } catch (err) {
+        res.status(500).json({ error: "Gagal menghapus data finishing" });
+    }
+};
+
+
+/* ==================== GENERATE LOGIC (STRICT BY ITEM_CODE RELATION) ==================== */
+
 const calculateFinishingSchedule = (packingSchedule) => {
     if (!packingSchedule || !Array.isArray(packingSchedule)) return [];
 
@@ -82,66 +143,6 @@ const calculateFinishingSchedule = (packingSchedule) => {
     return Object.values(finishingDataMap);
 };
 
-/* ==================== MASTER DATA CONTROLLERS ==================== */
-
-exports.getFinishingByItem = async (req, res) => {
-    const { itemId } = req.params;
-    try {
-        const result = await pool.query(
-            "SELECT * FROM item_finishing WHERE items_id = $1 ORDER BY id ASC",
-            [itemId]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: "Gagal mengambil data master finishing" });
-    }
-};
-
-exports.createFinishing = async (req, res) => {
-    // Tambahkan item_code di destructuring req.body
-    const { items_id, item_code, finishing_code, description, warehouse } = req.body;
-    try {
-        const result = await pool.query(
-            `INSERT INTO item_finishing (items_id, item_code, finishing_code, description, warehouse) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [items_id, item_code, finishing_code, description, warehouse]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Gagal menambah master finishing" });
-    }
-};
-
-exports.updateFinishing = async (req, res) => {
-    const { id } = req.params;
-    // Pastikan item_code juga ikut diupdate jika sewaktu-waktu master item berubah
-    const { item_code, finishing_code, description, warehouse } = req.body;
-    try {
-        const result = await pool.query(
-            `UPDATE item_finishing 
-             SET item_code=$1, finishing_code=$2, description=$3, warehouse=$4 
-             WHERE id=$5 RETURNING *`,
-            [item_code, finishing_code, description, warehouse, id]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: "Gagal update data finishing" });
-    }
-};
-
-exports.deleteFinishing = async (req, res) => {
-    const { id } = req.params;
-    try {
-        await pool.query("DELETE FROM item_finishing WHERE id = $1", [id]);
-        res.json({ message: "Data finishing dihapus" });
-    } catch (err) {
-        res.status(500).json({ error: "Gagal menghapus data finishing" });
-    }
-};
-
-/* ==================== GENERATE LOGIC (STRICT BY ITEM_CODE RELATION) ==================== */
-
 exports.generateFinishing = async (req, res) => {
     const { id } = req.params;
     const client = await pool.connect();
@@ -149,32 +150,53 @@ exports.generateFinishing = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // 1. Ambil Delivery Date dari demand utama
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [id]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
+        // 2. Ambil data melalui relasi item_routings (perhatikan akhiran 's')
+        // Gunakan LEFT JOIN itf agar jika master finishing belum diset, query tidak langsung pecah (meskipun data finishing_code wajib ada di routing)
         const itemsRes = await client.query(
-            `SELECT di.id AS demand_item_id, di.item_id, di.item_code, di.uom, 
-                    di.total_qty, di.pcs, di.production_schedule,
-                    itf.finishing_code, itf.description AS finishing_description
+            `SELECT 
+                di.id AS demand_item_id, 
+                di.item_id, 
+                di.item_code as original_item_code, 
+                di.uom, 
+                di.total_qty, 
+                COALESCE(di.pcs, 0) as capacity_pcs, 
+                di.production_schedule,
+                ir.finishing_code, 
+                itf.description AS finishing_description
              FROM demand_items di
-             INNER JOIN item_finishing itf ON itf.item_code = di.item_code 
+             INNER JOIN item_routings ir ON ir.item_code = di.item_code 
+             LEFT JOIN item_finishing itf ON itf.finishing_code = ir.finishing_code
              WHERE di.demand_id = $1`, [id]
         );
 
+        // Jika hasil kosong, berarti data di tabel item_routings belum diisi untuk item_code tersebut
+        if (itemsRes.rows.length === 0) {
+            throw new Error("Gagal: Data di tabel 'item_routings' belum disetting untuk item-item di demand ini.");
+        }
+
+        // 3. Bersihkan data finishing lama untuk demand ini
         await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
 
+        // 4. Proses Loop setiap Item
         for (const item of itemsRes.rows) {
+            // Parsing jadwal packing
             const packingSchedule = typeof item.production_schedule === 'string'
                 ? JSON.parse(item.production_schedule) : (item.production_schedule || []);
 
-            // DINAMIS: Gunakan item.pcs sebagai kapasitas per shift
-            const finishingSchedule = calculateFinishingSchedule(packingSchedule, item.pcs);
+            // Gunakan kapasitas dari kolom pcs di demand_items, jika 0 gunakan default 100 agar tidak infinite loop
+            const shiftCapacity = parseFloat(item.capacity_pcs) > 0 ? parseFloat(item.capacity_pcs) : 100;
 
+            // Hitung jadwal mundur
+            const finishingSchedule = calculateFinishingSchedule(packingSchedule, shiftCapacity);
+
+            // Generate Calendar 15 hari (opsional, tergantung kebutuhan UI Anda)
             const finalCalendar = [];
-            const days = 15;
-
-            for (let i = days - 1; i >= 0; i--) {
+            for (let i = 14; i >= 0; i--) {
                 const d = new Date(deliveryDate);
                 d.setDate(deliveryDate.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
@@ -191,34 +213,52 @@ exports.generateFinishing = async (req, res) => {
                 });
             }
 
+            // 5. Simpan ke tabel demand_item_finishing
+            // Catatan: item_code yang disimpan adalah FINISHING_CODE sesuai permintaan Anda
             await client.query(
                 `INSERT INTO demand_item_finishing
                 (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [id, item.demand_item_id, item.item_id, item.finishing_code, 
-                 item.finishing_description, item.uom, item.total_qty, item.pcs, JSON.stringify(finalCalendar)]
+                [
+                    id, 
+                    item.demand_item_id, 
+                    item.item_id, 
+                    item.finishing_code || 'N/A', 
+                    item.finishing_description || 'No Description', 
+                    item.uom, 
+                    item.total_qty, 
+                    item.capacity_pcs, 
+                    JSON.stringify(finalCalendar)
+                ]
             );
         }
 
+        // 6. Update status demand
         await client.query(`UPDATE demands SET is_finishing_generated=true WHERE id=$1`, [id]);
+        
         await client.query('COMMIT');
         res.json({ message: "Generate Finishing Berhasil" });
+
     } catch (err) {
         await client.query('ROLLBACK');
+        console.error("GENERATE FINISHING ERROR:", err.message);
         res.status(500).json({ error: err.message });
-    } finally { client.release(); }
+    } finally {
+        client.release();
+    }
 };
 
 // Di finishing.controller.js
 exports.generateFinishingForItem = async (demandItemId) => {
     const client = await pool.connect();
     try {
-        // 1. Ambil data packing terbaru
+        // PERUBAHAN: Relasi melalui item_routing
         const res = await client.query(
             `SELECT di.production_schedule, di.demand_id, di.item_id, di.item_code, 
                     di.total_qty, di.pcs, di.uom, itf.finishing_code, itf.description
              FROM demand_items di
-             INNER JOIN item_finishing itf ON itf.item_code = di.item_code
+             INNER JOIN item_routing ir ON ir.item_code = di.item_code
+             INNER JOIN item_finishing itf ON itf.finishing_code = ir.finishing_code
              WHERE di.id = $1`, [demandItemId]
         );
 
@@ -228,16 +268,17 @@ exports.generateFinishingForItem = async (demandItemId) => {
         const packingSchedule = typeof row.production_schedule === 'string'
             ? JSON.parse(row.production_schedule) : row.production_schedule;
 
-        // 2. Hitung jadwal finishing (Mundur 1 Shift)
-        const finishingData = calculateFinishingSchedule(packingSchedule);
+        // Hitung jadwal finishing (Mundur 1 Shift)
+        const finishingData = calculateFinishingSchedule(packingSchedule, row.pcs);
 
-        // 3. Simpan ke database (Upsert berdasarkan demand_item_id)
         await client.query(
             `INSERT INTO demand_item_finishing 
              (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (demand_item_id) 
              DO UPDATE SET 
+                item_code = EXCLUDED.item_code,
+                description = EXCLUDED.description,
                 production_schedule = EXCLUDED.production_schedule,
                 total_qty = EXCLUDED.total_qty,
                 pcs = EXCLUDED.pcs`,

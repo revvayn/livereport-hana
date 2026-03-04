@@ -1,6 +1,102 @@
 // controllers/assemblyController.js
 const pool = require('../db'); // Sesuaikan dengan koneksi database Anda
 
+//=================================ASSEMBLY PANNEL===============================================
+exports.getAllPannel = async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM item_assembly_pannel ORDER BY id DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.createPannel = async (req, res) => {
+    try {
+        const {assembly_code, description, warehouse} = req.body;
+        const result = await pool.query(
+            `INSERT INTO item_assembly_pannel ( assembly_code, description, warehouse) 
+             VALUES ($1, $2, $3) RETURNING *`,
+            [assembly_code, description, warehouse]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+exports.updatePannel = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assembly_code, description, warehouse } = req.body;
+        await pool.query(
+            'UPDATE item_assembly_pannel SET assembly_code=$1, description=$2, warehouse=$3 WHERE id=$4',
+            [assembly_code, description, warehouse, id]
+        );
+        res.json({ message: "Updated successfully" });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+exports.deletePannel = async (req, res) => {
+    try {
+        await pool.query('DELETE FROM item_assembly_pannel WHERE id = $1', [req.params.id]);
+        res.json({ message: "Deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+//====================================ASSEMBLY CORE=============================================
+exports.getAllCore = async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM item_assembly_core ORDER BY id DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+exports.createCore = async (req, res) => {
+    try {
+        const {assembly_code, description, warehouse} = req.body;
+        const result = await pool.query(
+            `INSERT INTO item_assembly_core (assembly_code, description, warehouse) 
+             VALUES ($1, $2, $3) RETURNING *`,
+            [assembly_code, description, warehouse]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+exports.updateCore = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assembly_code, description, warehouse } = req.body;
+        await pool.query(
+            'UPDATE item_assembly_core SET assembly_code=$1, description=$2, warehouse=$3 WHERE id=$4',
+            [assembly_code, description, warehouse, id]
+        );
+        res.json({ message: "Updated successfully" });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+exports.deleteCore = async (req, res) => {
+    try {
+        await pool.query('DELETE FROM item_assembly_core WHERE id = $1', [req.params.id]);
+        res.json({ message: "Deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+//====================================ASSEMBLY GENERATE=============================================
+
 const calculateAssemblySchedule = (finishingSchedule) => {
     if (!finishingSchedule || !Array.isArray(finishingSchedule)) return [];
 
@@ -76,65 +172,6 @@ const calculateAssemblySchedule = (finishingSchedule) => {
     return Object.values(assemblyDataMap);
 };
 
-exports.getAll = async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM item_assembly ORDER BY id DESC');
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-exports.getByFinishingId = async (req, res) => {
-    try {
-        const { finishingId } = req.params;
-        const result = await pool.query(
-            'SELECT * FROM item_assembly WHERE finishing_id = $1 ORDER BY id ASC',
-            [finishingId]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-exports.create = async (req, res) => {
-    try {
-        const { finishing_id, assembly_code, description, warehouse, item_code } = req.body;
-        const result = await pool.query(
-            `INSERT INTO item_assembly (finishing_id, assembly_code, description, warehouse, item_code) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [finishing_id, assembly_code, description, warehouse, item_code]
-        );
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-};
-
-exports.update = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { assembly_code, description, warehouse } = req.body;
-        await pool.query(
-            'UPDATE item_assembly SET assembly_code=$1, description=$2, warehouse=$3 WHERE id=$4',
-            [assembly_code, description, warehouse, id]
-        );
-        res.json({ message: "Updated successfully" });
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-};
-
-exports.delete = async (req, res) => {
-    try {
-        await pool.query('DELETE FROM item_assembly WHERE id = $1', [req.params.id]);
-        res.json({ message: "Deleted successfully" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
 exports.getFinishingItems = async (req, res) => {
     try {
         const { warehouse } = req.query;
@@ -161,53 +198,50 @@ exports.generateAssembly = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // 1. Ambil Delivery Date untuk patokan kalender
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [demandId]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
+        // 2. Query untuk mendapatkan Routing, QTY (M3), dan PCS (Lembar)
         const querySelect = `
             SELECT 
-                dif.demand_id,
-                dif.demand_item_id,
-                dif.item_id,
-                dif.uom,
-                dif.total_qty,
+                dif.demand_id, dif.demand_item_id, dif.item_id, dif.uom, 
+                dif.total_qty, 
+                di.pcs AS pcs_original, 
                 dif.production_schedule AS finishing_schedule,
-                ia.assembly_code,
-                ia.description AS assembly_desc,
-                ia.warehouse AS master_warehouse
+                ir.assembly_code_pannel, ap.description AS pannel_desc, ap.warehouse AS pannel_wh,
+                ir.assembly_code_core, ac.description AS core_desc, ac.warehouse AS core_wh
             FROM demand_item_finishing dif
-            JOIN item_finishing ifin ON dif.item_code = ifin.finishing_code
-            JOIN item_assembly ia ON ifin.id = ia.finishing_id
+            INNER JOIN demand_items di ON dif.demand_item_id = di.id
+            INNER JOIN item_routings ir ON di.item_code = ir.item_code
+            LEFT JOIN item_assembly_pannel ap ON ir.assembly_code_pannel = ap.assembly_code
+            LEFT JOIN item_assembly_core ac ON ir.assembly_code_core = ac.assembly_code
             WHERE dif.demand_id = $1
         `;
 
         const result = await client.query(querySelect, [demandId]);
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({
-                error: "Data Finishing belum tersedia."
-            });
-        }
-
+        
+        // 3. Bersihkan data lama sebelum re-generate
         await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [demandId]);
 
         for (const row of result.rows) {
-            const finishingSchedule = typeof row.finishing_schedule === 'string'
+            // Parsing jadwal finishing
+            const finishingSchedule = typeof row.finishing_schedule === 'string' 
                 ? JSON.parse(row.finishing_schedule) : (row.finishing_schedule || []);
-
+            
+            // Hitung slot assembly (QTY utuh)
             const assemblySlots = calculateAssemblySchedule(finishingSchedule);
 
+            // --- DEFINISI finalCalendar (MEMPERBAIKI ERROR) ---
             const finalCalendar = [];
-            const daysToDisplay = 15;
-
-            for (let i = daysToDisplay - 1; i >= 0; i--) {
+            for (let i = 14; i >= 0; i--) {
                 const d = new Date(deliveryDate);
                 d.setDate(deliveryDate.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
-
+                
                 const found = assemblySlots.find(f => f.date === dateStr);
-
+                
                 finalCalendar.push({
                     date: dateStr,
                     shifts: found ? found.shifts : {
@@ -218,30 +252,42 @@ exports.generateAssembly = async (req, res) => {
                 });
             }
 
-            await client.query(
-                `INSERT INTO demand_item_assembly 
-                (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                [
-                    row.demand_id,
-                    row.demand_item_id,
-                    row.item_id,
-                    row.assembly_code,
-                    row.assembly_desc,
-                    row.uom,
-                    row.total_qty,
-                    100, // Simpan pcs statis 100
-                    JSON.stringify(finalCalendar),
-                    row.master_warehouse || 'WIPA'
-                ]
-            );
+            const calendarJson = JSON.stringify(finalCalendar);
+            const realQty = Number(row.total_qty || 0);    // Nilai M3 (misal 11.91)
+            const realPcs = Number(row.pcs_original || 0); // Nilai PCS (misal 200)
+
+            // 4. INSERT PANNEL (Gunakan realPcs untuk kolom PCS)
+            if (row.assembly_code_pannel) {
+                await client.query(
+                    `INSERT INTO demand_item_assembly 
+                    (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                    [
+                        row.demand_id, row.demand_item_id, row.item_id, 
+                        row.assembly_code_pannel, `[PANNEL] ${row.pannel_desc}`, 
+                        row.uom, realQty, realPcs, calendarJson, row.pannel_wh || 'WIPA'
+                    ]
+                );
+            }
+
+            // 5. INSERT CORE (Gunakan realPcs untuk kolom PCS)
+            if (row.assembly_code_core) {
+                await client.query(
+                    `INSERT INTO demand_item_assembly 
+                    (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                    [
+                        row.demand_id, row.demand_item_id, row.item_id, 
+                        row.assembly_code_core, `[CORE] ${row.core_desc}`, 
+                        row.uom, realQty, realPcs, calendarJson, row.core_wh || 'WIPA'
+                    ]
+                );
+            }
         }
 
         await client.query('UPDATE demands SET is_assembly_generated = true WHERE id = $1', [demandId]);
         await client.query('COMMIT');
-
-        res.json({ message: "Generate Assembly Berhasil (Kapasitas Statis 100/Shift)" });
-
+        res.json({ message: "Generate Berhasil" });
     } catch (err) {
         await client.query('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -254,17 +300,12 @@ exports.getItemsByDemandId = async (req, res) => {
     try {
         const { demandId } = req.params;
         const result = await pool.query(
-            'SELECT * FROM demand_item_assembly WHERE demand_id = $1 ORDER BY id ASC',
-            [demandId]
+            'SELECT * FROM demand_item_assembly WHERE demand_id = $1 ORDER BY id ASC', [demandId]
         );
-
         const rows = result.rows.map(row => ({
             ...row,
-            calendar: typeof row.production_schedule === 'string'
-                ? JSON.parse(row.production_schedule)
-                : row.production_schedule || []
+            calendar: typeof row.production_schedule === 'string' ? JSON.parse(row.production_schedule) : row.production_schedule || []
         }));
-
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -272,7 +313,7 @@ exports.getItemsByDemandId = async (req, res) => {
 };
 
 exports.updateAssemblySchedule = async (req, res) => {
-    const { items } = req.body; // Array of item assembly
+    const { items } = req.body;
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -283,7 +324,7 @@ exports.updateAssemblySchedule = async (req, res) => {
             );
         }
         await client.query('COMMIT');
-        res.json({ message: "Update Jadwal Assembly Berhasil" });
+        res.json({ message: "Update Berhasil" });
     } catch (err) {
         await client.query('ROLLBACK');
         res.status(500).json({ error: err.message });

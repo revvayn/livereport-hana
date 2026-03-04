@@ -40,9 +40,8 @@ export default function AssemblyList() {
         setLoading(true);
         const targetId = so.id || so.demand_id;
 
-        // Ambil data dari tabel demand_item_assembly
         const [resItems, resBOM] = await Promise.all([
-            api.get(`/assembly-items/${targetId}/items`), 
+            api.get(`/assembly/demand/${targetId}/items`), // Pastikan route ini benar
             api.get(`/bom-calculation/${targetId}/bom-calc`).catch(() => ({ data: {} })) 
         ]);
 
@@ -51,25 +50,21 @@ export default function AssemblyList() {
             return;
         }
 
-        const mappedItems = resItems.data.map((it) => {
-            return {
-                id: it.id,
-                // Pastikan menggunakan nama kolom dari demand_item_assembly
-                itemCode: it.item_code,     // misal: FGD00158
-                description: it.description, // misal: FG DOORCORE MRE
-                uom: it.uom,
-                qty: Number(it.total_qty || 0),
-                pcs: Number(it.pcs || 0),      
-                calendar: Array.isArray(it.production_schedule) ? it.production_schedule : [],
-            };
-        });
+        const mappedItems = resItems.data.map((it) => ({
+            id: it.id,
+            itemCode: it.item_code,     
+            description: it.description, 
+            uom: it.uom,
+            qty: Number(it.total_qty || 0), 
+            pcs: Number(it.pcs || 0),      
+            calendar: Array.isArray(it.calendar) ? it.calendar : [],
+        }));
 
         setItems(mappedItems);
         setBomData(resBOM.data || {});
         setSelectedSO(so);
         setView("detail");
     } catch (err) {
-        console.error("Error view detail:", err);
         Swal.fire("Error", "Gagal memuat detail data.", "error");
     } finally {
         setLoading(false);
@@ -100,11 +95,12 @@ export default function AssemblyList() {
     try {
       Swal.fire({ title: "Generating Assembly...", didOpen: () => Swal.showLoading() });
       const targetId = so.id || so.demand_id;
-
-      // Panggil endpoint assembly baru
-      await api.post(`/assembly-items/${targetId}/generate-assembly`);
-
-      await fetchDemands(); // Refresh list
+  
+      // SESUAIKAN DENGAN ROUTER BACKEND
+      // Jika di server.js prefixnya adalah /api/assembly, maka:
+      await api.post(`/assembly/generate/${targetId}`); 
+  
+      await fetchDemands(); 
       Swal.fire("Berhasil", "Data Assembly berhasil dibuat", "success");
     } catch (err) {
       console.error(err);
@@ -117,25 +113,30 @@ export default function AssemblyList() {
     const qty = value === "" ? 0 : Number(value);
     if (isNaN(qty) || qty < 0) return;
 
+    // Pastikan struktur shifts ada
     if (!newItems[itemIndex].calendar[dayIndex].shifts) {
-      newItems[itemIndex].calendar[dayIndex].shifts = { shift1: { qty: 0 }, shift2: { qty: 0 }, shift3: { qty: 0 } };
+        newItems[itemIndex].calendar[dayIndex].shifts = { 
+            shift1: { qty: 0 }, 
+            shift2: { qty: 0 }, 
+            shift3: { qty: 0 } 
+        };
     }
     newItems[itemIndex].calendar[dayIndex].shifts[shiftKey].qty = qty;
     setItems(newItems);
-  };
+};
 
-  const handleSaveSchedule = async () => {
-    try {
+const handleSaveSchedule = async () => {
+  try {
       Swal.fire({ title: "Menyimpan...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await api.put(`/finishing/update-schedule`, { items });
+      await api.put(`/assembly/update-schedule`, { items });
       Swal.close();
       Swal.fire("Berhasil!", "Jadwal berhasil disimpan", "success");
-      await fetchDemands();
-    } catch (err) {
+      fetchDemands();
+  } catch (err) {
       Swal.close();
-      Swal.fire("Error", "Gagal menyimpan jadwal", "error");
-    }
-  };
+      Swal.fire("Error", "Gagal menyimpan", "error");
+  }
+};
 
   const formatHeaderDate = (dateStr) => {
     if (!dateStr || typeof dateStr !== 'string') return "-";
