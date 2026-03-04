@@ -250,6 +250,7 @@ export default function AssemblyList() {
                           <th className="p-2 text-left">Component</th>
                           <th className="p-2 text-left">Description</th>
                           <th className="p-2 text-center">Ratio</th>
+                          <th className="p-2 text-center">UOM</th>
                           <th className="p-2 text-right">Total Req</th>
                         </tr>
                       </thead>
@@ -259,6 +260,7 @@ export default function AssemblyList() {
                             <td className="p-2 font-bold">{comp.component_code}</td>
                             <td className="p-2 text-gray-500">{comp.component_description}</td>
                             <td className="p-2 text-center font-mono">{Number(comp.ratio_component).toFixed(4)}</td>
+                            <td className="p-2 text-center font-mono">{comp.uom_component || "PCS"}</td>
                             <td className="p-2 text-right font-bold text-orange-600">{Number(comp.required_qty).toLocaleString()}</td>
                           </tr>
                         ))}
