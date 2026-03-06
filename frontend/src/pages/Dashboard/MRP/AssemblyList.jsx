@@ -118,7 +118,7 @@ export default function AssemblyList() {
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        
+
         {/* HEADER */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-sm font-bold text-orange-600 uppercase tracking-widest">
@@ -174,22 +174,22 @@ export default function AssemblyList() {
           <>
             {/* INFO PANEL (LAYOUT SAMA PERSIS PACKING/FINISHING) */}
             <div className="grid grid-cols-4 gap-4 mb-6 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
-               <div>
-                  <label className="block text-[8px] uppercase text-orange-600 font-bold">SO Date</label>
-                  <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-orange-600 font-bold">Customer</label>
-                  <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-orange-600 font-bold">Delivery Date</label>
-                  <p className="text-sm font-bold text-red-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-orange-600 font-bold">Stage</label>
-                  <p className="text-sm font-bold text-orange-700">ASSEMBLY</p>
-               </div>
+              <div>
+                <label className="block text-[8px] uppercase text-orange-600 font-bold">SO Date</label>
+                <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-orange-600 font-bold">Customer</label>
+                <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-orange-600 font-bold">Delivery Date</label>
+                <p className="text-sm font-bold text-red-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-orange-600 font-bold">Stage</label>
+                <p className="text-sm font-bold text-orange-700">ASSEMBLY</p>
+              </div>
             </div>
 
             {activeTab === 'schedule' ? (
@@ -235,12 +235,12 @@ export default function AssemblyList() {
                             <td className="border text-center font-bold bg-orange-50/30 text-orange-800">{item.pcs}</td>
                             <td className="border text-center"><span className="text-[9px] font-bold text-orange-500 uppercase">Assembly</span></td>
                             {item.calendar?.map((day, dIdx) => ["shift1", "shift2", "shift3"].map((s) => {
-                                const qty = day.shifts[s].qty || 0;
-                                return (
-                                  <td key={`${dIdx}-${s}`} className={`border p-0 text-center ${qty > 0 ? "bg-orange-600 text-white" : "bg-white"}`}>
-                                    <input type="number" value={qty || ""} onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)} className="w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold" placeholder="0" />
-                                  </td>
-                                );
+                              const qty = day.shifts[s].qty || 0;
+                              return (
+                                <td key={`${dIdx}-${s}`} className={`border p-0 text-center ${qty > 0 ? "bg-orange-600 text-white" : "bg-white"}`}>
+                                  <input type="number" value={qty || ""} onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)} className="w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold" placeholder="0" />
+                                </td>
+                              );
                             }))}
                           </tr>
                         );
@@ -249,8 +249,15 @@ export default function AssemblyList() {
                   </table>
                 </div>
                 <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-orange-200 shadow-sm">
-                  <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight text-orange-800">
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-orange-600 rounded"></div><span>Assembly Activity</span></div>
+                  <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-orange-600 rounded"></div>
+                      <span className="text-orange-600">Assembly Activity</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
+                      <span className="text-gray-600">Kosong</span>
+                    </div>
                   </div>
                   <button onClick={handleSaveSchedule} className="bg-orange-600 text-white px-10 py-2.5 rounded text-xs font-bold shadow-lg shadow-orange-200">Simpan Perubahan Jadwal</button>
                 </div>
