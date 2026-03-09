@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
+import { Search, Calendar, FilterX } from "lucide-react"; // Ditambahkan
 
 export default function FinishingList() {
   const navigate = useNavigate();
@@ -13,13 +14,25 @@ export default function FinishingList() {
   const [selectedSO, setSelectedSO] = useState(null);
   const [items, setItems] = useState([]);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  /* ================= HELPERS ================= */
+  const toInputDate = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   /* ================= API CALLS ================= */
   const fetchDemands = async () => {
     try {
       setLoading(true);
       const res = await api.get("/demand");
-      // Normalisasi ID agar konsisten
-      const normalized = (res.data || []).map(so => ({
+      const normalized = (res.data || []).map((so) => ({
         ...so,
         id: so.id ?? so.demand_id,
       }));
@@ -35,11 +48,30 @@ export default function FinishingList() {
     fetchDemands();
   }, []);
 
+  /* ================= FILTER LOGIC ================= */
+  const filteredDemands = demands.filter((so) => {
+    const search = searchTerm.toLowerCase();
+    const matchesSearch =
+      (so.so_number?.toLowerCase() || "").includes(search) ||
+      (so.customer_name?.toLowerCase() || "").includes(search);
+
+    const deliveryDate = toInputDate(so.delivery_date);
+    const matchesStart = !dateRange.start || deliveryDate >= dateRange.start;
+    const matchesEnd = !dateRange.end || deliveryDate <= dateRange.end;
+
+    return matchesSearch && matchesStart && matchesEnd;
+  });
+
+  const resetFilter = () => {
+    setSearchTerm("");
+    setDateRange({ start: "", end: "" });
+  };
+
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
       const resItems = await api.get(`/finishing/${so.id}/finishing-items`);
-      
+
       if (!resItems.data || resItems.data.length === 0) {
         Swal.fire("Data Kosong", "Data belum digenerate.", "warning");
         return;
@@ -47,8 +79,12 @@ export default function FinishingList() {
 
       const mappedItems = resItems.data.map((it) => {
         let schedule = it.production_schedule;
-        if (typeof schedule === 'string') {
-          try { schedule = JSON.parse(schedule); } catch { schedule = []; }
+        if (typeof schedule === "string") {
+          try {
+            schedule = JSON.parse(schedule);
+          } catch {
+            schedule = [];
+          }
         }
 
         return {
@@ -58,7 +94,7 @@ export default function FinishingList() {
           uom: it.uom || "PCS",
           qty: it.total_qty || 0,
           pcs: Number(it.pcs || 0),
-          calendar: Array.isArray(schedule) ? schedule : []
+          calendar: Array.isArray(schedule) ? schedule : [],
         };
       });
 
@@ -74,7 +110,7 @@ export default function FinishingList() {
 
   const handleGenerateFinishing = async (so) => {
     try {
-      Swal.fire({ title: "Processing...", didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: "Processing...", didOpen: () => Swal.showLoading(), allowOutsideClick: false });
       await api.post(`/finishing/${so.id}/generate-finishing`);
       await fetchDemands();
       Swal.fire("Berhasil", "Data Finishing dibuat", "success");
@@ -105,21 +141,64 @@ export default function FinishingList() {
   };
 
   return (
-    <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
+    <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans text-gray-800">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        
         {/* HEADER SECTION */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="text-sm font-bold text-blue-600 uppercase tracking-widest">
             {view === "so" ? "Finishing Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
           </h2>
-          {view === "detail" && (
+
+          {view === "detail" ? (
             <button
               onClick={() => setView("so")}
               className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase hover:bg-gray-200"
             >
               Kembali
             </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cari SO atau Customer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-2 text-[11px] border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-48 font-semibold"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
+                <Calendar size={14} className="text-gray-400 mx-1" />
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+                <span className="text-gray-300 px-1">-</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+              </div>
+
+              {/* Reset */}
+              {(searchTerm || dateRange.start || dateRange.end) && (
+                <button
+                  onClick={resetFilter}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  title="Reset Filter"
+                >
+                  <FilterX size={16} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -137,39 +216,47 @@ export default function FinishingList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {demands.map((so) => (
-                  <tr key={so.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="py-4 px-4 font-bold text-blue-700">{so.so_number}</td>
-                    <td className="py-4 px-4">{so.customer_name}</td>
-                    <td className="py-4 px-4 text-center font-mono text-gray-500">
-                      {new Date(so.so_date).toLocaleDateString("id-ID")}
-                    </td>
-                    <td className="py-4 px-4 text-center font-mono font-bold text-blue-600">
-                      {new Date(so.delivery_date).toLocaleDateString("id-ID")}
-                    </td>
-                    <td className="py-4 px-4 text-right space-x-2">
-                      {!so.is_finishing_generated && (
+                {filteredDemands.length > 0 ? (
+                  filteredDemands.map((so) => (
+                    <tr key={so.id} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="py-4 px-4 font-bold text-blue-700">{so.so_number}</td>
+                      <td className="py-4 px-4">{so.customer_name || "-"}</td>
+                      <td className="py-4 px-4 text-center font-mono text-gray-500 text-xs">
+                        {new Date(so.so_date).toLocaleDateString("id-ID")}
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-bold text-blue-600 text-xs">
+                        {new Date(so.delivery_date).toLocaleDateString("id-ID")}
+                      </td>
+                      <td className="py-4 px-4 text-right space-x-2">
+                        {!so.is_finishing_generated && (
+                          <button
+                            onClick={() => handleGenerateFinishing(so)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
+                          >
+                            Generate
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleGenerateFinishing(so)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
+                          onClick={() => handleShowDetail(so)}
+                          disabled={!so.is_finishing_generated}
+                          className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${
+                            so.is_finishing_generated
+                              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          }`}
                         >
-                          Generate
+                          Buka Jadwal
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleShowDetail(so)}
-                        disabled={!so.is_finishing_generated}
-                        className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${
-                          so.is_finishing_generated 
-                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md" 
-                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        Buka Jadwal
-                      </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="py-10 text-center text-gray-400 text-xs italic">
+                      Data tidak ditemukan
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -179,23 +266,25 @@ export default function FinishingList() {
         {view === "detail" && (
           <>
             {/* SUB-HEADER INFO */}
-            <div className="grid grid-cols-4 gap-4 mb-6 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-               <div>
-                  <label className="block text-[8px] uppercase text-blue-600 font-bold">SO Date</label>
-                  <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Customer</label>
-                  <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Delivery Date</label>
-                  <p className="text-sm font-bold text-orange-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
-                  <label className="block text-[8px] uppercase text-blue-600 font-bold">Stage</label>
-                  <p className="text-sm font-bold text-blue-700">FINISHING</p>
-               </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+              <div>
+                <label className="block text-[8px] uppercase text-blue-600 font-bold">SO Date</label>
+                <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-blue-600 font-bold">Customer</label>
+                <p className="text-sm font-bold">{selectedSO?.customer_name || "-"}</p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-blue-600 font-bold">Delivery Date</label>
+                <p className="text-sm font-bold text-orange-600">
+                  {new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}
+                </p>
+              </div>
+              <div>
+                <label className="block text-[8px] uppercase text-blue-600 font-bold">Stage</label>
+                <p className="text-sm font-bold text-blue-700">FINISHING</p>
+              </div>
             </div>
 
             <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50 max-h-[75vh]">
@@ -232,14 +321,15 @@ export default function FinishingList() {
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const totalInput = item.calendar?.reduce(
-                      (sum, day) =>
-                        sum +
-                        (Number(day.shifts.shift1.qty) || 0) +
-                        (Number(day.shifts.shift2.qty) || 0) +
-                        (Number(day.shifts.shift3.qty) || 0),
-                      0
-                    ) || 0;
+                    const totalInput =
+                      item.calendar?.reduce(
+                        (sum, day) =>
+                          sum +
+                          (Number(day.shifts.shift1.qty) || 0) +
+                          (Number(day.shifts.shift2.qty) || 0) +
+                          (Number(day.shifts.shift3.qty) || 0),
+                        0
+                      ) || 0;
 
                     const sisa = Number(item.pcs) - totalInput;
 
@@ -248,7 +338,11 @@ export default function FinishingList() {
                         <td className="border p-2 sticky left-0 bg-white z-20 shadow-md">
                           <div className="font-bold text-blue-700">{item.itemCode}</div>
                           <div className="text-[8px] text-gray-400 truncate max-w-[160px]">{item.description}</div>
-                          <div className={`text-[8px] font-black mt-1 ${sisa <= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                          <div
+                            className={`text-[8px] font-black mt-1 ${
+                              sisa <= 0 ? "text-emerald-600" : "text-red-500"
+                            }`}
+                          >
                             {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
                           </div>
                         </td>
@@ -256,7 +350,9 @@ export default function FinishingList() {
                         <td className="border text-center font-mono text-blue-600 bg-gray-50/50">{item.qty}</td>
                         <td className="border text-center font-bold bg-blue-50/30 text-blue-800">{item.pcs}</td>
                         <td className="border text-center">
-                           <span className="text-[9px] font-bold text-blue-500 uppercase tracking-tighter">Finishing</span>
+                          <span className="text-[9px] font-bold text-blue-500 uppercase tracking-tighter">
+                            Finishing
+                          </span>
                         </td>
 
                         {item.calendar?.map((day, dIdx) =>
@@ -265,13 +361,17 @@ export default function FinishingList() {
                             return (
                               <td
                                 key={`${dIdx}-${s}`}
-                                className={`border p-0 text-center transition-all ${qty > 0 ? "bg-blue-600 text-white" : "bg-white"}`}
+                                className={`border p-0 text-center transition-all ${
+                                  qty > 0 ? "bg-blue-600 text-white" : "bg-white"
+                                }`}
                               >
                                 <input
                                   type="number"
                                   value={qty || ""}
                                   onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${qty > 0 ? "placeholder-blue-200" : "placeholder-gray-300"}`}
+                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${
+                                    qty > 0 ? "placeholder-blue-200" : "placeholder-gray-300"
+                                  }`}
                                   placeholder="0"
                                 />
                               </td>
@@ -286,7 +386,7 @@ export default function FinishingList() {
             </div>
 
             {/* LEGEND & SAVE */}
-            <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+            <div className="mt-5 flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
               <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-blue-600 rounded"></div>
@@ -299,9 +399,10 @@ export default function FinishingList() {
               </div>
               <button
                 onClick={handleSaveSchedule}
-                className="bg-blue-600 text-white px-10 py-2.5 rounded text-xs font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
+                disabled={loading}
+                className="bg-blue-600 text-white px-10 py-2.5 rounded text-xs font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:bg-gray-400"
               >
-                Simpan Perubahan Jadwal
+                {loading ? "Menyimpan..." : "Simpan Perubahan Jadwal"}
               </button>
             </div>
           </>

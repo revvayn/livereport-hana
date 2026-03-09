@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
+import { Search, Calendar, FilterX, Trash2 } from "lucide-react"; // Tambahkan icon pendukung
 
 export default function AssemblyList() {
   /* ================= STATE ================= */
@@ -11,6 +12,17 @@ export default function AssemblyList() {
   const [items, setItems] = useState([]);
   const [activeTab, setActiveTab] = useState('schedule');
   const [bomData, setBomData] = useState({});
+
+  // Tambahan state untuk filter (konsisten dengan FinishingList)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  /* ================= HELPERS ================= */
+  const toInputDate = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    return d.toISOString().split('T')[0];
+  };
 
   /* ================= FETCH DATA ================= */
   const fetchDemands = async () => {
@@ -32,6 +44,27 @@ export default function AssemblyList() {
   useEffect(() => {
     fetchDemands();
   }, []);
+
+  /* ================= FILTER LOGIC ================= */
+  const filteredDemands = demands.filter((so) => {
+    const search = searchTerm.toLowerCase();
+    const matchesSearch =
+      (so.so_number?.toLowerCase() || "").includes(search) ||
+      (so.customer_name?.toLowerCase() || "").includes(search);
+
+    const deliveryDate = toInputDate(so.delivery_date);
+    const matchesStart = !dateRange.start || deliveryDate >= dateRange.start;
+    const matchesEnd = !dateRange.end || deliveryDate <= dateRange.end;
+
+    return matchesSearch && matchesStart && matchesEnd;
+  });
+
+  const resetFilter = () => {
+    setSearchTerm("");
+    setDateRange({ start: "", end: "" });
+  };
+
+  /* ================= ACTIONS ================= */
   const handleDelete = async (demandId) => {
     const result = await Swal.fire({
       title: "Apakah Anda yakin?",
@@ -39,7 +72,7 @@ export default function AssemblyList() {
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Ya, Hapus!",
-      confirmButtonColor: "#ea580c", // Orange-600
+      confirmButtonColor: "#ea580c",
     });
     if (!result.isConfirmed) return;
     try {
@@ -50,6 +83,7 @@ export default function AssemblyList() {
       Swal.fire("Error", "Gagal hapus data", "error");
     }
   };
+
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
@@ -84,8 +118,19 @@ export default function AssemblyList() {
   };
 
   const handleGenerateAssembly = async (so) => {
+    // LOGIKA VALIDASI: Cek apakah finishing sudah di-generate
+    if (!so.is_finishing_generated) {
+      Swal.fire({
+        title: "Akses Ditolak",
+        text: "Anda harus melakukan Generate Finishing terlebih dahulu sebelum Assembly.",
+        icon: "error",
+        confirmButtonColor: "#3b82f6" // Blue-500
+      });
+      return;
+    }
+
     try {
-      Swal.fire({ title: "Generating...", didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: "Generating...", didOpen: () => Swal.showLoading(), allowOutsideClick: false });
       await api.post(`/assembly/generate/${so.id || so.demand_id}`);
       await fetchDemands();
       Swal.fire("Berhasil", "Data Assembly berhasil dibuat", "success");
@@ -120,15 +165,48 @@ export default function AssemblyList() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
           <h2 className="text-sm font-bold text-orange-600 uppercase tracking-widest">
             {view === "so" ? "Assembly Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
           </h2>
-          {view === "detail" && (
+          
+          {view === "so" ? (
+             <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                        type="text"
+                        placeholder="Cari SO atau Customer..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 pr-4 py-2 text-[11px] border border-gray-200 rounded-md focus:outline-none w-48 font-semibold"
+                    />
+                </div>
+                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
+                    <Calendar size={14} className="text-gray-400 mx-1" />
+                    <input 
+                        type="date"
+                        value={dateRange.start}
+                        onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+                        className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                    />
+                    <span className="text-gray-300 px-1">-</span>
+                    <input 
+                        type="date"
+                        value={dateRange.end}
+                        onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+                        className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                    />
+                </div>
+                {(searchTerm || dateRange.start || dateRange.end) && (
+                    <button onClick={resetFilter} className="p-2 text-red-500 hover:bg-red-50 rounded-md"><FilterX size={16} /></button>
+                )}
+             </div>
+          ) : (
             <div className="flex gap-2">
               <button onClick={() => setActiveTab('schedule')} className={`text-[10px] px-4 py-2 rounded font-bold uppercase transition-all ${activeTab === 'schedule' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}>Jadwal</button>
               <button onClick={() => setActiveTab('bom')} className={`text-[10px] px-4 py-2 rounded font-bold uppercase transition-all ${activeTab === 'bom' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}>BOM</button>
-              <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase">Kembali</button>
+              <button onClick={() => setView("so")} className="text-[10px] bg-gray-100 px-4 py-2 rounded font-bold text-gray-600 uppercase hover:bg-gray-200">Kembali</button>
             </div>
           )}
         </div>
@@ -147,7 +225,7 @@ export default function AssemblyList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {demands.map((so) => (
+                {filteredDemands.map((so) => (
                   <tr key={so.id} className="hover:bg-orange-50/30 transition-colors">
                     <td className="py-4 px-4 font-bold text-orange-600">{so.so_number}</td>
                     <td className="py-4 px-4">{so.customer_name}</td>
@@ -155,11 +233,17 @@ export default function AssemblyList() {
                     <td className="py-4 px-4 text-center font-mono font-bold text-orange-600">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
                     <td className="py-4 px-4 text-right space-x-2">
                       {!so.is_assembly_generated && (
-                        <button onClick={() => handleGenerateAssembly(so)} className="bg-emerald-600 text-white px-4 py-1.5 rounded text-[11px] font-bold">Generate</button>
+                        <button 
+                            onClick={() => handleGenerateAssembly(so)} 
+                            className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${so.is_finishing_generated ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                            title={!so.is_finishing_generated ? "Selesaikan Finishing dulu" : ""}
+                        >
+                            Generate
+                        </button>
                       )}
-                      <button onClick={() => handleShowDetail(so)} disabled={!so.is_assembly_generated} className={`px-4 py-1.5 rounded text-[11px] font-bold ${so.is_assembly_generated ? "bg-orange-600 text-white shadow-md" : "bg-gray-200 text-gray-400"}`}>Buka Jadwal</button>
-                      <button onClick={() => handleDelete(so.id)} className="bg-white border border-red-100 text-red-500 px-3 py-1.5 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition-all">
-                        Delete
+                      <button onClick={() => handleShowDetail(so)} disabled={!so.is_assembly_generated} className={`px-4 py-1.5 rounded text-[11px] font-bold ${so.is_assembly_generated ? "bg-orange-600 text-white shadow-md hover:bg-orange-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Buka Jadwal</button>
+                      <button onClick={() => handleDelete(so.id)} className="bg-white border border-red-100 text-red-500 p-1.5 rounded hover:bg-red-500 hover:text-white transition-all">
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -169,11 +253,11 @@ export default function AssemblyList() {
           </div>
         )}
 
-        {/* DETAIL VIEW */}
+        {/* DETAIL VIEW (TAB JADWAL / BOM) */}
         {view === "detail" && (
           <>
-            {/* INFO PANEL (LAYOUT SAMA PERSIS PACKING/FINISHING) */}
-            <div className="grid grid-cols-4 gap-4 mb-6 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
+            {/* INFO PANEL */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 bg-orange-50/50 p-4 rounded-lg border border-orange-100">
               <div>
                 <label className="block text-[8px] uppercase text-orange-600 font-bold">SO Date</label>
                 <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
@@ -210,7 +294,7 @@ export default function AssemblyList() {
                         ))}
                       </tr>
                       <tr className="bg-orange-50 text-[8px] text-orange-800 font-bold">
-                        <th className="border p-1 sticky left-0 bg-orange-50 z-40"></th>
+                        <th className="border p-1 sticky left-0 bg-blue-50 z-40 opacity-0"></th>
                         <th className="border"></th><th className="border"></th><th className="border"></th><th className="border"></th>
                         {items[0]?.calendar?.map((_, i) => (
                           <React.Fragment key={i}>
@@ -252,21 +336,21 @@ export default function AssemblyList() {
                   <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-orange-600 rounded"></div>
-                      <span className="text-orange-600">Assembly Activity</span>
+                      <span className="text-orange-600 font-bold">Assembly Activity</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-white border border-gray-300 rounded"></div>
-                      <span className="text-gray-600">Kosong</span>
+                      <span className="text-gray-600">Kosong / No Plan</span>
                     </div>
                   </div>
-                  <button onClick={handleSaveSchedule} className="bg-orange-600 text-white px-10 py-2.5 rounded text-xs font-bold shadow-lg shadow-orange-200">Simpan Perubahan Jadwal</button>
+                  <button onClick={handleSaveSchedule} className="bg-orange-600 text-white px-10 py-2.5 rounded text-xs font-bold shadow-lg shadow-orange-200 hover:bg-orange-700 transition-all">Simpan Perubahan Jadwal</button>
                 </div>
               </>
             ) : (
               /* BOM VIEW */
               <div className="space-y-4">
-                {Object.keys(bomData).map((fgCode) => (
-                  <div key={fgCode} className="border rounded-lg overflow-hidden border-gray-200 shadow-sm">
+                {Object.keys(bomData).length > 0 ? Object.keys(bomData).map((fgCode) => (
+                  <div key={fgCode} className="border rounded-lg overflow-hidden border-gray-200 shadow-sm bg-white">
                     <div className="bg-orange-600 px-4 py-2 text-white flex justify-between items-center">
                       <span className="text-xs font-bold uppercase">{fgCode}</span>
                       <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded uppercase font-bold">{bomData[fgCode][0]?.parent_pcs} PCS</span>
@@ -283,7 +367,7 @@ export default function AssemblyList() {
                       </thead>
                       <tbody className="divide-y">
                         {bomData[fgCode].map((comp, i) => (
-                          <tr key={i}>
+                          <tr key={i} className="hover:bg-gray-50">
                             <td className="p-2 font-bold">{comp.component_code}</td>
                             <td className="p-2 text-gray-500">{comp.component_description}</td>
                             <td className="p-2 text-center font-mono">{Number(comp.ratio_component).toFixed(4)}</td>
@@ -294,7 +378,9 @@ export default function AssemblyList() {
                       </tbody>
                     </table>
                   </div>
-                ))}
+                )) : (
+                    <div className="text-center py-10 text-gray-400 text-xs italic bg-white rounded-lg border">Data BOM tidak ditemukan untuk SO ini.</div>
+                )}
               </div>
             )}
           </>

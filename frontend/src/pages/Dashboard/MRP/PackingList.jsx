@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
+import { Search, Calendar, FilterX } from "lucide-react"; // Import icon untuk estetika modern
 
 export default function PackingList() {
   const navigate = useNavigate();
@@ -12,6 +13,11 @@ export default function PackingList() {
   const [view, setView] = useState("so");
   const [selectedSO, setSelectedSO] = useState(null);
   const [items, setItems] = useState([]);
+  
+  // State baru untuk Filter
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
   const [header, setHeader] = useState({
     soNo: "",
     soDate: "",
@@ -67,6 +73,25 @@ export default function PackingList() {
     fetchDemands();
   }, []);
 
+  /* ================= FILTER LOGIC ================= */
+  const filteredDemands = demands.filter((so) => {
+    const matchesSearch = 
+      so.so_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      so.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const deliveryDate = toInputDate(so.delivery_date);
+    const matchesStart = !dateRange.start || deliveryDate >= dateRange.start;
+    const matchesEnd = !dateRange.end || deliveryDate <= dateRange.end;
+
+    return matchesSearch && matchesStart && matchesEnd;
+  });
+
+  const resetFilter = () => {
+    setSearchTerm("");
+    setDateRange({ start: "", end: "" });
+  };
+
+  /* ================= EVENT HANDLERS ================= */
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
@@ -144,7 +169,7 @@ export default function PackingList() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         
         {/* HEADER SECTION */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-widest">
             {view === "so" ? "Packing Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
           </h2>
@@ -155,6 +180,52 @@ export default function PackingList() {
             >
               Kembali
             </button>
+          )}
+
+          {/* ── FILTER CONTROLS (Hanya muncul di List View) ── */}
+          {view === "so" && (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Input */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input 
+                  type="text"
+                  placeholder="Cari SO atau Customer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-2 text-[11px] border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-48 font-semibold"
+                />
+              </div>
+
+              {/* Date Filter */}
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
+                <Calendar size={14} className="text-gray-400 mx-1" />
+                <input 
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+                <span className="text-gray-300 px-1">-</span>
+                <input 
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+              </div>
+
+              {/* Reset Button */}
+              {(searchTerm || dateRange.start || dateRange.end) && (
+                <button 
+                  onClick={resetFilter}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  title="Reset Filter"
+                >
+                  <FilterX size={16} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -167,37 +238,45 @@ export default function PackingList() {
                   <th className="py-3 px-4 text-left">SO Number</th>
                   <th className="py-3 px-4 text-left">Customer</th>
                   <th className="py-3 px-4 text-center">SO Date</th>
-                  <th className="py-3 px-4 text-center">Delivery</th>
+                  <th className="py-3 px-4 text-center">Delivery Date</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {demands.map((so) => (
-                  <tr key={so.demand_id} className="hover:bg-emerald-50/30 transition-colors">
-                    <td className="py-4 px-4 font-bold text-emerald-700">{so.so_number}</td>
-                    <td className="py-4 px-4">{so.customer_name}</td>
-                    <td className="py-4 px-4 text-center font-mono text-gray-500">
-                      {new Date(so.so_date).toLocaleDateString("id-ID")}
-                    </td>
-                    <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600">
-                      {new Date(so.delivery_date).toLocaleDateString("id-ID")}
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <button
-                        onClick={() => handleShowDetail(so)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
-                      >
-                        Buka Jadwal
-                      </button>
+                {filteredDemands.length > 0 ? (
+                  filteredDemands.map((so) => (
+                    <tr key={so.demand_id} className="hover:bg-emerald-50/30 transition-colors">
+                      <td className="py-4 px-4 font-bold text-emerald-700">{so.so_number}</td>
+                      <td className="py-4 px-4">{so.customer_name}</td>
+                      <td className="py-4 px-4 text-center font-mono text-gray-500">
+                        {new Date(so.so_date).toLocaleDateString("id-ID")}
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono font-bold text-emerald-600">
+                        {new Date(so.delivery_date).toLocaleDateString("id-ID")}
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <button
+                          onClick={() => handleShowDetail(so)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-[11px] font-bold transition-all"
+                        >
+                          Buka Jadwal
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="py-10 text-center text-gray-400 text-xs italic">
+                      Data tidak ditemukan...
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* ── MATRIX DETAIL VIEW ── */}
+        {/* ── MATRIX DETAIL VIEW ── (Tetap sama sesuai permintaan) */}
         {view === "detail" && (
           <>
             {/* SUB-HEADER INFO */}
@@ -275,7 +354,6 @@ export default function PackingList() {
 
                     return (
                       <tr key={index} className="hover:bg-emerald-50/20 transition-colors">
-                        {/* Item Info */}
                         <td className="border p-2 sticky left-0 bg-white z-20 shadow-md">
                           <div className="font-bold text-emerald-700">{item.itemCode}</div>
                           <div className="text-[8px] text-gray-400 truncate max-w-[160px]">{item.description}</div>
@@ -283,21 +361,13 @@ export default function PackingList() {
                             {sisa <= 0 ? "PAS ✅" : `SISA: ${sisa} PCS`}
                           </div>
                         </td>
-
-                        {/* UOM */}
                         <td className="border text-center text-gray-500">{item.uom}</td>
-
-                        {/* QTY (M3) */}
                         <td className="border text-center font-mono text-emerald-600 bg-gray-50/50">
                           {item.qty}
                         </td>
-
-                        {/* PCS */}
                         <td className="border text-center font-bold bg-emerald-50/30 text-emerald-800">
                           {item.pcs}
                         </td>
-
-                        {/* Action */}
                         <td className="border text-center">
                           <button
                             onClick={() => navigate(`/dashboard/production/kalender/${item.itemId}`)}
@@ -306,8 +376,6 @@ export default function PackingList() {
                             Jadwal
                           </button>
                         </td>
-
-                        {/* Shift Input Cells */}
                         {item.calendar?.map((day, dIdx) =>
                           ["shift1", "shift2", "shift3"].map((s) => {
                             const qty = day.shifts[s].qty || 0;
@@ -334,7 +402,6 @@ export default function PackingList() {
               </table>
             </div>
 
-            {/* LEGEND & SAVE */}
             <div className="mt-5 flex justify-between items-center bg-white p-4 rounded-lg border border-emerald-200 shadow-sm">
               <div className="flex gap-6 text-[10px] font-bold uppercase tracking-tight">
                 <div className="flex items-center gap-2">
