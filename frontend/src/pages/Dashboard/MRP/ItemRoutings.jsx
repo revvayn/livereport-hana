@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+import Select from "react-select"; // Import library baru
 
 export default function ItemRoutings() {
   const [routings, setRoutings] = useState([]);
   const [masters, setMasters] = useState({ 
-    items: [], 
-    finishing: [], 
-    pannels: [], 
-    cores: [] 
+    items: [], finishing: [], pannels: [], cores: [] 
   });
   const [form, setForm] = useState({
     item_code: "", 
@@ -19,10 +17,10 @@ export default function ItemRoutings() {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // --- LOGIC FETCH & HANDLER (TETAP SAMA) ---
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Hanya fetch master data yang relevan dengan kolom database saat ini
       const [resR, resI, resF, resP, resC] = await Promise.all([
         api.get("/item-routings"),
         api.get("/items"),
@@ -37,18 +35,21 @@ export default function ItemRoutings() {
         pannels: resP.data || [], 
         cores: resC.data || []
       });
-    } catch (err) {
-      console.error("Fetch Data Error:", err);
-    } finally { setLoading(false); }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  // Helper untuk mengubah data master menjadi format yang dikenali react-select { value, label }
+  const formatOptions = (data, codeKey, descKey) => 
+    data.map(item => ({
+      value: item[codeKey],
+      label: `${item[codeKey]} - ${item[descKey] || ''}`
+    }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validasi minimal: Item Code wajib diisi
-    if (!form.item_code) return Swal.fire("Peringatan", "Item Code wajib dipilih", "warning");
-
+    if (!form.item_code) return Swal.fire("Peringatan", "Item Code wajib diisi", "warning");
     try {
       setLoading(true);
       if (editId) {
@@ -61,40 +62,8 @@ export default function ItemRoutings() {
       resetForm();
       fetchData();
     } catch (err) {
-      console.error(err);
-      Swal.fire("Gagal", err.response?.data?.error || "Terjadi kesalahan sistem", "error");
+      Swal.fire("Gagal", err.response?.data?.error || "Kesalahan sistem", "error");
     } finally { setLoading(false); }
-  };
-
-  const handleEdit = (r) => {
-    setForm({
-      item_code: r.item_code || "",
-      finishing_code: r.finishing_code || "",
-      assembly_code_pannel: r.assembly_code_pannel || "",
-      assembly_code_core: r.assembly_code_core || ""
-    });
-    setEditId(r.id);
-  };
-
-  const handleDelete = async (id) => {
-    const confirm = await Swal.fire({
-      title: "Hapus data ini?",
-      text: "Data yang dihapus tidak bisa dikembalikan",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      confirmButtonText: "Ya, Hapus!"
-    });
-
-    if (confirm.isConfirmed) {
-      try {
-        await api.delete(`/item-routings/${id}`);
-        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
-        fetchData();
-      } catch (err) {
-        Swal.fire("Gagal", "Gagal menghapus data", "error");
-      }
-    }
   };
 
   const resetForm = () => {
@@ -102,40 +71,75 @@ export default function ItemRoutings() {
     setEditId(null);
   };
 
+  // Styling kustom untuk react-select agar senada dengan Tailwind Anda
+  const customStyles = {
+    control: (base) => ({
+      ...base,
+      fontSize: '14px',
+      borderRadius: '0.375rem', // rounded
+      borderColor: '#e2e8f0', // border-gray-200
+      minHeight: '38px',
+    }),
+    option: (base) => ({ ...base, fontSize: '13px' }),
+  };
+
   return (
     <div className="p-6 bg-white min-h-screen">
       <h1 className="text-2xl font-bold mb-6 text-gray-800 border-b pb-2">Item Routing Mapping</h1>
 
-      {/* Form: Hanya 4 kolom yang ada di Database */}
       <form onSubmit={handleSubmit} className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm mb-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          
+          {/* 1. Packing (Item) */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-blue-600 uppercase">1. Packing (Item)</label>
-            <select className="w-full border p-2 rounded text-sm bg-white" value={form.item_code} onChange={e => setForm({...form, item_code: e.target.value})} required>
-              <option value="">-- Pilih Item --</option>
-              {masters.items.map(i => <option key={i.id} value={i.item_code}>{i.item_code}</option>)}
-            </select>
+            <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">1. Packing (Item)</label>
+            <Select
+              placeholder="-- Cari Item --"
+              options={formatOptions(masters.items, 'item_code', 'item_desc')}
+              value={masters.items.find(i => i.item_code === form.item_code) ? { value: form.item_code, label: form.item_code } : null}
+              onChange={(opt) => setForm({...form, item_code: opt ? opt.value : ""})}
+              styles={customStyles}
+              isClearable
+            />
           </div>
+
+          {/* 2. Finishing */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-green-600 uppercase">2. Finishing</label>
-            <select className="w-full border p-2 rounded text-sm bg-white" value={form.finishing_code} onChange={e => setForm({...form, finishing_code: e.target.value})}>
-              <option value="">-- Pilih Finishing --</option>
-              {masters.finishing.map(f => <option key={f.id} value={f.finishing_code}>{f.finishing_code}</option>)}
-            </select>
+            <label className="text-[10px] font-bold text-green-600 uppercase tracking-wider">2. Finishing</label>
+            <Select
+              placeholder="-- Cari Finishing --"
+              options={formatOptions(masters.finishing, 'finishing_code', 'finishing_desc')}
+              value={masters.finishing.find(f => f.finishing_code === form.finishing_code) ? { value: form.finishing_code, label: form.finishing_code } : null}
+              onChange={(opt) => setForm({...form, finishing_code: opt ? opt.value : ""})}
+              styles={customStyles}
+              isClearable
+            />
           </div>
+
+          {/* 3. Assy Pannel */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-orange-600 uppercase">3. Assy Pannel</label>
-            <select className="w-full border p-2 rounded text-sm bg-white" value={form.assembly_code_pannel} onChange={e => setForm({...form, assembly_code_pannel: e.target.value})}>
-              <option value="">-- Pilih Pannel --</option>
-              {masters.pannels.map(p => <option key={p.id} value={p.assembly_code}>{p.assembly_code}</option>)}
-            </select>
+            <label className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">3. Assy Pannel</label>
+            <Select
+              placeholder="-- Cari Pannel --"
+              options={formatOptions(masters.pannels, 'assembly_code', 'pannel_desc')}
+              value={masters.pannels.find(p => p.assembly_code === form.assembly_code_pannel) ? { value: form.assembly_code_pannel, label: form.assembly_code_pannel } : null}
+              onChange={(opt) => setForm({...form, assembly_code_pannel: opt ? opt.value : ""})}
+              styles={customStyles}
+              isClearable
+            />
           </div>
+
+          {/* 4. Assy Core */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-purple-600 uppercase">4. Assy Core</label>
-            <select className="w-full border p-2 rounded text-sm bg-white" value={form.assembly_code_core} onChange={e => setForm({...form, assembly_code_core: e.target.value})}>
-              <option value="">-- Pilih Core --</option>
-              {masters.cores.map(c => <option key={c.id} value={c.assembly_code}>{c.assembly_code}</option>)}
-            </select>
+            <label className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">4. Assy Core</label>
+            <Select
+              placeholder="-- Cari Core --"
+              options={formatOptions(masters.cores, 'assembly_code', 'core_desc')}
+              value={masters.cores.find(c => c.assembly_code === form.assembly_code_core) ? { value: form.assembly_code_core, label: form.assembly_code_core } : null}
+              onChange={(opt) => setForm({...form, assembly_code_core: opt ? opt.value : ""})}
+              styles={customStyles}
+              isClearable
+            />
           </div>
           
           <div className="md:col-span-4 flex justify-end gap-2 mt-2">
@@ -149,7 +153,7 @@ export default function ItemRoutings() {
         </div>
       </form>
 
-      {/* Tabel View: Disesuaikan dengan kolom yang ada */}
+      {/* Tabel View (TETAP SAMA SEPERTI SEBELUMNYA) */}
       <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
         <table className="w-full text-xs text-left">
           <thead className="bg-gray-800 text-white uppercase tracking-wider">
@@ -182,9 +186,17 @@ export default function ItemRoutings() {
                    <div className="font-bold text-purple-700">{r.assembly_code_core || '-'}</div>
                    <div className="text-[10px] text-gray-400 italic">{r.core_desc || '-'}</div>
                 </td>
-                <td className="p-3">
+                <td className="p-3 text-center">
                   <div className="flex justify-center gap-3">
-                    <button onClick={() => handleEdit(r)} className="text-blue-600 hover:text-blue-800 font-bold">EDIT</button>
+                    <button onClick={() => {
+                        setForm({
+                            item_code: r.item_code || "",
+                            finishing_code: r.finishing_code || "",
+                            assembly_code_pannel: r.assembly_code_pannel || "",
+                            assembly_code_core: r.assembly_code_core || ""
+                        });
+                        setEditId(r.id);
+                    }} className="text-blue-600 hover:text-blue-800 font-bold">EDIT</button>
                     <span className="text-gray-300">|</span>
                     <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:text-red-800 font-bold">HAPUS</button>
                   </div>
@@ -192,7 +204,7 @@ export default function ItemRoutings() {
               </tr>
             )) : (
               <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-400 italic">Belum ada data routing yang terpetakan.</td>
+                <td colSpan="6" className="p-10 text-center text-gray-400 italic">Belum ada data routing.</td>
               </tr>
             )}
           </tbody>

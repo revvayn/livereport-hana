@@ -25,6 +25,7 @@
     "multer": "^2.0.2",
     "pg": "^8.16.3",
     "react-date-range": "^2.0.1",
+    "react-select": "^5.10.2",
     "xlsx": "^0.18.5"
   }
 }
