@@ -284,7 +284,7 @@ function EntryMRPDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("/bom");
   const [open, setOpen] = useState(isActive);
   return (
-    <DropdownWrapper icon={Cpu} label="MRP System" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+    <DropdownWrapper icon={Cpu} label="BOM" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/bom/entry" icon={Download} label="Bill of Materials" />
     </DropdownWrapper>
   );
