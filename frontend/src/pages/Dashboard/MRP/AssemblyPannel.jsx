@@ -70,7 +70,7 @@ export default function AssemblyPannel() {
     setForm({
       assembly_code: item.assembly_code,
       description: item.description || "",
-      warehouse: item.warehouse || "WIPA",
+      warehouse: item.warehouse || "PFIN",
     });
     setEditId(item.id);
     // Scroll ke atas agar user sadar sedang mode edit
@@ -79,7 +79,7 @@ export default function AssemblyPannel() {
 
   /* ================= RESET HANDLER ================= */
   const handleReset = () => {
-    setForm({ assembly_code: "", description: "", warehouse: "WIPA" });
+    setForm({ assembly_code: "", description: "", warehouse: "PFIN" });
     setEditId(null);
   };
 
@@ -154,7 +154,7 @@ export default function AssemblyPannel() {
           <input
             type="text"
             className="w-full border border-gray-300 p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-            placeholder="WIPA"
+            placeholder="PFIN"
             value={form.warehouse}
             onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
           />

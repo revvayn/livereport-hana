@@ -24,10 +24,25 @@ import {
   TrendingUpIcon,
   Upload,
   Calendar,
-  Form,
+  FormInput,
   ListTodo,
+  Users,
+  Box,
+  Layers,
+  LayoutGrid,
+  Cpu,
+  Settings,
+  Route,
+  ChevronDown,
+  ShoppingCart,
+  FileText,
+  Package,
+  GanttChart,
+  ClipboardList,
+  Activity,
+  Container,
+  Warehouse
 } from "lucide-react";
-import { is } from "date-fns/locale";
 
 export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -39,33 +54,23 @@ export default function DashboardLayout() {
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
-  /* ================= ROLE HELPER ================= */
   const isAdmin = user?.role === "Admin";
   const isPlanner = user?.role === "Planner";
   const isReporter = user?.role === "Reporter";
 
-  /* ================= CLOCK ================= */
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setTime(
-        now.toLocaleString("id-ID", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
-      );
+      setTime(now.toLocaleString("id-ID", {
+        weekday: "short", day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      }));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  /* ================= FETCH USER ================= */
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -80,7 +85,6 @@ export default function DashboardLayout() {
     fetchUser();
   }, [navigate]);
 
-  /* ================= LOGOUT ================= */
   const logout = async () => {
     const confirm = await Swal.fire({
       title: "Logout?",
@@ -90,81 +94,41 @@ export default function DashboardLayout() {
       cancelButtonText: "Batal",
       confirmButtonColor: "#dc2626",
     });
-
     if (!confirm.isConfirmed) return;
-
     await api.post("/auth/logout");
     navigate("/");
   };
 
-  if (loading)
-    return (
-      <div className="flex justify-center items-center h-screen">
-        Loading...
-      </div>
-    );
+  if (loading) return <div className="flex justify-center items-center h-screen font-medium text-slate-500 text-sm italic">Memuat data...</div>;
 
   return (
     <div className="min-h-screen flex bg-slate-100">
-      {/* OVERLAY MOBILE */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-        />
-      )}
+      {mobileOpen && <div onClick={() => setMobileOpen(false)} className="fixed inset-0 bg-black/50 z-40 lg:hidden" />}
 
-      {/* ================= SIDEBAR ================= */}
-      <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-50
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-          ${collapsed ? "w-20" : "w-64"}
-          bg-slate-900 text-slate-100
-          flex flex-col transition-all duration-300 shadow-2xl
-        `}
-      >
-        {/* BRAND */}
-        <div className="flex flex-col items-center pt-4">
-          <img
-            src={logo}
-            alt="BBP"
-            className={`transition-all duration-300 ${collapsed ? "w-10" : "w-32"}`}
-          />
+      <aside className={`fixed lg:static inset-y-0 left-0 z-50 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 ${collapsed ? "w-20" : "w-64"} bg-slate-900 text-slate-100 flex flex-col transition-all duration-300 shadow-2xl`}>
+        <div className="flex flex-col items-center pt-6 pb-2">
+          <img src={logo} alt="Logo" className={`transition-all duration-300 ${collapsed ? "w-10" : "w-28"}`} />
         </div>
 
-        {/* HEADER */}
         <div className="flex items-start justify-between px-4 py-4 border-b border-slate-800">
           {!collapsed && (
-            <div>
-              <h1 className="text-lg font-semibold">Live Report</h1>
-              <p className="text-xs text-slate-400">PT Bahana Bhumiphala Persada</p>
-              <p className="text-xs text-gray-400 mt-2">{time}</p>
+            <div className="animate-in fade-in duration-500">
+              <h1 className="text-sm font-bold tracking-wider text-blue-400 uppercase">Live Report</h1>
+              <p className="text-[10px] text-slate-400 leading-tight">PT Bahana Bhumiphala Persada</p>
+              <p className="text-[10px] text-gray-500 mt-2 font-mono">{time}</p>
             </div>
           )}
-
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg hover:bg-slate-800"
-          >
+          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
 
-        {/* MENU */}
-        <nav className="flex-1 px-3 py-6 space-y-1 text-sm overflow-y-auto overflow-x-hidden">
-          {/* ALL USER */}
-          <MenuLink
-            to="/dashboard"
-            icon={LayoutDashboard}
-            label="Dashboard"
-            collapsed={collapsed}
-          />
+        <nav className="flex-1 px-3 py-4 space-y-1 text-sm overflow-y-auto custom-scrollbar">
+          <MenuLink to="/dashboard" icon={LayoutDashboard} label="Dashboard Overview" collapsed={collapsed} />
 
-          {/* PLANNING (Planner Only) */}
           {isPlanner && (
             <>
+              <div className="pt-4 pb-1 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{!collapsed && "Planning & Master"}</div>
               <MasterDropdown collapsed={collapsed} currentPath={location.pathname} />
               <SalesDropdown collapsed={collapsed} currentPath={location.pathname} />
               <DemandDropdown collapsed={collapsed} currentPath={location.pathname} />
@@ -172,347 +136,193 @@ export default function DashboardLayout() {
             </>
           )}
 
-          {/* REPORTER ONLY */}
           {isReporter && (
             <>
-              <MenuLink
-                to="/dashboard/rencana-pengiriman"
-                icon={Calendar}
-                label="Rencana Pengiriman"
-                collapsed={collapsed}
-              />
+              <div className="pt-4 pb-1 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{!collapsed && "Reporting Area"}</div>
+              <MenuLink to="/dashboard/rencana-pengiriman" icon={Calendar} label="Rencana Kirim" collapsed={collapsed} />
               <EntryDropdown collapsed={collapsed} currentPath={location.pathname} />
               <RejectRateDropdown collapsed={collapsed} currentPath={location.pathname} />
               <BahanBakuDropdown collapsed={collapsed} currentPath={location.pathname} />
-              <MenuLink
-                to="/dashboard/export-data"
-                icon={Upload}
-                label="Export Data"
-                collapsed={collapsed}
-              />
+              <MenuLink to="/dashboard/export-data" icon={Upload} label="Export Report" collapsed={collapsed} />
             </>
           )}
 
-          {/* ADMIN ONLY */}
           {isAdmin && (
-            <MenuLink
-              to="/dashboard/user"
-              icon={User2}
-              label="User Management"
-              collapsed={collapsed}
-            />
+            <MenuLink to="/dashboard/user" icon={User2} label="User Control" collapsed={collapsed} />
           )}
 
-          {/* Profile */}
-          {(isReporter || isPlanner) && (
-            <MenuLink
-              to="/dashboard/profile"
-              icon={User}
-              label="Profil"
-              collapsed={collapsed}
-            />
-          )}
+          <div className="pt-4 border-t border-slate-800/50 mt-4">
+            {(isReporter || isPlanner) && (
+              <MenuLink to="/dashboard/profile" icon={User} label="My Profile" collapsed={collapsed} />
+            )}
+          </div>
         </nav>
 
-        {/* USER INFO & LOGOUT */}
-        <div className="px-4 py-4 border-t border-slate-800">
+        <div className="px-4 py-4 border-t border-slate-800 bg-slate-950/30">
           {!collapsed && (
             <div className="mb-3 px-1">
-              <p className="text-sm font-medium truncate">
-                {user?.nama_lengkap || user?.username}
-              </p>
-              <p className="text-xs text-slate-400">{user?.role}</p>
+              <p className="text-xs font-semibold text-white truncate">{user?.nama_lengkap || user?.username}</p>
+              <p className="text-[10px] text-blue-400 uppercase tracking-tighter font-bold">{user?.role}</p>
             </div>
           )}
-
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 rounded-lg px-3 py-2 text-sm transition"
-          >
+          <button onClick={logout} className={`w-full flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg px-3 py-2 text-sm transition-all duration-200 border border-red-500/20`}>
             <LogOut size={16} />
-            {!collapsed && "Logout"}
+            {!collapsed && <span className="font-bold">Logout</span>}
           </button>
         </div>
       </aside>
 
-      {/* ================= MAIN CONTENT ================= */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <div className="lg:hidden flex items-center justify-between p-4 bg-slate-900 text-white shadow-md">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg bg-slate-800"
-          >
-            ☰
-          </button>
-          <h1 className="text-sm font-semibold">Live Report</h1>
-          <div className="w-8"></div>
-        </div>
+        <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900 text-white shadow-md">
+          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg bg-slate-800">☰</button>
+          <h1 className="text-sm font-bold tracking-tighter">BBP LIVE</h1>
+          <div className="w-8" />
+        </header>
 
-        <main className="flex-1 p-6 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
-            <Outlet context={{ user }} />
-          </div>
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <Outlet context={{ user }} />
         </main>
       </div>
     </div>
   );
 }
 
-/* ================= COMPONENT: MENU LINK ================= */
+/* ================= HELPERS & SUBCOMPONENTS ================= */
+
 function MenuLink({ to, label, icon: Icon, collapsed }) {
   return (
-    <NavLink
-      to={to}
-      end
-      title={collapsed ? label : ""}
-      className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2 rounded-lg transition font-medium
-          ${isActive
-          ? "bg-slate-800 text-white"
-          : "text-slate-300 hover:bg-slate-800 hover:text-white"
-        }`
-      }
-    >
+    <NavLink to={to} end title={collapsed ? label : ""} className={({ isActive }) =>
+      `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 font-medium group
+      ${isActive ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`
+    }>
       <Icon size={18} className="shrink-0" />
       {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   );
 }
 
-/* ================= COMPONENT: SUB MENU LINK ================= */
 function SubMenuLink({ to, label, icon: Icon }) {
   return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `flex items-center gap-3 ml-6 px-3 py-2 rounded-lg text-sm transition
-          ${isActive
-          ? "bg-slate-800 text-white"
-          : "text-slate-400 hover:bg-slate-800 hover:text-white"
-        }`
-      }
-    >
-      <Icon size={16} className="shrink-0" />
+    <NavLink to={to} className={({ isActive }) =>
+      `flex items-center gap-3 px-3 py-2 rounded-md text-xs transition-all duration-200
+      ${isActive ? "text-blue-400 font-bold translate-x-1" : "text-slate-500 hover:text-slate-200 hover:translate-x-1"}`
+    }>
+      <Icon size={14} className="shrink-0" />
       <span className="truncate">{label}</span>
     </NavLink>
   );
 }
 
-/* ================= DROPDOWN COMPONENTS ================= */
-
-function EntryDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/data-sync", "/dashboard/bahanbaku"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
-  const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
+function DropdownWrapper({ icon: Icon, label, collapsed, isActive, open, setOpen, children }) {
   return (
     <div>
-      <button
-        onClick={() => setOpen(!open)}
-        title={collapsed ? "Entry Data" : ""}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
+      <button onClick={() => setOpen(!open)} title={collapsed ? label : ""} className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg transition-all duration-200 font-medium
+        ${isActive ? "text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
         <div className="flex items-center gap-3">
-          <Download size={18} />
-          {!collapsed && "Entry Data"}
+          <Icon size={18} className={isActive ? "text-blue-400" : ""} />
+          {!collapsed && <span>{label}</span>}
         </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
+        {!collapsed && <ChevronDown size={14} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} />}
       </button>
       {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/data-sync" icon={TrendingDown} label="Data Sync Reject" />
-          <SubMenuLink to="/dashboard/bahanbaku" icon={Trees} label="Data Sync Bahan Baku" />
+        <div className="mt-1 ml-6 border-l border-slate-800 space-y-0.5 animate-in slide-in-from-top-1 duration-200">
+          {children}
         </div>
       )}
     </div>
   );
 }
 
+/* ================= REFINED DROPDOWNS ================= */
+
 function MasterDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/master/customers", "/dashboard/master/items", "/dashboard/master/finishing-items", "/dashboard/master/assembly/pannel", "/dashboard/master/assembly/core", "/dashboard/master/machines", "/dashboard/master/operations", "/dashboard/master/item-routings"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const paths = ["/dashboard/master"];
+  const isActive = currentPath.includes("/master");
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
 
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <ListTodo size={18} />
-          {!collapsed && "Master Data"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/master/customers" icon={Form} label="Customers" />
-          <SubMenuLink to="/dashboard/master/items" icon={Form} label="Items" />
-          <SubMenuLink to="/dashboard/master/finishing-items" icon={Form} label="Finishing Items" />
-          <SubMenuLink to="/dashboard/master/assembly/pannel" icon={Form} label="Assembly Pannel" />
-          <SubMenuLink to="/dashboard/master/assembly/core" icon={Form} label="Assembly Core" />
-          <SubMenuLink to="/dashboard/master/machines" icon={Form} label="Machines" />
-          <SubMenuLink to="/dashboard/master/operations" icon={Form} label="Operations" />
-          <SubMenuLink to="/dashboard/master/item-routings" icon={Form} label="Item Routing" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={Warehouse} label="Master Data" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/master/customers" icon={Users} label="Customers" />
+      <SubMenuLink to="/dashboard/master/items" icon={Box} label="Items" />
+      <SubMenuLink to="/dashboard/master/finishing-items" icon={Layers} label="Finishing Items" />
+      <SubMenuLink to="/dashboard/master/assembly/pannel" icon={LayoutGrid} label="Assembly Pannel" />
+      <SubMenuLink to="/dashboard/master/assembly/core" icon={Cpu} label="Assembly Core" />
+      <SubMenuLink to="/dashboard/master/machines" icon={Settings} label="Machines" />
+      <SubMenuLink to="/dashboard/master/operations" icon={Activity} label="Operations" />
+      <SubMenuLink to="/dashboard/master/item-routings" icon={Route} label="Item Routing" />
+    </DropdownWrapper>
   );
 }
 
 function SalesDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/sales/sales-orders", "/dashboard/sales/sales-order-items"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const isActive = currentPath.includes("/sales");
   const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <ListTodo size={18} />
-          {!collapsed && "Sales"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/sales/sales-orders" icon={Form} label="Sales Orders" />
-          <SubMenuLink to="/dashboard/sales/sales-order-items" icon={Form} label="Sales Order Items" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={ShoppingCart} label="Sales Marketing" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/sales/sales-orders" icon={FileText} label="Sales Orders" />
+      <SubMenuLink to="/dashboard/sales/sales-order-items" icon={ClipboardList} label="Order Items" />
+    </DropdownWrapper>
   );
 }
 
 function DemandDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/demand/form", "/dashboard/production/kalender", "/dashboard/packing", "/dashboard/finishing", "/dashboard/assembly"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const isActive = ["demand", "production", "packing", "finishing", "assembly"].some(p => currentPath.includes(p)) && !currentPath.includes("master");
   const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <ListTodo size={18} />
-          {!collapsed && "Demand"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/demand/form" icon={Form} label="Form Demand" />
-          <SubMenuLink to="/dashboard/production/kalender" icon={Form} label="Kalender" />
-          <SubMenuLink to="/dashboard/packing" icon={Form} label="List Packing" />
-          <SubMenuLink to="/dashboard/finishing" icon={Form} label="List Finishing" />
-          <SubMenuLink to="/dashboard/assembly" icon={Form} label="List Assembly" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={GanttChart} label="Production Plan" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/demand/form" icon={FormInput} label="Entry Demand" />
+      <SubMenuLink to="/dashboard/production/kalender" icon={Calendar} label="Prod. Calendar" />
+      <SubMenuLink to="/dashboard/packing" icon={Package} label="List Packing" />
+      <SubMenuLink to="/dashboard/finishing" icon={Layers} label="List Finishing" />
+      <SubMenuLink to="/dashboard/assembly" icon={LayoutGrid} label="List Assembly" />
+    </DropdownWrapper>
   );
 }
 
 function EntryMRPDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/bom/entry"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const isActive = currentPath.includes("/bom");
   const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <ListTodo size={18} />
-          {!collapsed && "BOM"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/bom/entry" icon={Download} label="Bill of Materials" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={Cpu} label="MRP System" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/bom/entry" icon={Download} label="Bill of Materials" />
+    </DropdownWrapper>
+  );
+}
+
+function EntryDropdown({ collapsed, currentPath }) {
+  const isActive = currentPath.includes("data-sync") || currentPath.includes("bahanbaku");
+  const [open, setOpen] = useState(isActive);
+  return (
+    <DropdownWrapper icon={Download} label="Data Sync" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/data-sync" icon={TrendingDown} label="Sync Reject" />
+      <SubMenuLink to="/dashboard/bahanbaku" icon={Trees} label="Sync Bahan Baku" />
+    </DropdownWrapper>
   );
 }
 
 function RejectRateDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/reject-rate/machine", "/dashboard/reject-rate/grading-fg", "/dashboard/reject-rate/grading-fi", "/dashboard/reject-rate/sanding", "/dashboard/reject-rate/hotpress", "/dashboard/reject-rate/blow-detector"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const isActive = currentPath.includes("reject-rate");
   const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <BarChart3 size={18} />
-          {!collapsed && "Reject Rate"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/reject-rate/machine" icon={Factory} label="Machine" />
-          <SubMenuLink to="/dashboard/reject-rate/grading-fg" icon={CheckSquare} label="QC FG" />
-          <SubMenuLink to="/dashboard/reject-rate/grading-fi" icon={ClipboardCheck} label="QC FI" />
-          <SubMenuLink to="/dashboard/reject-rate/sanding" icon={Brush} label="Sanding" />
-          <SubMenuLink to="/dashboard/reject-rate/hotpress" icon={Flame} label="Hotpress" />
-          <SubMenuLink to="/dashboard/reject-rate/blow-detector" icon={Radar} label="Blow Detector" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={BarChart3} label="Quality Control" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/reject-rate/machine" icon={Factory} label="Machine Analysis" />
+      <SubMenuLink to="/dashboard/reject-rate/grading-fg" icon={CheckSquare} label="QC Finish Good" />
+      <SubMenuLink to="/dashboard/reject-rate/grading-fi" icon={ClipboardCheck} label="QC Finish Item" />
+      <SubMenuLink to="/dashboard/reject-rate/sanding" icon={Brush} label="Sanding Report" />
+      <SubMenuLink to="/dashboard/reject-rate/hotpress" icon={Flame} label="Hotpress Report" />
+      <SubMenuLink to="/dashboard/reject-rate/blow-detector" icon={Radar} label="Blow Detector" />
+    </DropdownWrapper>
   );
 }
 
 function BahanBakuDropdown({ collapsed, currentPath }) {
-  const paths = ["/dashboard/bahan-baku/performa", "/dashboard/bahan-baku/asal-log"];
-  const isActive = paths.some((path) => currentPath.startsWith(path));
+  const isActive = currentPath.includes("bahan-baku");
   const [open, setOpen] = useState(isActive);
-  useEffect(() => setOpen(isActive), [isActive]);
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className={`flex items-center justify-between w-full px-3 py-2 rounded-lg transition font-medium
-          ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
-      >
-        <div className="flex items-center gap-3">
-          <Trees size={18} />
-          {!collapsed && "Bahan Baku"}
-        </div>
-        {!collapsed && <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▼</span>}
-      </button>
-      {!collapsed && open && (
-        <div className="mt-1 space-y-1">
-          <SubMenuLink to="/dashboard/bahan-baku/performa" icon={TrendingUpIcon} label="Performa" />
-          <SubMenuLink to="/dashboard/bahan-baku/asal-log" icon={Upload} label="Asal LOG" />
-        </div>
-      )}
-    </div>
+    <DropdownWrapper icon={Trees} label="Raw Material" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
+      <SubMenuLink to="/dashboard/bahan-baku/performa" icon={TrendingUpIcon} label="Performance" />
+      <SubMenuLink to="/dashboard/bahan-baku/asal-log" icon={Container} label="Log Origins" />
+    </DropdownWrapper>
   );
 }

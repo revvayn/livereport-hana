@@ -7,7 +7,7 @@ export default function FinishingItems() {
   const [form, setForm] = useState({ 
     finishing_code: "", 
     description: "", 
-    warehouse: "WIPA"
+    warehouse: "FGOD"
   });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);

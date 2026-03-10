@@ -43,11 +43,12 @@ export default function SalesOrders() {
     if (!form.so_number || !form.so_date || !form.customer_id) {
       return Swal.fire("Error", "SO Number, SO Date, dan Customer wajib diisi", "warning");
     }
-
+  
     try {
       setLoading(true);
       if (editId) {
-        await api.put(`/sales/sales-orders/${editId}`, form);
+        // PERBAIKAN: Sesuaikan URL agar sama dengan struktur fetch/post
+        await api.put(`/sales-orders/${editId}`, form); 
         Swal.fire("Berhasil", "Sales order diupdate", "success");
       } else {
         await api.post("/sales-orders", form);
@@ -57,6 +58,8 @@ export default function SalesOrders() {
       fetchSalesOrders();
     } catch (err) {
       console.error(err);
+      // Tips: Tambahkan logging detail untuk melihat pesan error asli dari server
+      console.log("Error Response Data:", err.response?.data);
       Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan sales order", "error");
     } finally {
       setLoading(false);
