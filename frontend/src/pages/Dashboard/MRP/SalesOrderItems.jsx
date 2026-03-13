@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+import Select from "react-select";
+import { 
+  Package, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  Loader2, 
+  PlusCircle, 
+  ClipboardList, 
+  Calculator,
+  ArrowRightCircle
+} from "lucide-react";
 
 export default function SalesOrderItems() {
   const [selectedSOId, setSelectedSOId] = useState("");
@@ -21,6 +33,7 @@ export default function SalesOrderItems() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const [resSO, resItems] = await Promise.all([
           api.get("/sales-orders"),
           api.get("/sales-order-items/master-items")
@@ -29,6 +42,8 @@ export default function SalesOrderItems() {
         setAllItems(resItems.data || []);
       } catch (err) {
         Swal.fire("Error", "Gagal load data master", "error");
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -39,6 +54,9 @@ export default function SalesOrderItems() {
       fetchItems(selectedSOId);
       const so = allSalesOrders.find(x => Number(x.id) === Number(selectedSOId));
       setSoNumber(so?.so_number || "");
+    } else {
+      setItems([]);
+      setSoNumber("");
     }
     cancelEdit();
   }, [selectedSOId]);
@@ -53,7 +71,6 @@ export default function SalesOrderItems() {
 
     if (name === "item_id") {
       const master = allItems.find(i => Number(i.id) === Number(value));
-      // ratio_bom di sini sudah hasil (qty / pcs) dari SQL
       nextForm.ratio = master ? parseFloat(master.ratio_bom) : 0;
     }
 
@@ -61,7 +78,6 @@ export default function SalesOrderItems() {
     const r = nextForm.ratio;
 
     if (p && r) {
-      // Hasil Qty SO = Pcs Input * Ratio BOM
       const rawQty = parseFloat(p) * r;
       nextForm.quantity = parseFloat(rawQty.toFixed(6));
     } else {
@@ -72,7 +88,10 @@ export default function SalesOrderItems() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!selectedSOId) return Swal.fire("Peringatan", "Pilih Sales Order terlebih dahulu", "warning");
+
     try {
+      setLoading(true);
       const payload = {
         item_id: parseInt(form.item_id),
         quantity: parseFloat(form.quantity),
@@ -80,14 +99,20 @@ export default function SalesOrderItems() {
         sales_order_id: parseInt(selectedSOId)
       };
 
-      if (editId) await api.put(`/sales-order-items/${editId}`, payload);
-      else await api.post("/sales-order-items", payload);
+      if (editId) {
+        await api.put(`/sales-order-items/${editId}`, payload);
+        Swal.fire({ icon: 'success', title: 'Updated', text: 'Item diperbarui', timer: 1500, showConfirmButton: false });
+      } else {
+        await api.post("/sales-order-items", payload);
+        Swal.fire({ icon: 'success', title: 'Added', text: 'Item ditambahkan', timer: 1500, showConfirmButton: false });
+      }
 
-      Swal.fire("Berhasil", "Data tersimpan", "success");
       cancelEdit();
       fetchItems(selectedSOId);
     } catch (err) {
-      Swal.fire("Error", "Gagal simpan", "error");
+      Swal.fire("Error", "Gagal simpan data", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -95,107 +120,228 @@ export default function SalesOrderItems() {
     setEditId(null);
     setForm({ item_id: "", quantity: "", pcs: "", ratio: 0 });
   };
+
   const handleDelete = async (id) => {
     const confirm = await Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Item ini akan dihapus dari Sales Order",
+      title: "Hapus Item?",
+      text: "Item akan dihapus dari daftar Sales Order ini",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Ya, Hapus!",
+      confirmButtonColor: "#0f172a",
+      cancelButtonColor: "#94a3b8",
+      confirmButtonText: "Ya, Hapus"
     });
 
     if (confirm.isConfirmed) {
       try {
         await api.delete(`/sales-order-items/${id}`);
-        Swal.fire("Terhapus!", "Item berhasil dihapus.", "success");
-        fetchItems(selectedSOId); // Refresh tabel setelah hapus
+        Swal.fire("Terhapus", "Item berhasil dihapus", "success");
+        fetchItems(selectedSOId);
       } catch (err) {
-        Swal.fire("Error", "Gagal menghapus item: " + (err.response?.data?.error || err.message), "error");
+        Swal.fire("Error", "Gagal menghapus item", "error");
       }
     }
   };
+
+  // Styling untuk React Select agar konsisten dengan tema Slate
+  const customSelectStyles = {
+    control: (base) => ({
+      ...base,
+      backgroundColor: '#f8fafc',
+      borderColor: '#e2e8f0',
+      borderRadius: '0.5rem',
+      fontSize: '14px',
+      padding: '2px'
+    }),
+    option: (base, state) => ({
+      ...base,
+      fontSize: '13px',
+      backgroundColor: state.isSelected ? '#0f172a' : state.isFocused ? '#f1f5f9' : 'white'
+    })
+  };
+
   return (
-    <div className="p-6 bg-white border rounded-lg max-w-6xl mx-auto">
-      <h1 className="text-xl font-bold mb-4 border-b pb-2">Items for {soNumber || "..."}</h1>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
+        {/* Header Section */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
+              <ClipboardList size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SO Item Management</h1>
+              <p className="text-sm text-slate-500">Detail produk untuk: <span className="font-bold text-blue-600">{soNumber || "Pilih SO"}</span></p>
+            </div>
+          </div>
 
-      <div className="mb-6">
-        <label className="block text-xs font-bold text-gray-500 mb-1">Pilih Sales Order</label>
-        <select
-          className="w-full md:w-1/2 p-2 border border-gray-300 rounded text-sm bg-white"
-          value={selectedSOId}
-          onChange={(e) => setSelectedSOId(e.target.value)}
-        >
-          <option value="">-- Pilih Sales Order --</option>
-          {allSalesOrders.map((so) => (
-            <option key={so.id} value={so.id}>
-              {so.so_number} - {so.customer_name} {/* Menambahkan Nama Customer */}
-            </option>
-          ))}
-        </select>
+          <div className="w-full md:w-80">
+            <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block ml-1">Pilih Sales Order</label>
+            <select
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-slate-900 outline-none transition-all"
+              value={selectedSOId}
+              onChange={(e) => setSelectedSOId(e.target.value)}
+            >
+              <option value="">-- Cari Nomor SO --</option>
+              {allSalesOrders.map((so) => (
+                <option key={so.id} value={so.id}>
+                  {so.so_number} - {so.customer_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Input Form Card */}
+        {selectedSOId ? (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4 duration-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+              <PlusCircle size={16} />
+              {editId ? "Edit Item Pesanan" : "Tambah Item ke Pesanan"}
+            </h2>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              <div className="md:col-span-5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Pilih Item / Produk</label>
+                <select
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-slate-900 outline-none"
+                  value={form.item_id}
+                  onChange={(e) => handleFormChange("item_id", e.target.value)}
+                  required
+                >
+                  <option value="">-- Pilih Produk --</option>
+                  {allItems.map(i => <option key={i.id} value={i.id}>{i.item_code} - {i.description}</option>)}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Jumlah (Pcs)</label>
+                <input 
+                  type="number" 
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-slate-900 outline-none font-bold" 
+                  value={form.pcs} 
+                  onChange={(e) => handleFormChange("pcs", e.target.value)} 
+                  placeholder="0"
+                  required 
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 flex items-center gap-1">
+                  <Calculator size={10} /> Total Volume (m³)
+                </label>
+                <input 
+                  type="number" 
+                  className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm font-mono text-slate-500 cursor-not-allowed" 
+                  value={form.quantity} 
+                  readOnly 
+                />
+              </div>
+
+              <div className="md:col-span-2 flex gap-2">
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className={`flex-1 py-2.5 rounded-lg text-white text-xs font-black transition-all ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200'}`}
+                >
+                  {loading ? <Loader2 className="animate-spin mx-auto" size={18} /> : editId ? 'UPDATE' : 'TAMBAH'}
+                </button>
+                {editId && (
+                  <button 
+                    type="button"
+                    onClick={cancelEdit}
+                    className="p-2.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-100 p-8 rounded-xl text-center">
+            <ArrowRightCircle className="mx-auto text-blue-400 mb-2" size={32} />
+            <p className="text-blue-700 font-medium">Silakan pilih Nomor Sales Order di atas untuk mengelola item.</p>
+          </div>
+        )}
+
+        {/* Table List Card */}
+        {selectedSOId && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Informasi Produk</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Pcs</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Volume (m³)</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.length > 0 ? (
+                    items.map(i => (
+                      <tr key={i.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 rounded text-slate-600">
+                              <Package size={16} />
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900">{i.item_code}</div>
+                              <div className="text-[11px] text-slate-400 uppercase tracking-tight">{i.description}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-bold text-xs">
+                            {i.pcs} <span className="text-[10px] font-normal text-slate-400 ml-1">Pcs</span>
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                            {new Intl.NumberFormat('id-ID', {
+                              minimumFractionDigits: 4,
+                              maximumFractionDigits: 4
+                            }).format(i.quantity)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2 justify-center">
+                            <button 
+                              onClick={() => {
+                                setEditId(i.id);
+                                const m = allItems.find(x => Number(x.id) === Number(i.item_id));
+                                setForm({ item_id: i.item_id, pcs: i.pcs, quantity: i.quantity, ratio: m?.ratio_bom || 0 });
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(i.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                        Belum ada item untuk Sales Order ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6 items-end bg-gray-50 p-4 rounded">
-        <div className="md:col-span-2">
-          <label className="block text-[10px] font-bold uppercase">Item</label>
-          <select
-            className="w-full p-2 border rounded bg-white text-sm"
-            value={form.item_id}
-            onChange={(e) => handleFormChange("item_id", e.target.value)}
-            required
-          >
-            <option value="">-- Choose Item --</option>
-            {allItems.map(i => <option key={i.id} value={i.id}>{i.item_code} - {i.description}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold uppercase">Pcs</label>
-          <input type="number" className="w-full p-2 border rounded text-sm" value={form.pcs} onChange={(e) => handleFormChange("pcs", e.target.value)} required />
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-gray-400">Total Qty (m3)</label>
-          <input type="number" className="w-full p-2 border rounded text-sm bg-gray-100" value={form.quantity} readOnly />
-        </div>
-        <button className={`p-2 rounded font-bold text-white text-sm ${editId ? 'bg-orange-500' : 'bg-blue-600'}`}>
-          {editId ? 'UPDATE' : 'ADD'}
-        </button>
-      </form>
-
-      <table className="w-full border-collapse text-sm">
-        <thead className="bg-gray-100 text-left">
-          <tr>
-            <th className="border p-2">Item Code</th>
-            <th className="border p-2">Description</th>
-            <th className="border p-2 text-center">Pcs</th>
-            <th className="border p-2 text-center">Qty (m3)</th>
-            <th className="border p-2 text-center">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(i => (
-            <tr key={i.id} className="hover:bg-gray-50">
-              <td className="border p-2 font-bold">{i.item_code}</td>
-              <td className="border p-2">{i.description}</td>
-              <td className="border p-2 text-center">{i.pcs}</td>
-              <td className="border p-2 text-center font-bold">
-                {new Intl.NumberFormat('id-ID', {
-                  minimumFractionDigits: 4,
-                  maximumFractionDigits: 4
-                }).format(i.quantity)}
-              </td>
-              <td className="border p-2 text-center">
-                <button onClick={() => {
-                  setEditId(i.id);
-                  const m = allItems.find(x => Number(x.id) === Number(i.item_id));
-                  setForm({ item_id: i.item_id, pcs: i.pcs, quantity: i.quantity, ratio: m?.ratio_bom || 0 });
-                }} className="text-blue-600 mr-2">Edit</button>
-                <button onClick={() => handleDelete(i.id)} className="text-red-600">Hapus</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

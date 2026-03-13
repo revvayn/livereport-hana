@@ -169,8 +169,8 @@ export default function ItemRoutings() {
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">1. Packing (Item)</label>
               <Select
                 placeholder="Pilih Item..."
-                options={formatOptions(masters.items, 'item_code', 'item_desc')}
-                value={formatOptions(masters.items, 'item_code', 'item_desc').find(o => o.value === form.item_code)}
+                options={formatOptions(masters.items, 'item_code', 'description')}
+                value={formatOptions(masters.items, 'item_code', 'description').find(o => o.value === form.item_code)}
                 onChange={(opt) => setForm({...form, item_code: opt ? opt.value : ""})}
                 styles={customStyles}
                 isClearable
