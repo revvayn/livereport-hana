@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import api from "../../api/api";
 import Swal from "sweetalert2";
-import { User, Lock, Mail, Edit3, Save, ShieldCheck, Loader2, BadgeCheck, Fingerprint, LogOut } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion"; // Pastikan install framer-motion
+import { 
+    User, Lock, Mail, Edit3, Save, ShieldCheck, 
+    Loader2, BadgeCheck, Fingerprint, X, ChevronRight 
+} from "lucide-react";
 
 function VerifikatorProfile() {
     const [profile, setProfile] = useState(null);
@@ -10,7 +14,6 @@ function VerifikatorProfile() {
     const [isSaving, setIsSaving] = useState(false);
 
     const [form, setForm] = useState({ nama_lengkap: "", email: "" });
-    const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
 
     useEffect(() => { fetchProfile(); }, []);
 
@@ -19,7 +22,10 @@ function VerifikatorProfile() {
             const res = await api.get("/auth/me");
             if (res.data.success) {
                 setProfile(res.data.user);
-                setForm({ nama_lengkap: res.data.user.nama_lengkap, email: res.data.user.email || "" });
+                setForm({ 
+                    nama_lengkap: res.data.user.nama_lengkap, 
+                    email: res.data.user.email || "" 
+                });
             }
         } catch {
             Swal.fire("Error", "Gagal mengambil profil", "error");
@@ -33,198 +39,209 @@ function VerifikatorProfile() {
             if (res.data.success) {
                 setProfile(res.data.user);
                 setEditMode(false);
-                Swal.fire({ icon: 'success', title: 'Berhasil', showConfirmButton: false, timer: 1000 });
+                Swal.fire({ icon: 'success', title: 'Profil Diperbarui', showConfirmButton: false, timer: 1000 });
             }
         } catch (err) {
             Swal.fire("Error", err.response?.data?.message || "Gagal", "error");
         } finally { setIsSaving(false); }
     };
 
-    if (!profile) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" /></div>;
+    if (!profile) return (
+        <div className="h-full w-full flex items-center justify-center bg-white">
+            <div className="flex flex-col items-center gap-3">
+                <Loader2 className="animate-spin text-slate-400" size={32} />
+                <span className="text-xs font-medium text-slate-400 tracking-widest uppercase">Initializing</span>
+            </div>
+        </div>
+    );
 
     return (
-        /* Gunakan h-full agar mengikuti sisa tinggi container dashboard (main content area) */
-        <div className="h-full w-full bg-[#F4F7FE] p-4 flex flex-col overflow-hidden font-sans">
-            
-            {/* Grid Container yang dipaksa mengisi sisa ruang (min-h-0 penting untuk mencegah overflow) */}
-            <div className="flex-1 grid grid-cols-12 gap-5 min-h-0">
+        <div className="h-full w-full bg-white md:bg-[#fafafa] p-4 md:p-8 flex flex-col font-sans">
+            <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col min-h-0">
                 
-                {/* --- LEFT COLUMN: IDENTITY --- */}
-                <div className="col-span-12 lg:col-span-4 h-full flex flex-col min-h-0">
-                    <div className="bg-white flex-1 rounded-[2.5rem] shadow-sm border border-white flex flex-col items-center justify-between p-6 relative overflow-hidden">
-                        {/* Decorative Header */}
-                        <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-indigo-600 to-blue-500" />
-                        
-                        <div className="relative z-10 flex flex-col items-center mt-4 w-full">
-                            <div className="w-24 h-24 rounded-full border-[6px] border-white bg-white shadow-xl flex items-center justify-center text-4xl font-black text-indigo-600 mb-4 transition-transform hover:scale-105">
-                                {profile.nama_lengkap?.charAt(0)}
+                {/* Header Area */}
+                <header className="mb-8 flex justify-between items-end">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Account Settings</h1>
+                        <p className="text-sm text-slate-500">Kelola informasi profil dan keamanan akun Anda.</p>
+                    </div>
+                </header>
+
+                <div className="flex-1 grid grid-cols-12 gap-8 min-h-0">
+                    
+                    {/* --- LEFT: NAV & IDENTITY --- */}
+                    <div className="col-span-12 lg:col-span-4 space-y-6">
+                        {/* Profile Summary Card */}
+                        <div className="bg-white rounded-3xl border border-slate-200/60 p-6 shadow-sm">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 rounded-2xl bg-slate-900 flex items-center justify-center text-white text-xl font-medium shadow-lg shadow-slate-200">
+                                    {profile.nama_lengkap?.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-lg font-bold text-slate-900 truncate">{profile.nama_lengkap}</h2>
+                                    <p className="text-xs font-medium text-indigo-600 uppercase tracking-wider flex items-center gap-1">
+                                        <BadgeCheck size={12} /> {profile.role || "Verifikator"}
+                                    </p>
+                                </div>
                             </div>
                             
-                            <h2 className="text-xl font-black text-slate-800 text-center uppercase tracking-tight truncate w-full px-2">
-                                {profile.nama_lengkap}
-                            </h2>
-                            <div className="mt-1 flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-full">
-                                <BadgeCheck size={14} className="text-indigo-600" />
-                                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">
-                                    {profile.role || "PLANNER"}
-                                </span>
-                            </div>
-
-                            {/* Info Tiles */}
-                            <div className="mt-8 w-full space-y-3">
-                                <div className="flex items-center gap-4 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-md transition-all group">
-                                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-500 transition-colors">
-                                        <Mail size={18} />
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Email Address</p>
-                                        <p className="text-xs font-bold text-slate-700 truncate">{profile.email}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 hover:bg-white hover:shadow-md transition-all group">
-                                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-500 transition-colors">
-                                        <Fingerprint size={18} />
-                                    </div>
-                                    <div className="overflow-hidden">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Username ID</p>
-                                        <p className="text-xs font-bold text-slate-700">{profile.username}</p>
-                                    </div>
-                                </div>
+                            <div className="space-y-1">
+                                <NavButton 
+                                    active={activeTab === "profile"} 
+                                    onClick={() => setActiveTab("profile")}
+                                    icon={<User size={18} />}
+                                    label="Personal Information"
+                                />
+                                <NavButton 
+                                    active={activeTab === "security"} 
+                                    onClick={() => setActiveTab("security")}
+                                    icon={<Lock size={18} />}
+                                    label="Security & Password"
+                                />
                             </div>
                         </div>
 
-                        {/* Branding Version Footer */}
-                        <div className="w-full pt-4 border-t border-slate-50 flex justify-center">
-                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em]">
-                                System Access v3.0
-                            </span>
+                        {/* Quick Info */}
+                        <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">System Identity</h4>
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <Fingerprint size={16} className="text-slate-400" />
+                                    <span className="text-xs text-slate-600 font-mono">{profile.username}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Mail size={16} className="text-slate-400" />
+                                    <span className="text-xs text-slate-600 truncate">{profile.email}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* --- RIGHT COLUMN: ACTIONS --- */}
-                <div className="col-span-12 lg:col-span-8 h-full flex flex-col min-h-0">
-                    <div className="bg-white flex-1 rounded-[2.5rem] shadow-sm border border-white flex flex-col overflow-hidden">
-                        
-                        {/* Tab Navigation (Slimmer) */}
-                        <div className="flex px-8 pt-4 border-b border-slate-50 shrink-0">
-                            {[
-                                { id: "profile", label: "Informasi Personal", icon: <User size={16}/> },
-                                { id: "security", label: "Keamanan Akun", icon: <Lock size={16}/> }
-                            ].map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`pb-4 px-6 text-[11px] font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${
-                                        activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-                                    }`}
-                                >
-                                    {tab.icon} {tab.label}
-                                    {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.3)]" />}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Tab Content (Centered Vertically) */}
-                        <div className="flex-1 p-8 flex flex-col justify-center min-h-0">
-                            {activeTab === "profile" && (
-                                <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <div className="mb-6">
-                                        <h3 className="text-xl font-black text-slate-800 tracking-tight">Profil Verifikator</h3>
-                                        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight">Manajemen data personal sistem</p>
-                                    </div>
-
-                                    <div className="space-y-5">
+                    {/* --- RIGHT: CONTENT AREA --- */}
+                    <div className="col-span-12 lg:col-span-8">
+                        <motion.div 
+                            key={activeTab}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-white h-full rounded-[2rem] border border-slate-200/60 shadow-sm p-8 md:p-10"
+                        >
+                            {activeTab === "profile" ? (
+                                <div className="max-w-xl">
+                                    <div className="flex justify-between items-start mb-10">
                                         <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label>
-                                            <input 
-                                                type="text" 
-                                                value={form.nama_lengkap} 
-                                                disabled={!editMode}
-                                                onChange={(e) => setForm({ ...form, nama_lengkap: e.target.value })}
-                                                className={`w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${editMode ? 'focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 bg-white shadow-inner' : 'opacity-60'}`}
-                                            />
+                                            <h3 className="text-xl font-semibold text-slate-900">Personal Information</h3>
+                                            <p className="text-sm text-slate-500 mt-1">Gunakan nama asli untuk mempermudah verifikasi sistem.</p>
                                         </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Email Korespondensi</label>
-                                            <input 
-                                                type="email" 
-                                                value={form.email} 
-                                                disabled={!editMode}
-                                                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                                className={`w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold text-slate-700 outline-none transition-all ${editMode ? 'focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 bg-white shadow-inner' : 'opacity-60'}`}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-8 flex gap-3">
-                                        {!editMode ? (
+                                        {!editMode && (
                                             <button 
                                                 onClick={() => setEditMode(true)}
-                                                className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
+                                                className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors"
                                             >
-                                                <Edit3 size={14} /> Edit Profil
+                                                <Edit3 size={14} /> Edit
                                             </button>
-                                        ) : (
-                                            <>
-                                                <button onClick={() => setEditMode(false)} className="px-6 py-3.5 bg-slate-100 text-slate-500 rounded-2xl text-[11px] font-black uppercase hover:bg-slate-200 transition-all">
-                                                    Batal
-                                                </button>
-                                                <button 
-                                                    onClick={handleUpdate} 
-                                                    disabled={isSaving}
-                                                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.1em] shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50"
-                                                >
-                                                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
-                                                    Simpan Perubahan
-                                                </button>
-                                            </>
                                         )}
                                     </div>
+
+                                    <div className="space-y-6">
+                                        <InputGroup 
+                                            label="Full Name" 
+                                            value={form.nama_lengkap} 
+                                            disabled={!editMode}
+                                            onChange={(val) => setForm({...form, nama_lengkap: val})}
+                                        />
+                                        <InputGroup 
+                                            label="Email Address" 
+                                            value={form.email} 
+                                            disabled={!editMode}
+                                            onChange={(val) => setForm({...form, email: val})}
+                                        />
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {editMode && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0 }}
+                                                className="mt-12 flex items-center gap-3 pt-6 border-t border-slate-50"
+                                            >
+                                                <button 
+                                                    onClick={() => setEditMode(false)}
+                                                    className="px-6 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    onClick={handleUpdate}
+                                                    disabled={isSaving}
+                                                    className="flex items-center gap-2 px-8 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50"
+                                                >
+                                                    {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                    Save Changes
+                                                </button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                            )}
-
-                            {activeTab === "security" && (
-                                <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <div className="mb-4">
-                                        <h3 className="text-xl font-black text-slate-800 tracking-tight">Keamanan</h3>
-                                        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight">Kredensial Autentikasi</p>
+                            ) : (
+                                <div className="max-w-xl">
+                                    <div className="mb-10">
+                                        <h3 className="text-xl font-semibold text-slate-900">Security</h3>
+                                        <p className="text-sm text-slate-500 mt-1">Pastikan akun Anda tetap aman dengan password yang kuat.</p>
                                     </div>
 
-                                    <div className="bg-orange-50/50 border border-orange-100 p-4 rounded-2xl flex gap-4 items-center mb-6">
-                                        <ShieldCheck className="text-orange-500" size={24} />
-                                        <p className="text-[10px] text-orange-700 leading-relaxed font-bold uppercase">Ganti password secara berkala untuk menjaga keamanan data.</p>
+                                    <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-2xl flex gap-3 items-start mb-8 text-amber-800">
+                                        <ShieldCheck size={18} className="shrink-0 mt-0.5" />
+                                        <p className="text-xs leading-relaxed">Sistem mewajibkan penggantian password secara berkala setiap 90 hari untuk keamanan data verifikasi.</p>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Password Sekarang</label>
-                                            <input 
-                                                type="password" 
-                                                placeholder="••••••••"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-red-400 focus:ring-4 focus:ring-red-500/5 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Password Baru</label>
-                                            <input 
-                                                type="password" 
-                                                placeholder="••••••••"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                                            />
-                                        </div>
-                                        <button className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] mt-2 shadow-xl hover:bg-black active:scale-95 transition-all">
+                                    <div className="space-y-6">
+                                        <InputGroup label="Current Password" type="password" placeholder="••••••••" />
+                                        <InputGroup label="New Password" type="password" placeholder="••••••••" />
+                                        <button className="w-full mt-4 py-3 bg-slate-900 text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-black transition-all">
                                             Update Password
                                         </button>
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </motion.div>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
+
+// Sub-component agar kode lebih bersih
+const NavButton = ({ active, onClick, icon, label }) => (
+    <button 
+        onClick={onClick}
+        className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all ${
+            active ? 'bg-slate-50 text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'
+        }`}
+    >
+        <div className="flex items-center gap-3">
+            <span className={active ? 'text-indigo-600' : ''}>{icon}</span>
+            <span className="text-sm font-medium">{label}</span>
+        </div>
+        {active && <ChevronRight size={14} className="text-slate-300" />}
+    </button>
+);
+
+const InputGroup = ({ label, value, disabled, onChange, type = "text", placeholder }) => (
+    <div className="space-y-1.5">
+        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">{label}</label>
+        <input 
+            type={type}
+            value={value}
+            disabled={disabled}
+            placeholder={placeholder}
+            onChange={(e) => onChange?.(e.target.value)}
+            className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none transition-all ${
+                !disabled ? 'focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 ring-inset' : 'bg-slate-50/50 text-slate-400 border-slate-100 cursor-not-allowed'
+            }`}
+        />
+    </div>
+);
 
 export default VerifikatorProfile;

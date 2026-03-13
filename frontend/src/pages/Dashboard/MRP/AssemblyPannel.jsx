@@ -1,27 +1,29 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+// Menggunakan ikon Lucide yang konsisten
+import { Layout, Search, Edit2, Trash2, Loader2, PlusCircle, Database } from "lucide-react";
 
 export default function AssemblyPannel() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ 
     assembly_code: "", 
     description: "", 
-    warehouse: "" 
+    warehouse: "PFIN" 
   });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+
   const API_PATH = "/assembly/pannel"; 
 
   /* ================= FETCH DATA ================= */
-  const fetchItems = async () => {
+  const fetchItems = async (keyword = "") => {
     try {
       setLoading(true);
-      const res = await api.get(API_PATH);
-      // Backend mengembalikan res.json(result.rows)
+      const res = await api.get(`${API_PATH}?search=${keyword}`);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Fetch error:", err.response?.data || err.message);
       Swal.fire("Error", "Gagal mengambil data assembly pannel", "error");
       setItems([]);
     } finally {
@@ -30,42 +32,36 @@ export default function AssemblyPannel() {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    fetchItems(search);
+  }, [search]);
 
   /* ================= ADD / UPDATE ================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validasi sederhana
-    if (!form.assembly_code.trim()) {
-      return Swal.fire("Peringatan", "Kode Assembly tidak boleh kosong", "warning");
+    if (!form.assembly_code.trim() || !form.description.trim()) {
+      return Swal.fire("Peringatan", "Kode dan Deskripsi wajib diisi", "warning");
     }
 
     try {
       setLoading(true);
       if (editId) {
-        // Mode Update
         await api.put(`${API_PATH}/${editId}`, form);
-        Swal.fire("Berhasil", "Data Pannel berhasil diperbarui", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data Pannel diperbarui', timer: 1500, showConfirmButton: false });
       } else {
-        // Mode Create
         await api.post(API_PATH, form);
-        Swal.fire("Berhasil", "Data Pannel berhasil ditambahkan", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data Pannel ditambahkan', timer: 1500, showConfirmButton: false });
       }
       
       handleReset();
       fetchItems();
     } catch (err) {
-      console.error("Save error:", err.response?.data || err.message);
-      const errorMsg = err.response?.data?.error || "Terjadi kesalahan saat menyimpan data";
-      Swal.fire("Gagal", errorMsg, "error");
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= EDIT HANDLER ================= */
+  /* ================= ACTIONS ================= */
   const handleEdit = (item) => {
     setForm({
       assembly_code: item.assembly_code,
@@ -73,37 +69,33 @@ export default function AssemblyPannel() {
       warehouse: item.warehouse || "PFIN",
     });
     setEditId(item.id);
-    // Scroll ke atas agar user sadar sedang mode edit
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  /* ================= RESET HANDLER ================= */
   const handleReset = () => {
     setForm({ assembly_code: "", description: "", warehouse: "PFIN" });
     setEditId(null);
   };
 
-  /* ================= DELETE HANDLER ================= */
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Data assembly pannel ini akan dihapus permanen!",
+    const confirm = await Swal.fire({
+      title: "Hapus Data?",
+      text: "Data yang dihapus tidak dapat dikembalikan",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Ya, hapus!",
+      confirmButtonColor: "#0f172a", // Slate-900
+      cancelButtonColor: "#94a3b8", // Slate-400
+      confirmButtonText: "Ya, Hapus",
       cancelButtonText: "Batal"
     });
 
-    if (result.isConfirmed) {
+    if (confirm.isConfirmed) {
       try {
         setLoading(true);
         await api.delete(`${API_PATH}/${id}`);
-        Swal.fire("Dihapus!", "Data telah berhasil dihapus.", "success");
         fetchItems();
+        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
       } catch (err) {
-        console.error("Delete error:", err.response?.data || err.message);
         Swal.fire("Gagal", "Gagal menghapus data", "error");
       } finally {
         setLoading(false);
@@ -112,118 +104,145 @@ export default function AssemblyPannel() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 w-full max-w-6xl mx-auto my-4">
-      <div className="flex justify-between items-center mb-6 pb-2 border-b">
-        <h1 className="text-2xl font-bold text-gray-800">Master Assembly Pannel</h1>
-        {editId && (
-          <button 
-            onClick={handleReset}
-            className="text-sm text-red-500 hover:underline font-medium"
-          >
-            Batal Edit
-          </button>
-        )}
-      </div>
-
-      {/* Form Section */}
-      <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-lg mb-8 flex gap-3 flex-wrap items-end border border-gray-100">
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Kode Assembly</label>
-          <input
-            type="text"
-            className="w-full border border-gray-300 p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-            placeholder="Contoh: ASSY-PNL-001"
-            value={form.assembly_code}
-            onChange={(e) => setForm({ ...form, assembly_code: e.target.value })}
-          />
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
+              <Layout size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Assembly Pannel</h1>
+              <p className="text-sm text-slate-500">Kelola komponen panel untuk lini perakitan</p>
+            </div>
+          </div>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text"
+              placeholder="Cari kode panel..."
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="flex-[2] min-w-[300px]">
-          <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Deskripsi</label>
-          <input
-            type="text"
-            className="w-full border border-gray-300 p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-            placeholder="Keterangan barang..."
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+        {/* Form Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <PlusCircle size={16} />
+            {editId ? "Update Informasi Pannel" : "Registrasi Pannel Baru"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-mono font-bold uppercase"
+              placeholder="Kode (Cth: ASSY-PNL)"
+              value={form.assembly_code}
+              onChange={(e) => setForm({ ...form, assembly_code: e.target.value.toUpperCase() })}
+            />
+            <input
+              type="text"
+              className="md:col-span-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
+              placeholder="Deskripsi Komponen Panel"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-bold uppercase"
+              placeholder="Warehouse (PFIN)"
+              value={form.warehouse}
+              onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
+                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                } disabled:opacity-50`}
+              >
+                {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
+              </button>
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-4 py-2.5 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition-all"
+                >
+                  BATAL
+                </button>
+              )}
+            </div>
+          </form>
         </div>
 
-        <div className="w-32">
-          <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Warehouse</label>
-          <input
-            type="text"
-            className="w-full border border-gray-300 p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-            placeholder="PFIN"
-            value={form.warehouse}
-            onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className={`px-8 py-2 rounded text-sm font-bold text-white shadow-sm transition-all h-[38px] ${
-            editId 
-              ? "bg-orange-500 hover:bg-orange-600 active:scale-95" 
-              : "bg-blue-600 hover:bg-blue-700 active:scale-95"
-          } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-        >
-          {loading ? "PROSES..." : editId ? "UPDATE DATA" : "SIMPAN BARU"}
-        </button>
-      </form>
-
-      {/* Table Section */}
-      <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
-        <table className="w-full border-collapse bg-white text-sm text-left">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr className="text-gray-600 uppercase text-[11px] font-bold tracking-wider">
-              <th className="p-4 w-16">ID</th>
-              <th className="p-4 w-56">Kode Assembly</th>
-              <th className="p-4">Deskripsi</th>
-              <th className="p-4 w-32">Warehouse</th>
-              <th className="p-4 w-40 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {items.length > 0 ? (
-              items.map((i) => (
-                <tr key={i.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="p-4 text-gray-400 font-medium">{i.id}</td>
-                  <td className="p-4 font-mono font-bold text-blue-700">{i.assembly_code}</td>
-                  <td className="p-4 text-gray-600">{i.description || "-"}</td>
-                  <td className="p-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
-                      {i.warehouse}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex gap-4 justify-center">
-                      <button 
-                        onClick={() => handleEdit(i)} 
-                        className="text-blue-600 hover:text-blue-800 font-semibold text-xs uppercase tracking-tight"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(i.id)} 
-                        className="text-red-500 hover:text-red-700 font-semibold text-xs uppercase tracking-tight"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </td>
+        {/* Table Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Kode Assembly</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center py-20 text-gray-400 italic bg-gray-50/50">
-                  {loading ? "Sedang menyinkronkan data..." : "Data Pannel tidak ditemukan."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.length > 0 ? (
+                  items.map((i) => (
+                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4 text-sm text-slate-400 font-medium">#{i.id}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
+                          {i.assembly_code}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{i.description || "-"}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Database size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{i.warehouse}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={() => handleEdit(i)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(i.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Hapus"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">
+                      {loading ? "Menghubungkan ke server..." : "Tidak ada data pannel ditemukan."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

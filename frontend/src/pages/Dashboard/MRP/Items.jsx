@@ -1,21 +1,23 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+// Menggunakan library ikon yang sama dengan Customer.jsx
+import { Package, Search, Edit2, Trash2, Loader2, PlusCircle } from "lucide-react";
 
 export default function Items() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ item_code: "", description: "", uom: "", warehouse: "GPAK" });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
-  /* ================= FETCH ================= */
-  const fetchItems = async () => {
+  const fetchItems = async (keyword = "") => {
     try {
       setLoading(true);
-      const res = await api.get("/items");
+      // Mengikuti pola search yang sama dengan Customers.jsx
+      const res = await api.get(`/items?search=${keyword}`);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Fetch error:", err.response?.data || err.message);
       Swal.fire("Error", "Gagal mengambil data items", "error");
       setItems([]);
     } finally {
@@ -24,175 +26,214 @@ export default function Items() {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    fetchItems(search);
+  }, [search]);
 
-  /* ================= ADD / UPDATE ================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Perbaikan: Validasi menggunakan form.warehouse, bukan item_type
-    if (!form.item_code || !form.warehouse) {
-      return Swal.fire("Error", "Item code dan Warehouse wajib diisi", "warning");
+    if (!form.item_code || !form.description) {
+      return Swal.fire("Peringatan", "Kode dan Deskripsi wajib diisi", "warning");
     }
 
     try {
       setLoading(true);
       if (editId) {
         await api.put(`/items/${editId}`, form);
-        Swal.fire("Berhasil", "Item berhasil diupdate", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data diperbarui', timer: 1500, showConfirmButton: false });
       } else {
         await api.post("/items", form);
-        Swal.fire("Berhasil", "Item berhasil ditambahkan", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1500, showConfirmButton: false });
       }
-      // Perbaikan: Reset form menggunakan field yang benar
       setForm({ item_code: "", description: "", uom: "", warehouse: "GPAK" });
       setEditId(null);
       fetchItems();
     } catch (err) {
-      console.error("Save error:", err.response?.data || err.message);
-      Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan item", "error");
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= EDIT ================= */
   const handleEdit = (item) => {
     setForm({
       item_code: item.item_code,
-      description: item.description || "",
+      description: item.description,
       uom: item.uom || "",
-      warehouse: item.warehouse || "GPAK",
+      warehouse: item.warehouse || "GPAK"
     });
     setEditId(item.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  /* ================= DELETE ================= */
   const handleDelete = async (id) => {
     const confirm = await Swal.fire({
-      title: "Hapus item?",
-      text: "Data tidak bisa dikembalikan!",
+      title: "Hapus Data?",
+      text: "Data yang dihapus tidak dapat dikembalikan",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Ya, hapus",
-      cancelButtonText: "Batal",
-      confirmButtonColor: "#dc2626",
+      confirmButtonColor: "#0f172a", // Slate-900 (Sesuai Customer.jsx)
+      cancelButtonColor: "#94a3b8", // Slate-400 (Sesuai Customer.jsx)
+      confirmButtonText: "Ya, Hapus",
+      cancelButtonText: "Batal"
     });
-    if (!confirm.isConfirmed) return;
 
-    try {
-      setLoading(true);
-      await api.delete(`/items/${id}`);
-      Swal.fire("Berhasil", "Item berhasil dihapus", "success");
-      fetchItems();
-    } catch (err) {
-      console.error("Delete error:", err.response?.data || err.message);
-      Swal.fire("Gagal", err.response?.data?.error || "Gagal menghapus item", "error");
-    } finally {
-      setLoading(false);
+    if (confirm.isConfirmed) {
+      try {
+        setLoading(true);
+        await api.delete(`/items/${id}`);
+        fetchItems();
+        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
+      } catch (err) {
+        Swal.fire("Gagal", "Tidak dapat menghapus data", "error");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto">
-      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200">Master Data Items</h1>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
 
-      {/* Form Sederhana */}
-      <form onSubmit={handleSubmit} className="mb-6 flex gap-2 flex-wrap">
-        <input
-          type="text"
-          className="border border-gray-300 p-2 rounded text-sm w-40 focus:outline-none focus:border-blue-500"
-          placeholder="Kode Item"
-          value={form.item_code}
-          onChange={(e) => setForm({ ...form, item_code: e.target.value })}
-        />
-        <input
-          type="text"
-          className="border border-gray-300 p-2 rounded flex-1 min-w-[200px] text-sm focus:outline-none focus:border-blue-500"
-          placeholder="Deskripsi Barang"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-        <input
-          type="text"
-          className="border border-gray-300 p-2 rounded text-sm w-20 focus:outline-none focus:border-blue-500"
-          placeholder="UOM"
-          value={form.uom}
-          onChange={(e) => setForm({ ...form, uom: e.target.value })}
-        />
-        <input
-          type="text"
-          className="border border-gray-300 p-2 rounded text-sm w-28 focus:outline-none focus:border-blue-500 bg-white"
-          placeholder="Warehouse"
-          value={form.warehouse}
-          onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
-        />
+        {/* Header Section - Identik dengan Customer.jsx */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
+              <Package size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Items</h1>
+              <p className="text-sm text-slate-500">Kelola inventaris dan spesifikasi barang</p>
+            </div>
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className={`px-6 rounded text-sm font-bold text-white transition-colors ${
-            editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
-        </button>
-      </form>
+          {/* Search Input Tambahan agar lebih modern */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Cari kode atau nama..."
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
 
-      {/* Tabel Standar */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-200 text-sm">
-          <thead className="bg-gray-100">
-            <tr className="text-left uppercase text-xs font-bold text-gray-600">
-              <th className="border border-gray-200 p-3 w-16">ID</th>
-              <th className="border border-gray-200 p-3 w-40">Kode</th>
-              <th className="border border-gray-200 p-3">Deskripsi</th>
-              <th className="border border-gray-200 p-3 w-20">UOM</th>
-              <th className="border border-gray-200 p-3 w-24">Warehouse</th>
-              <th className="border border-gray-200 p-3 w-32 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length > 0 ? (
-              items.map((i) => (
-                <tr key={i.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-200 p-3 text-gray-500">{i.id}</td>
-                  <td className="border border-gray-200 p-3 font-mono font-semibold">{i.item_code}</td>
-                  <td className="border border-gray-200 p-3">{i.description}</td>
-                  <td className="border border-gray-200 p-3 text-center">{i.uom}</td>
-                  <td className="border border-gray-200 p-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                      {i.warehouse}
-                    </span>
-                  </td>
-                  <td className="border border-gray-200 p-3 text-center">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleEdit(i)}
-                        className="text-blue-600 hover:underline font-medium"
-                      >
-                        Edit
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        onClick={() => handleDelete(i.id)}
-                        className="text-red-600 hover:underline font-medium"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </td>
+        {/* Form Card - Struktur 4 kolom (3 Input + 1 Tombol) */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <PlusCircle size={16} />
+            {editId ? "Update Informasi Item" : "Tambah Item Baru"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-mono font-bold"
+              placeholder="Kode Item"
+              value={form.item_code}
+              onChange={(e) => setForm({ ...form, item_code: e.target.value })}
+            />
+            <input
+              type="text"
+              className="md:col-span-1 lg:col-span-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
+              placeholder="Deskripsi Barang"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
+                placeholder="UOM"
+                value={form.uom}
+                onChange={(e) => setForm({ ...form, uom: e.target.value })}
+              />
+              <input
+                type="text"
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-bold"
+                placeholder="WH"
+                value={form.warehouse}
+                onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                } disabled:opacity-50`}
+            >
+              {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
+            </button>
+          </form>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Kode</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi</th>
+                  {/* Kolom dipisah */}
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">UOM</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="text-center p-10 text-gray-400">
-                  {loading ? "Memuat data..." : "Belum ada data item."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.length > 0 ? (
+                  items.map((i) => (
+                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
+                          {i.item_code}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{i.description}</td>
+
+                      {/* Data UOM */}
+                      <td className="px-6 py-4 text-sm font-medium text-slate-600">
+                        {i.uom || '-'}
+                      </td>
+
+                      {/* Data Warehouse dengan Badge Style */}
+                      <td className="px-6 py-4">
+                        <span className="text-[10px] font-black bg-blue-50 text-blue-700 px-2 py-1 rounded uppercase tracking-wider border border-blue-100">
+                          {i.warehouse}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={() => handleEdit(i)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(i.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Hapus"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">
+                      {loading ? "Menghubungkan ke server..." : "Tidak ada data item ditemukan."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

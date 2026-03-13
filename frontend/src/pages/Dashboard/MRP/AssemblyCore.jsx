@@ -1,28 +1,29 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+// Menggunakan ikon yang konsisten dengan tema sebelumnya
+import { Cpu, Search, Edit2, Trash2, Loader2, PlusCircle, Database } from "lucide-react";
 
 export default function AssemblyCore() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ 
     assembly_code: "", 
     description: "", 
-    warehouse: "" 
+    warehouse: "WIPA" 
   });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
-  // Sesuaikan dengan route backend: router.get('/core', ...)
   const API_PATH = "/assembly/core"; 
 
   /* ================= FETCH ================= */
-  const fetchItems = async () => {
+  const fetchItems = async (keyword = "") => {
     try {
       setLoading(true);
-      const res = await api.get(API_PATH);
+      const res = await api.get(`${API_PATH}?search=${keyword}`);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Fetch error:", err.response?.data || err.message);
       Swal.fire("Error", "Gagal mengambil data assembly core", "error");
       setItems([]);
     } finally {
@@ -31,8 +32,8 @@ export default function AssemblyCore() {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    fetchItems(search);
+  }, [search]);
 
   /* ================= ADD / UPDATE ================= */
   const handleSubmit = async (e) => {
@@ -45,24 +46,22 @@ export default function AssemblyCore() {
       setLoading(true);
       if (editId) {
         await api.put(`${API_PATH}/${editId}`, form);
-        Swal.fire("Berhasil", "Data Core berhasil diupdate", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data Core diperbarui', timer: 1500, showConfirmButton: false });
       } else {
         await api.post(API_PATH, form);
-        Swal.fire("Berhasil", "Data Core berhasil ditambahkan", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data Core ditambahkan', timer: 1500, showConfirmButton: false });
       }
       
-      setForm({ assembly_code: "", description: "", warehouse: "WIPA" });
-      setEditId(null);
+      handleReset();
       fetchItems();
     } catch (err) {
-      console.error("Save error:", err.response?.data || err.message);
       Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= EDIT ================= */
+  /* ================= ACTIONS ================= */
   const handleEdit = (item) => {
     setForm({
       assembly_code: item.assembly_code,
@@ -70,148 +69,180 @@ export default function AssemblyCore() {
       warehouse: item.warehouse || "WIPA",
     });
     setEditId(item.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  /* ================= DELETE ================= */
+  const handleReset = () => {
+    setForm({ assembly_code: "", description: "", warehouse: "WIPA" });
+    setEditId(null);
+  };
+
   const handleDelete = async (id) => {
     const confirm = await Swal.fire({
-      title: "Hapus data core?",
-      text: "Data yang dihapus tidak dapat dikembalikan!",
+      title: "Hapus Data?",
+      text: "Data yang dihapus tidak dapat dikembalikan",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Ya, hapus",
-      cancelButtonText: "Batal",
-      confirmButtonColor: "#dc2626",
+      confirmButtonColor: "#0f172a", // Slate-900
+      cancelButtonColor: "#94a3b8", // Slate-400
+      confirmButtonText: "Ya, Hapus",
+      cancelButtonText: "Batal"
     });
 
-    if (!confirm.isConfirmed) return;
-
-    try {
-      setLoading(true);
-      await api.delete(`${API_PATH}/${id}`);
-      Swal.fire("Berhasil", "Data berhasil dihapus", "success");
-      fetchItems();
-    } catch (err) {
-      console.error("Delete error:", err.response?.data || err.message);
-      Swal.fire("Gagal", "Gagal menghapus data", "error");
-    } finally {
-      setLoading(false);
+    if (confirm.isConfirmed) {
+      try {
+        setLoading(true);
+        await api.delete(`${API_PATH}/${id}`);
+        fetchItems();
+        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
+      } catch (err) {
+        Swal.fire("Gagal", "Gagal menghapus data", "error");
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto shadow-sm">
-      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
-        Master Assembly Core
-      </h1>
-
-      {/* Form Section */}
-      <form onSubmit={handleSubmit} className="mb-8 flex gap-3 flex-wrap items-end bg-gray-50 p-4 rounded-md border border-gray-200">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Kode Assembly</label>
-          <input
-            type="text"
-            className="border border-gray-300 p-2 rounded text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            placeholder="Contoh: CORE-001"
-            value={form.assembly_code}
-            onChange={(e) => setForm({ ...form, assembly_code: e.target.value })}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1 flex-1 min-w-[250px]">
-          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Deskripsi</label>
-          <input
-            type="text"
-            className="border border-gray-300 p-2 rounded text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            placeholder="Keterangan komponen core..."
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Warehouse</label>
-          <input
-            type="text"
-            className="border border-gray-300 p-2 rounded text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            placeholder="WIPA"
-            value={form.warehouse}
-            onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className={`px-6 h-[38px] rounded text-sm font-bold text-white transition-all shadow-sm ${
-            editId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {loading ? "..." : editId ? "UPDATE" : "TAMBAH"}
-        </button>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
         
-        {editId && (
-          <button
-            type="button"
-            onClick={() => { setEditId(null); setForm({ assembly_code: "", description: "", warehouse: "WIPA" }); }}
-            className="px-4 h-[38px] rounded text-sm font-bold text-gray-600 bg-gray-200 hover:bg-gray-300 transition-all"
-          >
-            BATAL
-          </button>
-        )}
-      </form>
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
+              <Cpu size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Assembly Core</h1>
+              <p className="text-sm text-slate-500">Kelola komponen inti untuk proses perakitan</p>
+            </div>
+          </div>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text"
+              placeholder="Cari kode assembly..."
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
 
-      {/* Table Section */}
-      <div className="overflow-x-auto rounded-md border border-gray-200">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-gray-100 text-left uppercase text-[11px] font-bold text-gray-600 border-b border-gray-200">
-              <th className="p-3 w-16">ID</th>
-              <th className="p-3 w-48">Kode Assembly</th>
-              <th className="p-3">Deskripsi</th>
-              <th className="p-3 w-32">Warehouse</th>
-              <th className="p-3 w-32 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {items.length > 0 ? (
-              items.map((i) => (
-                <tr key={i.id} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="p-3 text-gray-400">{i.id}</td>
-                  <td className="p-3 font-mono font-bold text-blue-800">{i.assembly_code}</td>
-                  <td className="p-3 text-gray-700">{i.description || "-"}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-gray-200 text-gray-700">
-                      {i.warehouse}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex gap-3 justify-center">
-                      <button
-                        onClick={() => handleEdit(i)}
-                        className="text-blue-600 hover:text-blue-800 font-bold text-xs"
-                      >
-                        EDIT
-                      </button>
-                      <button
-                        onClick={() => handleDelete(i.id)}
-                        className="text-red-500 hover:text-red-700 font-bold text-xs"
-                      >
-                        HAPUS
-                      </button>
-                    </div>
-                  </td>
+        {/* Form Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <PlusCircle size={16} />
+            {editId ? "Update Komponen Core" : "Tambah Core Baru"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-mono font-bold uppercase"
+              placeholder="Kode (Cth: CORE-01)"
+              value={form.assembly_code}
+              onChange={(e) => setForm({ ...form, assembly_code: e.target.value.toUpperCase() })}
+            />
+            <input
+              type="text"
+              className="md:col-span-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
+              placeholder="Deskripsi Komponen Core"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-bold uppercase"
+              placeholder="Warehouse (WIPA)"
+              value={form.warehouse}
+              onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
+                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                } disabled:opacity-50`}
+              >
+                {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
+              </button>
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-4 py-2.5 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition-all"
+                >
+                  BATAL
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Table Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Kode Assembly</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center p-12 text-gray-400 italic">
-                  {loading ? "Memuat data core..." : "Belum ada data assembly core."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.length > 0 ? (
+                  items.map((i) => (
+                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4 text-sm text-slate-400 font-medium">#{i.id}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
+                          {i.assembly_code}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{i.description || "-"}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Database size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 uppercase">{i.warehouse}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={() => handleEdit(i)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(i.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Hapus"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">
+                      {loading ? "Menghubungkan ke server..." : "Tidak ada data assembly core ditemukan."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,47 +1,53 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
+// Menggunakan lucide-react agar konsisten
+import { Layers, Search, Edit2, Trash2, Loader2, PlusCircle, Database } from "lucide-react";
 
 export default function FinishingItems() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ 
     finishing_code: "", 
     description: "", 
-    warehouse: "FGOD"
+    warehouse: "FGOD" 
   });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const API_PATH = "/finishing"; 
+  const API_PATH = "/finishing";
 
-  const fetchItems = async () => {
+  const fetchItems = async (keyword = "") => {
     try {
       setLoading(true);
-      const res = await api.get(API_PATH);
+      const res = await api.get(`${API_PATH}?search=${keyword}`);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       Swal.fire("Error", "Gagal mengambil data master finishing", "error");
+      setItems([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => {
+    fetchItems(search);
+  }, [search]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.finishing_code) {
-      return Swal.fire("Peringatan", "Kode Finishing wajib diisi", "warning");
+    if (!form.finishing_code || !form.description) {
+      return Swal.fire("Peringatan", "Kode dan Deskripsi wajib diisi", "warning");
     }
 
     try {
       setLoading(true);
       if (editId) {
         await api.put(`${API_PATH}/${editId}`, form);
-        Swal.fire("Berhasil", "Data Finishing berhasil diupdate", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data diperbarui', timer: 1500, showConfirmButton: false });
       } else {
         await api.post(API_PATH, form);
-        Swal.fire("Berhasil", "Data Finishing berhasil ditambahkan", "success");
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1500, showConfirmButton: false });
       }
       handleReset();
       fetchItems();
@@ -59,6 +65,7 @@ export default function FinishingItems() {
       warehouse: item.warehouse || "WIPA"
     });
     setEditId(item.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleReset = () => {
@@ -68,114 +75,168 @@ export default function FinishingItems() {
 
   const handleDelete = async (id) => {
     const confirm = await Swal.fire({
-      title: "Hapus data finishing?",
-      text: "Data tidak bisa dikembalikan!",
+      title: "Hapus Data?",
+      text: "Data yang dihapus tidak dapat dikembalikan",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Ya, hapus",
+      confirmButtonColor: "#0f172a", // Slate-900
+      cancelButtonColor: "#94a3b8", // Slate-400
+      confirmButtonText: "Ya, Hapus",
       cancelButtonText: "Batal"
     });
 
     if (confirm.isConfirmed) {
       try {
+        setLoading(true);
         await api.delete(`${API_PATH}/${id}`);
-        Swal.fire("Berhasil", "Data berhasil dihapus", "success");
         fetchItems();
+        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
       } catch (err) {
         Swal.fire("Gagal", "Gagal menghapus data", "error");
+      } finally {
+        setLoading(false);
       }
     }
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg border border-gray-300 w-full max-w-5xl mx-auto shadow-sm">
-      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
-        Master Finishing
-      </h1>
-
-      {/* Form Section - Grid disesuaikan menjadi 4 kolom karena Item Ref dihapus */}
-      <form onSubmit={handleSubmit} className="mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-gray-50 p-4 rounded-md border border-gray-200 shadow-inner">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Kode Finishing</label>
-          <input
-            type="text"
-            placeholder="FIN-XXX"
-            className="border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase font-bold"
-            value={form.finishing_code}
-            onChange={(e) => setForm({ ...form, finishing_code: e.target.value.toUpperCase() })}
-          />
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
+              <Layers size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Finishing</h1>
+              <p className="text-sm text-slate-500">Kelola standarisasi proses finishing produk</p>
+            </div>
+          </div>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text"
+              placeholder="Cari kode finishing..."
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1 md:col-span-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Deskripsi</label>
-          <input
-            type="text"
-            placeholder="Keterangan proses..."
-            className="border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+        {/* Form Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+            <PlusCircle size={16} />
+            {editId ? "Update Standar Finishing" : "Registrasi Finishing Baru"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-mono font-bold uppercase"
+              placeholder="Kode (Cth: FIN001)"
+              value={form.finishing_code}
+              onChange={(e) => setForm({ ...form, finishing_code: e.target.value.toUpperCase() })}
+            />
+            <input
+              type="text"
+              className="md:col-span-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
+              placeholder="Deskripsi Proses Finishing"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <input
+              type="text"
+              className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-bold uppercase"
+              placeholder="Warehouse (Cth: FGOD)"
+              value={form.warehouse}
+              onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
+                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                } disabled:opacity-50`}
+              >
+                {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
+              </button>
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-4 py-2.5 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition-all"
+                >
+                  BATAL
+                </button>
+              )}
+            </div>
+          </form>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Warehouse</label>
-          <input
-            type="text"
-            className="border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            value={form.warehouse}
-            onChange={(e) => setForm({ ...form, warehouse: e.target.value })}
-          />
+        {/* Table Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Kode</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi Finishing</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.length > 0 ? (
+                  items.map((i) => (
+                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
+                          {i.finishing_code}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">{i.description || "-"}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Database size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 uppercase">{i.warehouse}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={() => handleEdit(i)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(i.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Hapus"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic">
+                      {loading ? "Menghubungkan ke server..." : "Tidak ada data master finishing ditemukan."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-
-        <div className="flex gap-2">
-          <button type="submit" disabled={loading} className={`flex-1 h-[38px] ${editId ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded text-xs font-bold transition-all shadow-sm`}>
-            {loading ? "..." : editId ? "UPDATE DATA" : "SIMPAN MASTER"}
-          </button>
-          {editId && (
-            <button type="button" onClick={handleReset} className="px-4 h-[38px] bg-gray-400 text-white rounded text-xs font-bold hover:bg-gray-500">
-              BATAL
-            </button>
-          )}
-        </div>
-      </form>
-
-      {/* Table View */}
-      <div className="overflow-x-auto rounded-md border border-gray-200 shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-800 text-white font-bold uppercase text-[10px] tracking-widest">
-            <tr>
-              <th className="p-4 text-left">Kode Finishing</th>
-              <th className="p-4 text-left">Deskripsi</th>
-              <th className="p-4 text-left">Warehouse</th>
-              <th className="p-4 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {items.map((i) => (
-              <tr key={i.id} className="hover:bg-blue-50/50 transition-colors">
-                <td className="p-4 font-mono font-bold text-blue-700">{i.finishing_code}</td>
-                <td className="p-4 text-gray-700">{i.description || "-"}</td>
-                <td className="p-4">
-                  <span className="bg-gray-200 px-3 py-1 rounded-full text-[10px] font-bold text-gray-700">
-                    {i.warehouse}
-                  </span>
-                </td>
-                <td className="p-4 text-center whitespace-nowrap">
-                  <button onClick={() => handleEdit(i)} className="text-blue-600 font-bold hover:text-blue-800 px-2 text-xs">EDIT</button>
-                  <span className="text-gray-300">|</span>
-                  <button onClick={() => handleDelete(i.id)} className="text-red-500 font-bold hover:text-red-700 px-2 text-xs">HAPUS</button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan="4" className="p-10 text-center text-gray-400 italic">
-                  Belum ada data master finishing yang tersimpan.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </div>
     </div>
   );
