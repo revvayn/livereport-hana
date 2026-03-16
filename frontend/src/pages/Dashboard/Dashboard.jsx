@@ -83,19 +83,6 @@ function Dashboard() {
             <p className="text-xl font-medium text-slate-900 truncate">@{user?.username}</p>
           </div>
         </motion.div>
-
-        {/* Bottom Small Cards */}
-        <div className="md:col-span-4 bg-slate-50/50 border border-slate-100 rounded-3xl p-6 flex items-center gap-4">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-sm font-medium text-slate-600 italic">Database Connection: Stable</span>
-        </div>
-
-        <div className="md:col-span-8 flex items-center justify-end px-4">
-          <div className="flex items-center gap-2 text-slate-400 text-xs tracking-widest uppercase font-medium">
-            <Command size={14} />
-            <span>Press K to search anything</span>
-          </div>
-        </div>
       </div>
     </motion.div>
   );
