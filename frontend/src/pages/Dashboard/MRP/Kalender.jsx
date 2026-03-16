@@ -181,10 +181,10 @@ export default function Kalender() {
                                 const totalQty = Number(vals.shift1) + Number(vals.shift2) + Number(vals.shift3);
 
                                 // Gunakan template literal untuk warna border dinamis
-                                const borderColorClass = activeTab === 'packing' 
-                                    ? 'border-emerald-100' 
-                                    : activeTab === 'finishing' 
-                                        ? 'border-blue-100' 
+                                const borderColorClass = activeTab === 'packing'
+                                    ? 'border-emerald-100'
+                                    : activeTab === 'finishing'
+                                        ? 'border-blue-100'
                                         : 'border-orange-100';
                                 return (
                                     <div key={idx}
