@@ -115,7 +115,7 @@ export default function DashboardLayout() {
             <div className="animate-in fade-in duration-500">
               <h1 className="text-sm font-bold tracking-wider text-blue-400 uppercase">Live Report</h1>
               <p className="text-[10px] text-slate-400 leading-tight">PT Bahana Bhumiphala Persada</p>
-              <p className="text-[10px] text-gray-500 mt-2 font-mono">{time}</p>
+              <p className="text-[10px] text-gray-500 mt-2">{time}</p>
             </div>
           )}
           <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
