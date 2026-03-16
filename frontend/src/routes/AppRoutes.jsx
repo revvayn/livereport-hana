@@ -85,8 +85,8 @@ function AppRoutes() {
           <Route path="master/assembly-items" element={<AssemblyItems />} />
           <Route path="master/assembly/pannel" element={<AssemblyPannel />} />
           <Route path="master/assembly/core" element={<AssemblyCore />} />
-          <Route path="master/machines" element={<Machines />} />
-          <Route path="master/operations" element={<Operations />} />
+          {/*<Route path="master/machines" element={<Machines />} />*/}
+          {/*<Route path="master/operations" element={<Operations />} />*/}
           <Route path="master/item-routings" element={<ItemRoutings />} />
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
