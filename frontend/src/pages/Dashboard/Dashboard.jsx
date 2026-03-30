@@ -60,9 +60,9 @@ function Dashboard() {
               </button>
             </div>
             <div>
-              <h3 className="text-2xl font-light mb-2">Sistem Siap Digunakan.</h3>
+              <h3 className="text-2xl font-light mb-2">Selamat Datang di Sistem Informasi</h3>
               <p className="text-slate-400 text-sm max-w-sm">
-                Semua modul berjalan optimal. Anda dapat mulai mengelola data melalui menu navigasi.
+                PT. Bahana Bhumiphala Persada
               </p>
             </div>
           </div>

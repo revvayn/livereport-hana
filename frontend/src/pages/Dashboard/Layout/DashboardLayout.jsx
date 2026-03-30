@@ -124,7 +124,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 text-sm overflow-y-auto custom-scrollbar">
-          <MenuLink to="/dashboard" icon={LayoutDashboard} label="Dashboard Overview" collapsed={collapsed} />
+          <MenuLink to="/dashboard" icon={LayoutDashboard} label="Dashboard" collapsed={collapsed} />
 
           {isPlanner && (
             <>
