@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
 // Menggunakan library ikon yang sama dengan Customer.jsx
-import { Package, Search, Edit2, Trash2, Loader2, PlusCircle } from "lucide-react";
+import { Package, Search, Edit2, Trash2, Loader2, PlusCircle, Database } from "lucide-react";
 
 export default function Items() {
   const [items, setItems] = useState([]);
@@ -198,9 +198,10 @@ export default function Items() {
 
                       {/* Data Warehouse dengan Badge Style */}
                       <td className="px-6 py-4">
-                        <span className="text-[10px] font-black bg-blue-50 text-blue-700 px-2 py-1 rounded uppercase tracking-wider border border-blue-100">
-                          {i.warehouse}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <Database size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 uppercase">{i.warehouse}</span>
+                        </div>
                       </td>
 
                       <td className="px-6 py-4">
