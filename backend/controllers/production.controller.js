@@ -114,9 +114,6 @@ const getAllProductionSchedules = async (req, res) => {
             }
         });
 
-        // Debug log di terminal backend untuk memastikan data terbongkar
-        console.log("Total entries combined:", finalFlatData.length);
-
         res.json({ production_schedule: finalFlatData });
     } catch (err) {
         console.error("Error backend:", err.message);
@@ -154,8 +151,6 @@ const getAllFinishingSchedules = async (req, res) => {
             const schedule = robustParse(row.production_schedule);
             finalFlatData = finalFlatData.concat(schedule);
         });
-
-        console.log("Total finishing entries combined:", finalFlatData.length);
         res.json({ finishing_schedule: finalFlatData });
     } catch (err) {
         console.error("Error backend finishing:", err.message);
@@ -199,7 +194,6 @@ const getAllAssemblySchedules = async (req, res) => {
             }
         });
 
-        console.log("Total assembly entries combined:", finalFlatData.length);
         res.json({ assembly_schedule: finalFlatData });
     } catch (err) {
         console.error("Error backend assembly:", err.message);
