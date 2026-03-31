@@ -62,11 +62,6 @@ exports.syncData = async (req, res) => {
     }
 
     const dedupedRows = Array.from(uniqueMap.values());
-
-    console.log("RAW       :", rows.length);
-    console.log("FILTERED  :", filteredRows.length);
-    console.log("DEDUPED   :", dedupedRows.length);
-
     /* ================= SYNC DB ================= */
     const total = await syncProductionReportsBulk(
       dedupedRows,

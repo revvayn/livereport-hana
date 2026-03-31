@@ -4,8 +4,6 @@ const getKedatanganGrader = async (req, res) => {
     try {
         const { tahun, bulan } = req.query;
 
-        console.log("PARAM:", { tahun, bulan });
-
         const sql = `
 SELECT
   nama_grader,

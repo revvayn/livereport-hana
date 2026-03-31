@@ -21,7 +21,6 @@ exports.syncProductionReportsBulk = async (rows, fromDate, toDate) => {
         WHERE doc_date::date < $1::date OR doc_date::date > $2::date
       `;
       const deleteResult = await client.query(deleteQuery, [fromDate, toDate]);
-      console.log("Deleted rows outside range:", deleteResult.rowCount);
     }
 
     // Jika tidak ada data baru untuk UPSERT, commit saja
@@ -114,7 +113,6 @@ exports.syncProductionReportsBulk = async (rows, fromDate, toDate) => {
     `;
 
     const insertResult = await client.query(insertQuery, values);
-    console.log("Inserted/Updated rows:", insertResult.rowCount);
 
     await client.query("COMMIT");
     return rows.length;
