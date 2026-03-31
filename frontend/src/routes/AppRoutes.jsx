@@ -35,6 +35,7 @@ import SalesOrders from "../pages/Dashboard/MRP/SalesOrders";
 import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
 import Kalender from "../pages/Dashboard/MRP/Kalender";
+import List from "../pages/Dashboard/MRP/List";
 import PackingList from "../pages/Dashboard/MRP/PackingList";
 import FinishingList from "../pages/Dashboard/MRP/FinishingList";
 import AssemblyList from "../pages/Dashboard/MRP/AssemblyList";
@@ -93,6 +94,7 @@ function AppRoutes() {
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="production/kalender" element={<Kalender />} />
           <Route path="production/kalender/:itemId" element={<Kalender />} />
+          <Route path="production/list" element={<List />} />
           <Route path="packing" element={<PackingList />} />
           <Route path="finishing" element={<FinishingList />} />
           <Route path="assembly" element={<AssemblyList />} />

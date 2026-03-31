@@ -41,7 +41,8 @@ import {
   ClipboardList,
   Activity,
   Container,
-  Warehouse
+  Warehouse,
+  List
 } from "lucide-react";
 
 export default function DashboardLayout() {
@@ -273,6 +274,7 @@ function DemandDropdown({ collapsed, currentPath }) {
     <DropdownWrapper icon={GanttChart} label="Production Plan" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/demand/form" icon={FormInput} label="Entry Demand" />
       <SubMenuLink to="/dashboard/production/kalender" icon={Calendar} label="Prod. Calendar" />
+      <SubMenuLink to="/dashboard/production/list" icon={ListTodo} label="Prod. List" />
       <SubMenuLink to="/dashboard/packing" icon={Package} label="List Packing" />
       <SubMenuLink to="/dashboard/finishing" icon={Layers} label="List Finishing" />
       <SubMenuLink to="/dashboard/assembly" icon={LayoutGrid} label="List Assembly" />

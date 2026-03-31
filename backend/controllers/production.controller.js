@@ -1,6 +1,15 @@
 // production.controller.js
 const pool = require("../db");
 
+const getDemands = async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM demands ORDER BY delivery_date ASC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 const robustParse = (data) => {
     if (!data) return [];
     let parsed = data;
@@ -198,12 +207,51 @@ const getAllAssemblySchedules = async (req, res) => {
     }
 };
 
+const getFullScheduleBySO = async (req, res) => {
+    const { id } = req.params;
+    try {
+      // 1. Ambil data Header SO
+      const soHeader = await pool.query("SELECT * FROM demands WHERE id = $1", [id]);
+      
+      // 2. Ambil data Packing (demand_items)
+      const packingItems = await pool.query(
+        "SELECT *, 'Packing' as category FROM demand_items WHERE demand_id = $1", [id]
+      );
+  
+      // 3. Ambil data Finishing
+      const finishingItems = await pool.query(
+        "SELECT *, 'Finishing' as category FROM demand_item_finishing WHERE demand_id = $1", [id]
+      );
+  
+      // 4. Ambil data Assembly
+      const assemblyItems = await pool.query(
+        "SELECT *, 'Assembly' as category FROM demand_item_assembly WHERE demand_id = $1", [id]
+      );
+  
+      // Gabungkan semua item ke dalam satu array untuk matriks
+      const allItems = [
+        ...packingItems.rows,
+        ...finishingItems.rows,
+        ...assemblyItems.rows
+      ];
+  
+      res.json({
+        header: soHeader.rows[0],
+        items: allItems
+      });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server Error");
+    }
+  };
 // Update exports
 module.exports = { 
+    getDemands,
     getProductionSchedule, 
     getAllProductionSchedules,
     getFinishingSchedule,
     getAllFinishingSchedules,
-    getAssemblySchedule,      // Export fungsi baru
-    getAllAssemblySchedules   // Export fungsi baru
+    getAssemblySchedule,
+    getAllAssemblySchedules,
+    getFullScheduleBySO
 };
