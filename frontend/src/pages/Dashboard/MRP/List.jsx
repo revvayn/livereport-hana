@@ -58,7 +58,7 @@ export default function List() {
         try {
             setLoading(true);
             // Sesuaikan dengan route backend: router.get("/", productionController.getDemands)
-            const res = await api.get("/production"); 
+            const res = await api.get("/production");
             setDemands(res.data || []);
         } catch (err) {
             console.error("Fetch Error:", err);
@@ -74,51 +74,46 @@ export default function List() {
     const handleShowDetail = async (so) => {
         try {
             setLoading(true);
-            // SESUAIKAN ENDPOINT: /production/full-schedule/:id
             const targetId = so.id || so.demand_id;
             const res = await api.get(`/production/full-schedule/${targetId}`);
             const { header, items: allItems } = res.data;
 
             setSelectedSO(header);
-            
-            // Tentukan anchor date (H-13 dari delivery date)
+
+            // Tentukan rentang 14 hari (H-13 sampai Hari H Delivery)
             const deliveryDate = new Date(header.delivery_date);
+            const startDate = addDays(deliveryDate, -13);
+            const calendarTemplate = buildCalendar(startDate, 14);
 
             const mappedItems = allItems.map((it) => {
-                const rawSchedule = robustParse(it.production_schedule);
-                
-                // 1. Tentukan tanggal patokan (misal 7 hari sebelum delivery atau rentang tetap)
-                // Kita buat template 14 hari yang seragam untuk SEMUA baris
-                const deliveryDate = new Date(header.delivery_date);
-                const calendarTemplate = buildCalendar(addDays(deliveryDate, -13), 14);
-              
-                // 2. Sinkronisasi data DB ke Template
+                // Pastikan data schedule di-parse dengan benar
+                const dbSchedule = robustParse(it.production_schedule) || [];
+
+                // PAKSA setiap item memiliki 14 kolom yang sama dengan template
                 const synchronizedCalendar = calendarTemplate.map((slot) => {
-                  // CARI data yang tanggalnya cocok dengan slot kolom ini
-                  const matchingData = Array.isArray(rawSchedule) 
-                    ? rawSchedule.find(d => d.date === slot.date)
-                    : null;
-              
-                  if (matchingData) {
+                    const found = dbSchedule.find(d => d.date === slot.date);
                     return {
-                      ...slot,
-                      shifts: matchingData.shifts // Gunakan shift dari DB jika tanggal cocok
+                        date: slot.date,
+                        shifts: {
+                            shift1: { qty: Number(found?.shifts?.shift1?.qty || 0) },
+                            shift2: { qty: Number(found?.shifts?.shift2?.qty || 0) },
+                            shift3: { qty: Number(found?.shifts?.shift3?.qty || 0) },
+                        }
                     };
-                  }
-                  return slot; // Tetap 0 jika tidak ada data untuk tanggal tersebut
                 });
-              
+
                 return {
-                  ...it,
-                  calendar: synchronizedCalendar
+                    ...it,
+                    itemCode: it.item_code || it.itemCode,
+                    calendar: synchronizedCalendar
                 };
-              });
+            });
 
             setItems(mappedItems);
             setView("detail");
         } catch (err) {
             console.error(err);
-            Swal.fire("Error", "Gagal memuat data matriks", "error");
+            Swal.fire("Error", "Gagal sinkronisasi data matriks", "error");
         } finally {
             setLoading(false);
         }
@@ -135,7 +130,7 @@ export default function List() {
             setLoading(true);
             // Kirim ke endpoint update (Pastikan backend menghandle loop update per category)
             await api.put(`/production/full-update/${selectedSO.id}`, { items });
-            
+
             Swal.fire("Berhasil!", "Semua jadwal lintas divisi telah diperbarui.", "success");
             fetchDemands();
             setView("so");
@@ -150,10 +145,10 @@ export default function List() {
     // Filter Logic
     const filteredDemands = demands.filter((so) => {
         const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-            (so.so_number?.toLowerCase().includes(search)) || 
+        const matchesSearch =
+            (so.so_number?.toLowerCase().includes(search)) ||
             (so.customer_name?.toLowerCase().includes(search));
-        
+
         const deliveryStr = toInputDate(so.delivery_date);
         const matchesStart = !dateRange.start || deliveryStr >= dateRange.start;
         const matchesEnd = !dateRange.end || deliveryStr <= dateRange.end;
@@ -175,7 +170,7 @@ export default function List() {
                     <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-widest">
                         {view === "so" ? "Production Control Center" : `Matrix System: ${selectedSO?.so_number}`}
                     </h2>
-                    
+
                     {view === "so" ? (
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="relative">
@@ -190,12 +185,12 @@ export default function List() {
                             </div>
                             <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
                                 <Calendar size={14} className="text-gray-400" />
-                                <input type="date" className="bg-transparent py-2 text-[10px] font-bold outline-none" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})}/>
+                                <input type="date" className="bg-transparent py-2 text-[10px] font-bold outline-none" value={dateRange.start} onChange={e => setDateRange({ ...dateRange, start: e.target.value })} />
                                 <span className="text-gray-300">-</span>
-                                <input type="date" className="bg-transparent py-2 text-[10px] font-bold outline-none" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})}/>
+                                <input type="date" className="bg-transparent py-2 text-[10px] font-bold outline-none" value={dateRange.end} onChange={e => setDateRange({ ...dateRange, end: e.target.value })} />
                             </div>
                             {(searchTerm || dateRange.start) && (
-                                <button onClick={() => {setSearchTerm(""); setDateRange({start:"", end:""})}} className="text-red-500 p-2 hover:bg-red-50 rounded-md"><FilterX size={16}/></button>
+                                <button onClick={() => { setSearchTerm(""); setDateRange({ start: "", end: "" }) }} className="text-red-500 p-2 hover:bg-red-50 rounded-md"><FilterX size={16} /></button>
                             )}
                         </div>
                     ) : (
@@ -245,19 +240,31 @@ export default function List() {
                             <table className="w-full text-[10px] border-collapse">
                                 <thead className="sticky top-0 z-30 shadow-sm">
                                     <tr className="bg-slate-800 text-white font-bold uppercase">
-                                        <th className="border-r border-slate-700 p-2 sticky left-0 bg-slate-800 z-40 min-w-[100px]">Stage</th>
-                                        <th className="border-r border-slate-700 p-2 sticky left-[100px] bg-slate-800 z-40 min-w-[180px]">Item Description</th>
-                                        <th className="border-r border-slate-700 p-2 w-16 text-center">Target PCS</th>
+                                        <th className="border-r border-slate-700 p-2 sticky left-0 bg-slate-800 z-40 min-w-[80px]">Stage</th>
+                                        <th className="border-r border-slate-700 p-2 sticky left-[80px] bg-slate-800 z-40 min-w-[100px]">Item Code</th>
+                                        <th className="border-r border-slate-700 p-2 sticky left-[180px] bg-slate-800 z-40 min-w-[180px]">Description</th>
+                                        {/* Header Utama Target PCS - Sudah Sticky */}
+                                        <th className="border-r border-slate-700 p-2 w-16 text-center bg-slate-900 sticky left-[360px] z-40">Target PCS</th>
+
                                         {items[0]?.calendar?.map((day, i) => (
                                             <th key={i} colSpan="3" className="border-r border-slate-700 p-1 text-center min-w-[90px] bg-slate-700">
                                                 {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
                                             </th>
                                         ))}
+
+                                        <th className="p-2 text-center min-w-[80px] bg-red-600 text-white border-l-4 border-white">
+                                            {selectedSO?.delivery_date
+                                                ? new Date(selectedSO.delivery_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })
+                                                : "DELIVERY"}
+                                        </th>
                                     </tr>
                                     <tr className="bg-slate-600 text-[8px] text-slate-300 uppercase">
-                                        <th className="sticky left-0 bg-slate-600"></th>
-                                        <th className="sticky left-[100px] bg-slate-600"></th>
-                                        <th></th>
+                                        <th className="sticky left-0 bg-slate-600 border-r border-slate-500 z-40"></th>
+                                        <th className="sticky left-[80px] bg-slate-600 border-r border-slate-500 z-40"></th>
+                                        <th className="sticky left-[180px] bg-slate-600 border-r border-slate-500 z-40"></th>
+                                        {/* PERBAIKAN: Sub-header Target PCS harus diberi sticky juga agar sinkron dengan baris di bawahnya */}
+                                        <th className="border-r border-slate-500 sticky left-[360px] bg-slate-600 z-40"></th>
+
                                         {items[0]?.calendar?.map((_, i) => (
                                             <React.Fragment key={i}>
                                                 <th className="border-r border-slate-500">S1</th>
@@ -265,37 +272,52 @@ export default function List() {
                                                 <th className="border-r border-slate-500">S3</th>
                                             </React.Fragment>
                                         ))}
+                                        <th className="bg-red-700 text-white border-l-4 border-white uppercase py-1">Delivery</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {items.map((item, index) => (
-                                        <tr key={index} className="hover:bg-gray-50">
-                                            <td className={`border p-2 sticky left-0 z-20 font-black text-center ${
-                                                item.category === 'Packing' ? 'bg-blue-50 text-blue-700' :
-                                                item.category === 'Finishing' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'
-                                            }`}>
-                                                {item.category}
-                                            </td>
-                                            <td className="border p-2 sticky left-[100px] bg-white z-20 shadow-md">
-                                                <div className="font-bold text-gray-800 truncate w-40">{item.itemCode}</div>
-                                                <div className="text-[8px] text-gray-400 truncate w-40">{item.description}</div>
-                                            </td>
-                                            <td className="border text-center font-bold bg-gray-50">{item.pcs}</td>
-                                            {item.calendar?.map((day, dIdx) =>
-                                                ["shift1", "shift2", "shift3"].map((s) => (
-                                                    <td key={`${dIdx}-${s}`} className={`border p-0 text-center transition-colors ${day.shifts[s].qty > 0 ? "bg-emerald-500" : ""}`}>
-                                                        <input
-                                                            type="number"
-                                                            value={day.shifts[s].qty || ""}
-                                                            onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                                            className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-600"}`}
-                                                            placeholder="0"
-                                                        />
-                                                    </td>
-                                                ))
-                                            )}
-                                        </tr>
-                                    ))}
+                                    {items.map((item, index) => {
+                                        return (
+                                            <tr key={index} className="hover:bg-gray-50 border-b border-gray-100">
+                                                <td className={`border-r p-2 sticky left-0 z-20 font-black text-center ${item.category === 'Packing' ? 'bg-blue-50 text-blue-700' :
+                                                    item.category === 'Finishing' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'
+                                                    }`}>
+                                                    {item.category}
+                                                </td>
+
+                                                <td className="border-r p-2 sticky left-[80px] bg-white z-20 font-bold text-slate-700 uppercase">
+                                                    {item.itemCode || item.item_code}
+                                                </td>
+
+                                                <td className="border-r p-2 sticky left-[180px] bg-white z-20 shadow-sm text-gray-500 truncate max-w-[180px]">
+                                                    {item.description}
+                                                </td>
+
+                                                {/* Body Target PCS - Tetap di posisi karena sticky */}
+                                                <td className="border-r text-center font-bold bg-gray-50 sticky left-[360px] z-20 shadow-sm">
+                                                    {item.pcs}
+                                                </td>
+
+                                                {item.calendar?.map((day, dIdx) =>
+                                                    ["shift1", "shift2", "shift3"].map((s) => (
+                                                        <td key={`${dIdx}-${s}`} className={`border-r p-0 text-center transition-colors ${day.shifts[s].qty > 0 ? "bg-emerald-500" : ""}`}>
+                                                            <input
+                                                                type="number"
+                                                                value={day.shifts[s].qty || ""}
+                                                                onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
+                                                                className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-600"}`}
+                                                                placeholder="0"
+                                                            />
+                                                        </td>
+                                                    ))
+                                                )}
+
+                                                <td className="text-center font-black border-l-4 border-red-500 bg-red-50/30">
+                                                    {/* Kosong */}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
