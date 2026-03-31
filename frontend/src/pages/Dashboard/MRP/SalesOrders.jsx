@@ -161,7 +161,7 @@ export default function SalesOrders() {
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Nomor SO</label>
               <input
                 type="text"
-                placeholder="SO-2024-001"
+                placeholder="261000001"
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm font-mono font-bold"
                 value={form.so_number}
                 onChange={e => setForm({ ...form, so_number: e.target.value.toUpperCase() })}
