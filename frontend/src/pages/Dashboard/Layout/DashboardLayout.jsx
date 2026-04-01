@@ -259,6 +259,7 @@ function MasterDropdown({ collapsed, currentPath }) {
 function SalesDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("/sales");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={ShoppingCart} label="Sales Marketing" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/sales/sales-orders" icon={FileText} label="Sales Orders" />
@@ -270,6 +271,7 @@ function SalesDropdown({ collapsed, currentPath }) {
 function DemandDropdown({ collapsed, currentPath }) {
   const isActive = ["demand", "production", "packing", "finishing", "assembly"].some(p => currentPath.includes(p)) && !currentPath.includes("master");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={GanttChart} label="Production Plan" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/demand/form" icon={FormInput} label="Entry Demand" />
@@ -285,6 +287,7 @@ function DemandDropdown({ collapsed, currentPath }) {
 function EntryMRPDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("/bom");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={Cpu} label="BOM" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/bom/entry" icon={Download} label="Bill of Materials" />
@@ -295,6 +298,7 @@ function EntryMRPDropdown({ collapsed, currentPath }) {
 function EntryDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("data-sync") || currentPath.includes("bahanbaku");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={Download} label="Data Sync" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/data-sync" icon={TrendingDown} label="Sync Reject" />
@@ -306,6 +310,7 @@ function EntryDropdown({ collapsed, currentPath }) {
 function RejectRateDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("reject-rate");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={BarChart3} label="Quality Control" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/reject-rate/machine" icon={Factory} label="Machine Analysis" />
@@ -321,6 +326,7 @@ function RejectRateDropdown({ collapsed, currentPath }) {
 function BahanBakuDropdown({ collapsed, currentPath }) {
   const isActive = currentPath.includes("bahan-baku");
   const [open, setOpen] = useState(isActive);
+  useEffect(() => setOpen(isActive), [isActive]);
   return (
     <DropdownWrapper icon={Trees} label="Raw Material" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/bahan-baku/performa" icon={TrendingUpIcon} label="Performance" />
