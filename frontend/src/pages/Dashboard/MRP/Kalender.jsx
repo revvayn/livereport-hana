@@ -21,36 +21,25 @@ export default function Kalender() {
     const [shiftData, setShiftData] = useState({ packing: {}, finishing: {}, assembly: {} });
     const [loading, setLoading] = useState(false);
 
-    const processScheduleArray = (arr) => {
-        const formatted = {};
-        if (!Array.isArray(arr)) return formatted;
-        arr.forEach((item) => {
-            if (item && item.date) {
-                const dateKey = String(item.date).substring(0, 10);
-                if (!formatted[dateKey]) formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0 };
-                formatted[dateKey].shift1 += Number(item.shifts?.shift1?.qty || 0);
-                formatted[dateKey].shift2 += Number(item.shifts?.shift2?.qty || 0);
-                formatted[dateKey].shift3 += Number(item.shifts?.shift3?.qty || 0);
-            }
-        });
-        return formatted;
-    };
-
     const fetchSchedule = useCallback(async () => {
         setLoading(true);
         try {
-            // Panggil ketiga endpoint secara paralel
+            // PERBAIKAN: Sesuaikan URL dengan route backend
             const [resProd, resFin, resAssy] = await Promise.all([
                 axios.get(`/api/production/all/schedule`),
                 axios.get(`/api/production/finishing-all`),
-                axios.get(`/api/production/assembly-schedule/all`) // Endpoint baru
+                axios.get(`/api/production/assembly-all`) // Sesuai route backend
             ]);
+
+            // Debugging: Cek di console log apakah data muncul
+            console.log("Data Packing:", resProd.data);
+            console.log("Data Finishing:", resFin.data);
+            console.log("Data Assembly:", resAssy.data);
 
             setShiftData({
                 packing: processScheduleArray(resProd.data.production_schedule),
-                finishing: processScheduleArray(resFin.data.finishing_schedule),
-                // Sekarang data assembly diproses dari response backend
-                assembly: processScheduleArray(resAssy.data.assembly_schedule)
+                finishing: processScheduleArray(resFin.data.finishing_schedule || resFin.data.production_schedule),
+                assembly: processScheduleArray(resAssy.data.production_schedule)
             });
         } catch (err) {
             console.error("Fetch Error:", err);
@@ -58,6 +47,32 @@ export default function Kalender() {
             setLoading(false);
         }
     }, []);
+
+    const processScheduleArray = (arr) => {
+        const formatted = {};
+        if (!Array.isArray(arr)) return formatted;
+
+        arr.forEach((item) => {
+            // Pastikan item memiliki properti date atau tanggal
+            const rawDate = item.date || item.tanggal;
+            if (rawDate) {
+                const dateKey = String(rawDate).substring(0, 10);
+                if (!formatted[dateKey]) {
+                    formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0 };
+                }
+
+                // Ambil qty dari shifts atau langsung dari properti item jika strukturnya berbeda
+                const s1 = item.shifts?.shift1?.qty || item.shift1 || 0;
+                const s2 = item.shifts?.shift2?.qty || item.shift2 || 0;
+                const s3 = item.shifts?.shift3?.qty || item.shift3 || 0;
+
+                formatted[dateKey].shift1 += Number(s1);
+                formatted[dateKey].shift2 += Number(s2);
+                formatted[dateKey].shift3 += Number(s3);
+            }
+        });
+        return formatted;
+    };
 
     useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
 

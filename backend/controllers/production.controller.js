@@ -194,9 +194,9 @@ const getAllAssemblySchedules = async (req, res) => {
             }
         });
 
-        res.json({ assembly_schedule: finalFlatData });
+        // Samakan nama property dengan yang lain (production_schedule)
+        res.json({ production_schedule: finalFlatData }); 
     } catch (err) {
-        console.error("Error backend assembly:", err.message);
         res.status(500).json({ error: err.message });
     }
 };

@@ -232,7 +232,7 @@ export default function List() {
                             <div><label className="block text-[8px] font-black text-emerald-600">CUSTOMER</label><p className="text-sm font-bold">{selectedSO?.customer_name}</p></div>
                             <div><label className="block text-[8px] font-black text-emerald-600">SO NO</label><p className="text-sm font-bold">{selectedSO?.so_number}</p></div>
                             <div><label className="block text-[8px] font-black text-emerald-600">DELIVERY DATE</label><p className="text-sm font-bold text-orange-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p></div>
-                            <div className="flex items-end justify-end"><span className="px-3 py-1 bg-emerald-200 text-emerald-800 rounded-full text-[10px] font-black">FULL ACCESS</span></div>
+                            <div className="flex items-end justify-end"><span className="px-3 py-1 bg-gray-200 text-gray-700 rounded-full text-[10px] font-black uppercase">View Only</span></div>
                         </div>
 
                         {/* Production Matrix */}
@@ -243,7 +243,6 @@ export default function List() {
                                         <th className="border-r border-slate-700 p-2 sticky left-0 bg-slate-800 z-40 min-w-[80px]">Stage</th>
                                         <th className="border-r border-slate-700 p-2 sticky left-[80px] bg-slate-800 z-40 min-w-[100px]">Item Code</th>
                                         <th className="border-r border-slate-700 p-2 sticky left-[180px] bg-slate-800 z-40 min-w-[180px]">Description</th>
-                                        {/* Header Utama Target PCS - Sudah Sticky */}
                                         <th className="border-r border-slate-700 p-2 w-16 text-center bg-slate-900 sticky left-[360px] z-40">Target PCS</th>
 
                                         {items[0]?.calendar?.map((day, i) => (
@@ -262,7 +261,6 @@ export default function List() {
                                         <th className="sticky left-0 bg-slate-600 border-r border-slate-500 z-40"></th>
                                         <th className="sticky left-[80px] bg-slate-600 border-r border-slate-500 z-40"></th>
                                         <th className="sticky left-[180px] bg-slate-600 border-r border-slate-500 z-40"></th>
-                                        {/* PERBAIKAN: Sub-header Target PCS harus diberi sticky juga agar sinkron dengan baris di bawahnya */}
                                         <th className="border-r border-slate-500 sticky left-[360px] bg-slate-600 z-40"></th>
 
                                         {items[0]?.calendar?.map((_, i) => (
@@ -293,7 +291,6 @@ export default function List() {
                                                     {item.description}
                                                 </td>
 
-                                                {/* Body Target PCS - Tetap di posisi karena sticky */}
                                                 <td className="border-r text-center font-bold bg-gray-50 sticky left-[360px] z-20 shadow-sm">
                                                     {item.pcs}
                                                 </td>
@@ -301,13 +298,10 @@ export default function List() {
                                                 {item.calendar?.map((day, dIdx) =>
                                                     ["shift1", "shift2", "shift3"].map((s) => (
                                                         <td key={`${dIdx}-${s}`} className={`border-r p-0 text-center transition-colors ${day.shifts[s].qty > 0 ? "bg-emerald-500" : ""}`}>
-                                                            <input
-                                                                type="number"
-                                                                value={day.shifts[s].qty || ""}
-                                                                onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                                                className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-600"}`}
-                                                                placeholder="0"
-                                                            />
+                                                            {/* PERBAIKAN: Menggunakan div statis (Read Only) bukan input */}
+                                                            <div className={`w-full h-8 flex items-center justify-center text-[10px] font-bold ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-400"}`}>
+                                                                {day.shifts[s].qty || 0}
+                                                            </div>
                                                         </td>
                                                     ))
                                                 )}
@@ -322,14 +316,7 @@ export default function List() {
                             </table>
                         </div>
 
-                        <div className="flex justify-end pt-4">
-                            <button
-                                onClick={handleSaveSchedule}
-                                className="bg-emerald-600 text-white px-8 py-3 rounded-lg text-xs font-black hover:bg-emerald-700 shadow-lg transition-transform active:scale-95"
-                            >
-                                SIMPAN PERUBAHAN MATRIX JADWAL
-                            </button>
-                        </div>
+                        {/* Tombol Simpan dihapus dari sini */}
                     </div>
                 )}
             </div>

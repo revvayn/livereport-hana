@@ -14,7 +14,7 @@ router.get("/", productionController.getDemands);
 // Route All Schedules (Tanpa Parameter ID)
 router.get("/all/schedule", productionController.getAllProductionSchedules);
 router.get("/finishing-all", productionController.getAllFinishingSchedules);
-router.get("/assembly-all", productionController.getAllAssemblySchedules);
+router.get("/assembly-all", productionController.getAllAssemblySchedules); // Sesuaikan ini
 
 /**
  * ==========================================
