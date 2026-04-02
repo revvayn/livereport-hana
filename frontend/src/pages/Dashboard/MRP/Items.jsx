@@ -26,7 +26,11 @@ export default function Items() {
   };
 
   useEffect(() => {
-    fetchItems(search);
+    const delayDebounceFn = setTimeout(() => {
+      fetchItems(search);
+    }, 500); // Tunggu 500ms setelah user berhenti mengetik
+
+    return () => clearTimeout(delayDebounceFn);
   }, [search]);
 
   const handleImportExcel = async (e) => {
@@ -156,15 +160,30 @@ export default function Items() {
               IMPORT EXCEL
             </label>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            {/* Perbaikan Bar Pencarian */}
+            <div className="relative group">
+              <Search
+                className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${search ? "text-slate-900" : "text-slate-400"
+                  }`}
+                size={18}
+              />
               <input
                 type="text"
                 placeholder="Cari kode atau nama..."
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+                className="pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all w-full md:w-64 shadow-inner"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {/* Tombol Reset/Clear Search */}
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors"
+                  title="Bersihkan pencarian"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
             </div>
           </div>
         </div>

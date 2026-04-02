@@ -147,3 +147,22 @@ exports.importExcel = async (req, res) => {
     res.status(500).json({ error: "Gagal memproses file Excel ke database" });
   }
 };
+
+exports.getItems = async (req, res) => {
+  const { search } = req.query;
+  try {
+    let query = "SELECT * FROM items";
+    let values = [];
+
+    if (search) {
+      query += " WHERE item_code ILIKE $1 OR description ILIKE $1";
+      values = [`%${search}%`];
+    }
+
+    query += " ORDER BY id DESC";
+    const result = await pool.query(query, values);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Gagal mengambil data" });
+  }
+};
