@@ -53,22 +53,29 @@ export default function Kalender() {
         if (!Array.isArray(arr)) return formatted;
 
         arr.forEach((item) => {
-            // Pastikan item memiliki properti date atau tanggal
             const rawDate = item.date || item.tanggal;
             if (rawDate) {
                 const dateKey = String(rawDate).substring(0, 10);
                 if (!formatted[dateKey]) {
-                    formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0 };
+                    formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0, details: [] };
                 }
 
-                // Ambil qty dari shifts atau langsung dari properti item jika strukturnya berbeda
-                const s1 = item.shifts?.shift1?.qty || item.shift1 || 0;
-                const s2 = item.shifts?.shift2?.qty || item.shift2 || 0;
-                const s3 = item.shifts?.shift3?.qty || item.shift3 || 0;
+                const s1 = Number(item.shifts?.shift1?.qty || item.shift1 || 0);
+                const s2 = Number(item.shifts?.shift2?.qty || item.shift2 || 0);
+                const s3 = Number(item.shifts?.shift3?.qty || item.shift3 || 0);
 
-                formatted[dateKey].shift1 += Number(s1);
-                formatted[dateKey].shift2 += Number(s2);
-                formatted[dateKey].shift3 += Number(s3);
+                formatted[dateKey].shift1 += s1;
+                formatted[dateKey].shift2 += s2;
+                formatted[dateKey].shift3 += s3;
+
+                // Simpan detail jika ada qty
+                if (s1 + s2 + s3 > 0) {
+                    formatted[dateKey].details.push({
+                        so: item.so_number,
+                        item: item.item_code,
+                        total: s1 + s2 + s3
+                    });
+                }
             }
         });
         return formatted;
@@ -219,17 +226,29 @@ export default function Kalender() {
                                                 </div>
 
                                                 <div className="space-y-1.5 flex-grow">
-                                                    {[1, 2, 3].map(s => {
-                                                        const v = Number(vals[`shift${s}`] || 0);
-                                                        return (
-                                                            <div key={s} className={`flex items-center justify-between px-2 py-1 rounded-lg transition-colors ${v > 0 ? "bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" : "opacity-20"}`}>
-                                                                <span className="text-[9px] font-black text-slate-400">S{s}</span>
-                                                                <span className={`text-xs font-bold ${v > 0 ? activeCat.text : "text-slate-300"}`}>
-                                                                    {v > 0 ? v.toLocaleString() : "—"}
-                                                                </span>
+                                                    {/* Baris Shift (Qty) */}
+                                                    <div className="grid grid-cols-3 gap-1 mb-2">
+                                                        {[1, 2, 3].map(s => {
+                                                            const v = Number(vals[`shift${s}`] || 0);
+                                                            return (
+                                                                <div key={s} className={`flex flex-col items-center p-1 rounded-lg ${v > 0 ? "bg-white shadow-sm" : "opacity-20"}`}>
+                                                                    <span className="text-[8px] font-black text-slate-400">S{s}</span>
+                                                                    <span className={`text-[10px] font-bold ${v > 0 ? activeCat.text : "text-slate-300"}`}>{v > 0 ? v : "—"}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Daftar SO & Item Code */}
+                                                    <div className="space-y-1 max-h-[60px] overflow-y-auto pr-1 custom-scrollbar">
+                                                        {vals.details?.map((det, dIdx) => (
+                                                            <div key={dIdx} className="text-[9px] leading-tight p-1 bg-white/50 rounded border border-white/80">
+                                                                <div className="font-black text-slate-700 truncate">{det.so}</div>
+                                                                <div className="text-slate-500 truncate font-medium">{det.item}</div>
+                                                                <div className={`font-bold ${activeCat.text}`}>{det.total} pcs</div>
                                                             </div>
-                                                        );
-                                                    })}
+                                                        ))}
+                                                    </div>
                                                 </div>
 
                                                 {hasData && (
