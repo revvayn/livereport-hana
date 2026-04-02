@@ -94,7 +94,7 @@ export default function Kalender() {
                     <h1 className="text-3xl font-black tracking-tight mb-2">Jadwal Produksi</h1>
                     <div className="flex items-center gap-2 text-slate-500 font-medium">
                         <CalendarIcon size={18} />
-                        <span>Panel Monitoring Shift Kerja</span>
+                        <span>Panel Monitoring Shift Kerja, tggl libur input manual</span>
                     </div>
                 </div>
 

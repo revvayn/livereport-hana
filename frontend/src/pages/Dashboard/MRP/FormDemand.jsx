@@ -133,9 +133,21 @@ export default function FormDemand() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.get("/sales-orders")
-      .then(res => setSalesOrders(res.data))
-      .catch(err => console.error("Gagal load daftar SO", err));
+    const fetchAvailableSO = async () => {
+      try {
+        setLoading(true);
+        // Panggil endpoint yang sudah kita buat di backend tadi
+        const res = await api.get("/demand/sales-orders"); 
+        setSalesOrders(res.data);
+      } catch (err) {
+        console.error("Gagal load daftar SO", err);
+        Swal.fire("Error", "Gagal mengambil daftar Sales Order", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchAvailableSO();
   }, []);
 
   const handleSelectSO = async (e) => {
@@ -283,10 +295,22 @@ export default function FormDemand() {
     if (!header.soNo || !header.deliveryDate || !header.productionDate) {
       return Swal.fire("Peringatan", "Lengkapi semua tanggal!", "warning");
     }
+  
     try {
       setLoading(true);
       await api.post("/demand", { header, items });
-      Swal.fire("Berhasil!", "Data tersimpan.", "success");
+      
+      await Swal.fire("Berhasil!", "Data tersimpan.", "success");
+  
+      // REFRESH DAFTAR SO AGAR YANG SUDAH TERISI HILANG
+      const res = await api.get("/demand/sales-orders");
+      setSalesOrders(res.data);
+  
+      // RESET FORM (Opsional)
+      setSelectedSO("");
+      setHeader({ soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "" });
+      setItems([createItem(new Date())]);
+  
     } catch (error) {
       Swal.fire("Error", "Gagal simpan data", "error");
     } finally {

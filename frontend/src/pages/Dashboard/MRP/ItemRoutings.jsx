@@ -246,7 +246,7 @@ export default function ItemRoutings() {
                   <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Item (Packing)</th>
                   <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Finishing</th>
                   <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Pannel</th>
-                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Core</th>
+                  <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Core, CT, LT, Efective Working Hour</th>
                   <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
                 </tr>
               </thead>
