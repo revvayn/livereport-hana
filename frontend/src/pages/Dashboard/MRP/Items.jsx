@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
 // Menggunakan library ikon yang sama dengan Customer.jsx
-import { Package, Search, Edit2, Trash2, Loader2, PlusCircle, Database } from "lucide-react";
+import { Package, Search, Edit2, Trash2, Loader2, PlusCircle, Database, FileUp } from "lucide-react";
 
 export default function Items() {
   const [items, setItems] = useState([]);
@@ -28,6 +28,36 @@ export default function Items() {
   useEffect(() => {
     fetchItems(search);
   }, [search]);
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+  
+    // Validasi format file
+    const fileType = file.name.split('.').pop().toLowerCase();
+    if (fileType !== 'xlsx' && fileType !== 'xls') {
+      return Swal.fire("Error", "Hanya diperbolehkan file format Excel (.xlsx atau .xls)", "error");
+    }
+  
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    try {
+      setLoading(true);
+      // Ganti endpoint sesuai dengan route backend Anda
+      await api.post("/items/import-excel", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+  
+      Swal.fire("Berhasil", "Data items berhasil diimport", "success");
+      fetchItems(); // Refresh list data
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal mengimport file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = ""; // Reset input file
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,28 +127,47 @@ export default function Items() {
 
         {/* Header Section - Identik dengan Customer.jsx */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
-              <Package size={24} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Items</h1>
-              <p className="text-sm text-slate-500">Kelola inventaris dan spesifikasi barang</p>
-            </div>
-          </div>
+  <div className="flex items-center gap-4">
+    <div className="p-3 bg-slate-900 rounded-lg text-white">
+      <Package size={24} />
+    </div>
+    <div>
+      <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Items</h1>
+      <p className="text-sm text-slate-500">Kelola inventaris dan spesifikasi barang</p>
+    </div>
+  </div>
 
-          {/* Search Input Tambahan agar lebih modern */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              placeholder="Cari kode atau nama..."
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
+  <div className="flex flex-col md:flex-row gap-2">
+    {/* Input File Tersembunyi */}
+    <input
+      type="file"
+      id="upload-excel"
+      className="hidden"
+      accept=".xlsx, .xls"
+      onChange={handleImportExcel}
+    />
+    
+    {/* Tombol Pemicu Import */}
+    <label
+      htmlFor="upload-excel"
+      className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-all shadow-sm"
+    >
+      {loading ? <Loader2 className="animate-spin" size={16} /> : <FileUp size={16} />}
+      IMPORT EXCEL
+    </label>
+
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+      <input
+        type="text"
+        placeholder="Cari kode atau nama..."
+        className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+    </div>
+  </div>
+</div>
 
         {/* Form Card - Struktur 4 kolom (3 Input + 1 Tombol) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
