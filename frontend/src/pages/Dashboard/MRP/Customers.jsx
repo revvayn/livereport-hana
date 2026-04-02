@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
 // Pastikan lucide-react terinstall: npm install lucide-react
-import { UserPlus, Search, Edit2, Trash2, Users, Loader2 } from "lucide-react";
+import { UserPlus, Search, Edit2, Trash2, Users, Loader2, FileUp } from "lucide-react";
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -24,8 +24,35 @@ export default function Customers() {
     }
   };
 
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setLoading(true);
+      await api.post("/customers/import-excel", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      Swal.fire("Berhasil", "Data customer berhasil diimport", "success");
+      fetchCustomers();
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal import file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = "";
+    }
+  };
+
   useEffect(() => {
-    fetchCustomers(search);
+    // Debouncing: Tunggu 500ms setelah ketikan terakhir sebelum tembak API
+    const delayDebounceFn = setTimeout(() => {
+      fetchCustomers(search);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
   }, [search]);
 
   const handleSubmit = async (e) => {
@@ -88,7 +115,7 @@ export default function Customers() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
@@ -100,16 +127,38 @@ export default function Customers() {
               <p className="text-sm text-slate-500">Kelola informasi pelanggan dalam sistem</p>
             </div>
           </div>
-          
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text"
-              placeholder="Cari customer..."
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all w-full md:w-64 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex gap-2">
+            <input type="file" id="import-cust" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+            <label
+              htmlFor="import-cust"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-all"
+            >
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <FileUp size={16} />}
+              IMPORT EXCEL
+            </label>
+            <div className="relative group">
+              <Search
+                className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${search ? "text-slate-900" : "text-slate-400"
+                  }`}
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Cari kode atau nama..."
+                className="pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all w-full md:w-80 text-sm shadow-inner"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {/* Tombol Clear Search (Muncul hanya jika ada teks) */}
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <Trash2 size={14} /> {/* Atau gunakan ikon X jika tersedia */}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -137,9 +186,8 @@ export default function Customers() {
             <button
               type="submit"
               disabled={loading}
-              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
-                editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
-              } disabled:opacity-50`}
+              className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                } disabled:opacity-50`}
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE DATA" : "SIMPAN CUSTOMER"}
             </button>
