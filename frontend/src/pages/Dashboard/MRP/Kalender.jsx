@@ -1,286 +1,280 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Package, Zap, Wrench, Loader2, Filter } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Calendar as CalendarIcon, Package, Zap, Wrench, Loader2, Search, ChevronRight } from "lucide-react";
 import axios from "axios";
 
-const weekdays = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
-
-// Update Warna sesuai permintaan: Packing Hijau, Finishing Biru, Assembly Oren
 const CATEGORIES = [
-    { id: "packing", label: "Packing", icon: <Package size={16} />, color: "bg-emerald-600", ring: "ring-emerald-500", light: "bg-emerald-50", text: "text-emerald-700" },
-    { id: "finishing", label: "Finishing", icon: <Zap size={16} />, color: "bg-blue-600", ring: "ring-blue-500", light: "bg-blue-50", text: "text-blue-700" },
-    { id: "assembly", label: "Assembly", icon: <Wrench size={16} />, color: "bg-orange-500", ring: "ring-orange-400", light: "bg-orange-50", text: "text-orange-700" },
+  { id: "packing", label: "Packing", icon: <Package size={16} />, activeClass: "bg-emerald-600 text-white shadow-indigo-100", text: "text-indigo-600", light: "bg-indigo-50/50" },
+  { id: "finishing", label: "Finishing", icon: <Zap size={16} />, activeClass: "bg-indigo-600 text-white shadow-amber-100", text: "text-amber-600", light: "bg-amber-50/50" },
+  { id: "assembly", label: "Assembly", icon: <Wrench size={16} />, activeClass: "bg-amber-500 text-white shadow-emerald-100", text: "text-emerald-600", light: "bg-emerald-50/50" },
 ];
 
 const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
-export default function Kalender() {
-    const today = new Date();
-    const [month, setMonth] = useState(today.getMonth());
-    const [year, setYear] = useState(today.getFullYear());
-    const [activeTab, setActiveTab] = useState("packing");
-    const [shiftData, setShiftData] = useState({ packing: {}, finishing: {}, assembly: {} });
-    const [loading, setLoading] = useState(false);
+export default function ExcelSchedule() {
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth());
+  const [year, setYear] = useState(today.getFullYear());
+  const [activeTab, setActiveTab] = useState("packing");
+  const [rawData, setRawData] = useState({ packing: [], finishing: [], assembly: [] });
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
-    const fetchSchedule = useCallback(async () => {
-        setLoading(true);
-        try {
-            // PERBAIKAN: Sesuaikan URL dengan route backend
-            const [resProd, resFin, resAssy] = await Promise.all([
-                axios.get(`/api/production/all/schedule`),
-                axios.get(`/api/production/finishing-all`),
-                axios.get(`/api/production/assembly-all`) // Sesuai route backend
-            ]);
+  const fetchSchedule = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [resProd, resFin, resAssy] = await Promise.all([
+        axios.get(`/api/production/all/schedule`),
+        axios.get(`/api/production/finishing-all`),
+        axios.get(`/api/production/assembly-all`)
+      ]);
 
-            // Debugging: Cek di console log apakah data muncul
-            console.log("Data Packing:", resProd.data);
-            console.log("Data Finishing:", resFin.data);
-            console.log("Data Assembly:", resAssy.data);
+      setRawData({
+        packing: resProd.data.production_schedule || [],
+        finishing: resFin.data.finishing_schedule || [],
+        assembly: resAssy.data.assembly_schedule || []
+      });
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-            setShiftData({
-                packing: processScheduleArray(resProd.data.production_schedule),
-                finishing: processScheduleArray(resFin.data.finishing_schedule || resFin.data.production_schedule),
-                assembly: processScheduleArray(resAssy.data.production_schedule)
-            });
-        } catch (err) {
-            console.error("Fetch Error:", err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
 
-    const processScheduleArray = (arr) => {
-        const formatted = {};
-        if (!Array.isArray(arr)) return formatted;
+  const daysInMonth = useMemo(() => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    while (date.getMonth() === month) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  }, [month, year]);
 
-        arr.forEach((item) => {
-            const rawDate = item.date || item.tanggal;
-            if (rawDate) {
-                const dateKey = String(rawDate).substring(0, 10);
-                if (!formatted[dateKey]) {
-                    formatted[dateKey] = { shift1: 0, shift2: 0, shift3: 0, details: [] };
-                }
+  const tableData = useMemo(() => {
+    const currentCategoryData = rawData[activeTab];
+    const grouped = {};
+    const activeMonthFilter = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-                const s1 = Number(item.shifts?.shift1?.qty || item.shift1 || 0);
-                const s2 = Number(item.shifts?.shift2?.qty || item.shift2 || 0);
-                const s3 = Number(item.shifts?.shift3?.qty || item.shift3 || 0);
+    currentCategoryData.forEach(item => {
+      const rawDate = item.date || item.tanggal;
+      if (!rawDate) return;
+      const d = new Date(rawDate);
+      const itemMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const dateKey = `${itemMonthKey}-${String(d.getDate()).padStart(2, '0')}`;
+      if (itemMonthKey !== activeMonthFilter) return;
 
-                formatted[dateKey].shift1 += s1;
-                formatted[dateKey].shift2 += s2;
-                formatted[dateKey].shift3 += s3;
+      const so = item.so_number || "N/A";
+      const code = item.item_code || "N/A";
+      const desc = item.item_description || "-";
 
-                // Simpan detail jika ada qty
-                if (s1 + s2 + s3 > 0) {
-                    formatted[dateKey].details.push({
-                        so: item.so_number,
-                        item: item.item_code,
-                        total: s1 + s2 + s3
-                    });
-                }
-            }
+      if (!grouped[so]) grouped[so] = {};
+      if (!grouped[so][code]) grouped[so][code] = { dailyQty: {}, description: desc };
+
+      const s1 = Number(item.shifts?.shift1?.qty || item.shift1 || 0);
+      const s2 = Number(item.shifts?.shift2?.qty || item.shift2 || 0);
+      const s3 = Number(item.shifts?.shift3?.qty || item.shift3 || 0);
+      grouped[so][code].dailyQty[dateKey] = { s1, s2, s3, total: s1 + s2 + s3 };
+    });
+
+    const flatData = [];
+    Object.keys(grouped).forEach(so => {
+      const filteredItems = Object.keys(grouped[so]).filter(code =>
+        so.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        grouped[so][code].description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+      filteredItems.forEach((code, index) => {
+        flatData.push({
+          so,
+          itemCode: code,
+          description: grouped[so][code].description,
+          dailyQty: grouped[so][code].dailyQty,
+          isFirstItem: index === 0,
+          rowCount: filteredItems.length
         });
-        return formatted;
-    };
+      });
+    });
+    return flatData;
+  }, [rawData, activeTab, searchTerm, month, year]);
 
-    useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
+  const activeCat = CATEGORIES.find(c => c.id === activeTab);
 
-    const generateCalendar = (m, y) => {
-        const startOffset = (new Date(y, m, 1).getDay() + 6) % 7;
-        const totalDays = new Date(y, m + 1, 0).getDate();
-        let cur = 1;
-        return Array.from({ length: 42 }, (_, i) => i < startOffset || cur > totalDays ? null : cur++);
-    };
-
-    const activeCat = CATEGORIES.find(c => c.id === activeTab);
-    const currentStore = shiftData[activeTab] || {};
-    return (
-        <div className="max-w-7xl mx-auto p-4 md:p-8 bg-slate-50 min-h-screen font-sans text-slate-900">
-
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight mb-2">Jadwal Produksi</h1>
-                    <div className="flex items-center gap-2 text-slate-500 font-medium">
-                        <CalendarIcon size={18} />
-                        <span>Panel Monitoring Shift Kerja, tggl libur input manual</span>
-                    </div>
-                </div>
-
-                {/* Tab Switcher */}
-                <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
-                    {CATEGORIES.map(cat => (
-                        <button
-                            key={cat.id}
-                            onClick={() => setActiveTab(cat.id)}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all
-                            ${activeTab === cat.id ? `${cat.color} text-white shadow-md` : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`}
-                        >
-                            {cat.icon} {cat.label}
-                        </button>
-                    ))}
-                </div>
+  return (
+    <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8 font-sans text-slate-900">
+      {/* Upper Header */}
+      <div className="max-w-[1600px] mx-auto mb-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-indigo-600 mb-1">
+              <div className="h-1 w-6 bg-indigo-600 rounded-full" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Monitoring System</span>
             </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-800">Production Schedule</h1>
+          </div>
 
-            <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/60 overflow-hidden border border-slate-100 relative">
-                {loading && (
-                    <div className="absolute inset-0 bg-white/60 z-30 flex items-center justify-center backdrop-blur-[2px]">
-                        <div className="flex flex-col items-center gap-3">
-                            <Loader2 className={`animate-spin ${activeCat.text}`} size={48} />
-                            <span className="font-bold text-slate-400 animate-pulse">Memuat Data...</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Toolbar Kalender */}
-                <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 bg-white">
-                    <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${activeCat.color}`}>
-                            <Filter size={28} />
-                        </div>
-                        <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Periode Aktif</span>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-2xl font-black">{monthNames[month]}</h2>
-                                <h2 className="text-2xl font-light text-slate-400">{year}</h2>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-center gap-3 bg-slate-50 p-2 rounded-[1.5rem] border border-slate-100">
-                        {/* Pilih Bulan */}
-                        <select
-                            value={month}
-                            onChange={(e) => setMonth(parseInt(e.target.value))}
-                            className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
-                        >
-                            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
-                        </select>
-
-                        {/* Pilih Tahun */}
-                        <select
-                            value={year}
-                            onChange={(e) => setYear(parseInt(e.target.value))}
-                            className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm border-none focus:ring-2 focus:ring-slate-200 outline-none"
-                        >
-                            {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map(y => (
-                                <option key={y} value={y}>{y}</option>
-                            ))}
-                        </select>
-
-                        <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block" />
-
-                        <div className="flex gap-1">
-                            <button onClick={() => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }}
-                                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
-                                <ChevronLeft size={20} />
-                            </button>
-                            <button onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}
-                                className="px-4 py-2 hover:bg-white hover:shadow-sm rounded-lg text-xs font-black uppercase text-slate-600">
-                                Hari Ini
-                            </button>
-                            <button onClick={() => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }}
-                                className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
-                                <ChevronRight size={20} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Grid Kalender */}
-                <div className="p-6 md:p-8 overflow-x-auto">
-                    <div className="min-w-[800px]">
-                        <div className="grid grid-cols-7 gap-4 mb-6">
-                            {weekdays.map(wd => (
-                                <div key={wd} className="text-center text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">{wd}</div>
-                            ))}
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-4">
-                            {generateCalendar(month, year).map((date, idx) => {
-                                const dateKey = date ? `${year}-${String(month + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}` : null;
-                                const vals = currentStore[dateKey] || { shift1: 0, shift2: 0, shift3: 0 };
-                                const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                                const hasData = date && (vals.shift1 > 0 || vals.shift2 > 0 || vals.shift3 > 0);
-                                const totalQty = Number(vals.shift1) + Number(vals.shift2) + Number(vals.shift3);
-
-                                // Gunakan template literal untuk warna border dinamis
-                                const borderColorClass = activeTab === 'packing'
-                                    ? 'border-emerald-100'
-                                    : activeTab === 'finishing'
-                                        ? 'border-blue-100'
-                                        : 'border-orange-100';
-                                return (
-                                    <div key={idx}
-                                        className={`min-h-[140px] rounded-[1.5rem] border-2 p-3 transition-all flex flex-col group
-        ${!date ? "bg-transparent border-transparent" : "bg-white border-slate-50 shadow-sm hover:border-slate-200 hover:shadow-md"}
-        ${isToday ? `ring-2 ${activeCat.ring} ring-offset-4 border-transparent` : ""}
-        ${hasData ? `${activeCat.light} ${borderColorClass}` : ""}`}>
-
-                                        {date && (
-                                            <>
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <span className={`text-sm font-black w-8 h-8 flex items-center justify-center rounded-xl transition-colors
-                                                        ${isToday ? `${activeCat.color} text-white shadow-lg shadow-${activeCat.id}/30` : hasData ? `${activeCat.text} bg-white shadow-sm` : "text-slate-300"}`}>
-                                                        {date}
-                                                    </span>
-                                                    {hasData && <div className={`w-2 h-2 rounded-full ${activeCat.color} animate-pulse`} />}
-                                                </div>
-
-                                                <div className="space-y-1.5 flex-grow">
-                                                    {/* Baris Shift (Qty) */}
-                                                    <div className="grid grid-cols-3 gap-1 mb-2">
-                                                        {[1, 2, 3].map(s => {
-                                                            const v = Number(vals[`shift${s}`] || 0);
-                                                            return (
-                                                                <div key={s} className={`flex flex-col items-center p-1 rounded-lg ${v > 0 ? "bg-white shadow-sm" : "opacity-20"}`}>
-                                                                    <span className="text-[8px] font-black text-slate-400">S{s}</span>
-                                                                    <span className={`text-[10px] font-bold ${v > 0 ? activeCat.text : "text-slate-300"}`}>{v > 0 ? v : "—"}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {/* Daftar SO & Item Code */}
-                                                    <div className="space-y-1 max-h-[60px] overflow-y-auto pr-1 custom-scrollbar">
-                                                        {vals.details?.map((det, dIdx) => (
-                                                            <div key={dIdx} className="text-[9px] leading-tight p-1 bg-white/50 rounded border border-white/80">
-                                                                <div className="font-black text-slate-700 truncate">{det.so}</div>
-                                                                <div className="text-slate-500 truncate font-medium">{det.item}</div>
-                                                                <div className={`font-bold ${activeCat.text}`}>{det.total} pcs</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                {hasData && (
-                                                    <div className={`mt-2 pt-2 border-t border-white flex justify-between items-center ${activeCat.text}`}>
-                                                        <span className="text-[8px] font-black uppercase opacity-60">Total</span>
-                                                        <span className="text-[11px] font-black">{totalQty.toLocaleString()}</span>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer / Legend */}
-                <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
-                    <div className="flex gap-6 items-center">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${activeCat.color}`} />
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{activeCat.label} Active</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-slate-200" />
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No Schedule</span>
-                        </div>
-                    </div>
-                    <p className="text-[10px] font-bold text-slate-400 italic">*Data diperbarui secara otomatis dari sistem ERP.</p>
-                </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Minimalist Tab Switcher */}
+            <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveTab(cat.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    activeTab === cat.id ? cat.activeClass : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {cat.icon} {cat.label}
+                </button>
+              ))}
             </div>
+          </div>
         </div>
-    );
+      </div>
+
+      {/* Filter Bar */}
+      <div className="max-w-[1600px] mx-auto mb-4 flex flex-col md:flex-row gap-3">
+        <div className="relative flex-grow max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            placeholder="Search Sales Order or Items..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <select 
+            value={month} 
+            onChange={(e) => setMonth(parseInt(e.target.value))} 
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none shadow-sm cursor-pointer hover:bg-slate-50"
+          >
+            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select 
+            value={year} 
+            onChange={(e) => setYear(parseInt(e.target.value))} 
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none shadow-sm cursor-pointer hover:bg-slate-50"
+          >
+            {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {loading && <div className="flex items-center px-2"><Loader2 className="animate-spin text-indigo-500" size={20} /></div>}
+        </div>
+      </div>
+
+      {/* Main Table Container */}
+      <div className="max-w-[1600px] mx-auto bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden">
+        <div className="overflow-x-auto max-h-[calc(100vh-280px)]">
+          <table className="w-full border-separate border-spacing-0">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="sticky left-0 z-[60] bg-slate-50 p-4 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-r border-slate-200 min-w-[160px]">Sales Order</th>
+                <th className="sticky left-[160px] z-[60] bg-slate-50 p-4 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-r border-slate-200 min-w-[240px]">Item Description</th>
+                {daysInMonth.map((date, i) => {
+                  const isToday = date.toDateString() === today.toDateString();
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  return (
+                    <th key={i} className={`p-2 border-b border-r border-slate-200 min-w-[100px] text-center transition-colors ${isToday ? 'bg-indigo-50/50' : ''}`}>
+                      <span className={`text-[10px] font-bold ${isWeekend ? 'text-rose-400' : 'text-slate-400'}`}>
+                      {["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"][date.getDay()]}
+                      </span>
+                      <div className={`text-lg font-bold mt-0.5 ${isToday ? 'text-indigo-600' : 'text-slate-700'}`}>
+                        {date.getDate()}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {tableData.length > 0 ? (
+                tableData.map((row, idx) => (
+                  <tr key={idx} className="group hover:bg-slate-50 transition-colors">
+                    {row.isFirstItem && (
+                      <td 
+                        rowSpan={row.rowCount} 
+                        className="sticky left-0 z-40 bg-white group-hover:bg-slate-50 p-4 border-r border-b border-slate-100 align-top transition-colors"
+                      >
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <div className="w-1 h-4 bg-indigo-500 rounded-full" />
+                          {row.so}
+                        </div>
+                      </td>
+                    )}
+                    <td className="sticky left-[160px] z-30 bg-white group-hover:bg-slate-50 p-4 border-r border-b border-slate-100 transition-colors">
+                      <div className="text-xs font-bold text-indigo-600 mb-0.5">{row.itemCode}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1 group-hover:text-slate-700">{row.description}</div>
+                    </td>
+
+                    {daysInMonth.map((date, i) => {
+                      const dKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                      const data = row.dailyQty[dKey];
+                      const hasData = data && data.total > 0;
+
+                      return (
+                        <td key={i} className={`border-r border-b border-slate-50 p-1.5 transition-all ${hasData ? activeCat.light : ''}`}>
+                          {hasData ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex justify-between items-center px-1 text-[10px] font-mono font-medium text-slate-400">
+                                <span className={data.s1 > 0 ? "text-slate-700 font-bold" : ""}>{data.s1}</span>
+                                <span className={data.s2 > 0 ? "text-slate-700 font-bold" : ""}>{data.s2}</span>
+                                <span className={data.s3 > 0 ? "text-slate-700 font-bold" : ""}>{data.s3}</span>
+                              </div>
+                              <div className={`text-[10px] font-bold text-center py-0.5 rounded-md ${activeCat.activeClass.split(' shadow')[0]}`}>
+                                {data.total}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center opacity-[0.03] group-hover:opacity-[0.08]">
+                              <ChevronRight size={12} className="rotate-45" />
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={daysInMonth.length + 2} className="py-20 text-center">
+                    <div className="inline-flex flex-col items-center">
+                      <div className="p-4 bg-slate-50 rounded-full mb-3">
+                        <Search size={32} className="text-slate-300" />
+                      </div>
+                      <p className="text-slate-400 font-medium italic">No schedule data found for this selection</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Footer / Legend */}
+      <div className="max-w-[1600px] mx-auto mt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-4">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-slate-200"></span>
+            <span>No Activity</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-full ${activeCat.activeClass.split(' ')[0]}`}></span>
+            <span>Planned {activeCat.label}</span>
+          </div>
+          <div className="h-4 w-[1px] bg-slate-200" />
+          <div className="font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+            SHIFT FORMAT: S1 | S2 | S3
+          </div>
+        </div>
+        <div className="flex items-center gap-1 opacity-70 italic">
+          Tip: Use Shift + Mousewheel to scroll horizontally through the dates.
+        </div>
+      </div>
+    </div>
+  );
 }

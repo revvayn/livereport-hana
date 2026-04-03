@@ -15,18 +15,17 @@ const robustParse = (data) => {
     let parsed = data;
     try {
         while (typeof parsed === 'string' && parsed.trim() !== "") {
-            try {
-                parsed = JSON.parse(parsed);
-            } catch (e) {
-                // Jika gagal parse, bersihkan manual tanda kutip ganda di awal dan akhir
-                let cleaned = parsed.replace(/^"+|"+$/g, '');
-                if (cleaned === parsed) break; // Berhenti jika tidak ada perubahan
-                parsed = JSON.parse(cleaned);
-            }
+            parsed = JSON.parse(parsed);
         }
-    } catch (err) {
-        console.error("Gagal total saat parsing JSON:", err.message);
-        return [];
+    } catch (e) {
+        try {
+            // Jika gagal parse standar, bersihkan tanda kutip ganda manual
+            let cleaned = String(parsed).replace(/^"+|"+$/g, '');
+            parsed = JSON.parse(cleaned);
+        } catch (err) {
+            console.error("Gagal parsing JSON:", err.message);
+            return [];
+        }
     }
     return Array.isArray(parsed) ? parsed : [];
 };
@@ -49,6 +48,24 @@ function parseSchedule(raw) {
 
     return Array.isArray(data) ? data : [];
 }
+const mapSchedule = (rows, scheduleKey, resKey) => {
+    let finalFlatData = [];
+    rows.forEach(row => {
+        // Gunakan robustParse untuk menangani JSON string yang bermasalah
+        const schedule = robustParse(row[scheduleKey]); 
+        
+        if (Array.isArray(schedule)) {
+            const enhanced = schedule.map(s => ({
+                ...s,
+                so_number: row.so_number,
+                item_code: row.item_code,
+                item_description: row.description || row.item_description || "-"
+            }));
+            finalFlatData = finalFlatData.concat(enhanced);
+        }
+    });
+    return { [resKey]: finalFlatData };
+};
 
 const getProductionSchedule = async (req, res) => {
     const { itemId } = req.params;
@@ -86,28 +103,11 @@ const getProductionSchedule = async (req, res) => {
 const getAllProductionSchedules = async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT di.production_schedule, d.so_number, di.item_code 
-            FROM demand_items di
-            JOIN demands d ON di.demand_id = d.id
-        `);
-
-        let finalFlatData = [];
-        result.rows.forEach(row => {
-            let schedule = robustParse(row.production_schedule);
-            if (Array.isArray(schedule)) {
-                // Tambahkan info SO dan Item ke setiap objek jadwal
-                const enhanced = schedule.map(s => ({
-                    ...s,
-                    so_number: row.so_number,
-                    item_code: row.item_code
-                }));
-                finalFlatData = finalFlatData.concat(enhanced);
-            }
-        });
-        res.json({ production_schedule: finalFlatData });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+            SELECT di.production_schedule, d.so_number, di.item_code, di.description 
+            FROM demand_items di 
+            JOIN demands d ON di.demand_id = d.id`);
+        res.json(mapSchedule(result.rows, 'production_schedule', 'production_schedule'));
+    } catch (err) { res.status(500).json({ error: err.message }); }
 };
 const getFinishingSchedule = async (req, res) => {
     const { itemId } = req.params;
@@ -132,27 +132,11 @@ const getFinishingSchedule = async (req, res) => {
 const getAllFinishingSchedules = async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT df.production_schedule, d.so_number, df.item_code 
-            FROM demand_item_finishing df
-            JOIN demands d ON df.demand_id = d.id
-        `);
-
-        let finalFlatData = [];
-        result.rows.forEach(row => {
-            const schedule = robustParse(row.production_schedule);
-            if (Array.isArray(schedule)) {
-                const enhanced = schedule.map(s => ({
-                    ...s,
-                    so_number: row.so_number,
-                    item_code: row.item_code
-                }));
-                finalFlatData = finalFlatData.concat(enhanced);
-            }
-        });
-        res.json({ finishing_schedule: finalFlatData });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+            SELECT df.production_schedule, d.so_number, df.item_code, df.description 
+            FROM demand_item_finishing df 
+            JOIN demands d ON df.demand_id = d.id`);
+        res.json(mapSchedule(result.rows, 'production_schedule', 'finishing_schedule'));
+    } catch (err) { res.status(500).json({ error: err.message }); }
 };
 // Mendapatkan satu schedule Assembly berdasarkan ID
 const getAssemblySchedule = async (req, res) => {
@@ -180,29 +164,13 @@ const getAssemblySchedule = async (req, res) => {
 const getAllAssemblySchedules = async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT da.production_schedule, d.so_number, da.item_code 
-            FROM demand_item_assembly da
-            JOIN demands d ON da.demand_id = d.id
-        `);
-
-        let finalFlatData = [];
-        result.rows.forEach(row => {
-            const schedule = robustParse(row.production_schedule);
-            if (Array.isArray(schedule)) {
-                const enhanced = schedule.map(s => ({
-                    ...s,
-                    so_number: row.so_number,
-                    item_code: row.item_code
-                }));
-                finalFlatData = finalFlatData.concat(enhanced);
-            }
-        });
-        res.json({ production_schedule: finalFlatData }); 
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+            SELECT da.production_schedule, d.so_number, da.item_code, da.description 
+            FROM demand_item_assembly da 
+            JOIN demands d ON da.demand_id = d.id`);
+        // PERHATIKAN: resKey di sini adalah 'assembly_schedule'
+        res.json(mapSchedule(result.rows, 'production_schedule', 'assembly_schedule'));
+    } catch (err) { res.status(500).json({ error: err.message }); }
 };
-
 const getFullScheduleBySO = async (req, res) => {
     const { id } = req.params;
     try {
