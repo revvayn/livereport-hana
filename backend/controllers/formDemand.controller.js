@@ -10,11 +10,7 @@ exports.getDemandFromSalesOrder = async (req, res) => {
     const { id } = req.params;
     try {
         const soResult = await pool.query(
-            `SELECT 
-                so.so_number, 
-                so.so_date, 
-                c.customer_name, 
-                so.delivery_date 
+            `SELECT so.so_number, so.so_date, c.customer_name, so.delivery_date 
              FROM sales_orders so
              LEFT JOIN customers c ON so.customer_id = c.id
              WHERE so.id = $1`,
@@ -31,12 +27,13 @@ exports.getDemandFromSalesOrder = async (req, res) => {
                 i.item_code, 
                 i.description, 
                 i.uom, 
+                i.capacity_per_shift, -- <-- TAMBAHKAN INI
                 soi.quantity, 
                 soi.pcs 
              FROM sales_order_items soi
              INNER JOIN items i ON i.id = soi.item_id
              WHERE soi.sales_order_id = $1
-             ORDER BY soi.id ASC`, // <--- TAMBAHKAN INI AGAR URUTAN SESUAI INPUT SO
+             ORDER BY soi.id ASC`,
             [id]
         );
 
@@ -45,7 +42,6 @@ exports.getDemandFromSalesOrder = async (req, res) => {
             items: itemsResult.rows
         });
     } catch (err) {
-        console.error("DATABASE ERROR:", err.message);
         res.status(500).json({ error: "Gagal memproses data: " + err.message });
     }
 };

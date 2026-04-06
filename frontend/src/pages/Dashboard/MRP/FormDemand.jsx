@@ -39,10 +39,10 @@ const formatToYYYYMMDD = (date) => {
 const buildCalendar = (deliveryDate, days = 14) => {
   return Array.from({ length: days }, (_, i) => {
     // i=0 adalah H-13, i=13 adalah Hari Delivery
-    const offset = i - (days - 1); 
+    const offset = i - (days - 1);
     const newDate = new Date(deliveryDate);
     newDate.setDate(newDate.getDate() + offset);
-    
+
     return {
       date: formatToYYYYMMDD(newDate),
       shifts: {
@@ -79,37 +79,35 @@ const getTotalPlottedQty = (calendar) => {
 
 /* ================= LOGIC: CUMULATIVE BACKWARD PLOTTING ================= */
 // Ditambahkan parameter capacity agar dinamis
-const autoPlotGlobalBackward = (items, deliveryDate, capacity = 50) => {
+const autoPlotGlobalBackward = (items, deliveryDate) => {
   if (!deliveryDate || items.length === 0) return items;
 
-  // 1. Inisialisasi: Semua item dapat kalender yang sama (Delivery di Index 13)
   let updatedItems = items.map((it) => ({
     ...it,
     calendar: buildCalendar(new Date(deliveryDate + "T00:00:00"), 14),
   }));
 
-  // 2. Pointer Global: Mulai dari H-1 (Indeks 12) Shift 3
-  // Kita sisakan Indeks 13 khusus untuk label "DELIVERY"
-  let currentDayIdx = 12; 
+  let currentDayIdx = 12;
   let currentShift = 3;
 
   updatedItems.forEach((item) => {
     let targetPcs = Number(item.pcs) || 0;
+    // Ambil kapasitas spesifik item, default ke 1 jika tidak ada agar tidak infinite loop
+    const itemCapacity = Number(item.capacity_per_shift) || 1;
+
     if (targetPcs <= 0) return;
 
     let currentPlotted = 0;
 
-    // Plotting selama pcs belum habis dan hari (ke arah kiri) masih tersedia
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
       const sKey = `shift${currentShift}`;
       const remaining = targetPcs - currentPlotted;
-      const amountToPlot = Math.min(remaining, capacity);
+      const amountToPlot = Math.min(remaining, itemCapacity);
 
       item.calendar[currentDayIdx].shifts[sKey].active = true;
       item.calendar[currentDayIdx].shifts[sKey].qty = amountToPlot;
       currentPlotted += amountToPlot;
 
-      // Geser pointer global ke kiri
       currentShift--;
       if (currentShift < 1) {
         currentShift = 3;
@@ -137,7 +135,7 @@ export default function FormDemand() {
       try {
         setLoading(true);
         // Panggil endpoint yang sudah kita buat di backend tadi
-        const res = await api.get("/demand/sales-orders"); 
+        const res = await api.get("/demand/sales-orders");
         setSalesOrders(res.data);
       } catch (err) {
         console.error("Gagal load daftar SO", err);
@@ -146,7 +144,7 @@ export default function FormDemand() {
         setLoading(false);
       }
     };
-  
+
     fetchAvailableSO();
   }, []);
 
@@ -177,11 +175,12 @@ export default function FormDemand() {
         uom: it.uom || 'PCS',
         qty: Number(it.quantity || 0),
         pcs: Number(it.pcs || 0),
+        // PASTIKAN FIELD INI ADA (sesuaikan dengan nama kolom di database)
+        capacity_per_shift: Number(it.capacity_per_shift || 0),
       }));
 
       if (newHeader.deliveryDate && initialItems.length > 0) {
-        // Gunakan capacityPerShift saat plotting awal
-        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate, capacityPerShift));
+        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate));
       } else {
         setItems(initialItems);
       }
@@ -225,16 +224,15 @@ export default function FormDemand() {
         const currentTotal = getTotalPlottedQty(item.calendar);
         const targetPcs = Number(item.pcs) || 0;
         const remaining = targetPcs - currentTotal;
+        // Gunakan kapasitas spesifik item ini
+        const itemCap = Number(item.capacity_per_shift) || 0;
 
-        if (remaining <= 0) {
-          return prev;
-        }
+        if (remaining <= 0) return prev;
 
-        // Menggunakan capacityPerShift saat manual klik
         targetDay.shifts[shift] = {
           ...targetDay.shifts[shift],
           active: true,
-          qty: remaining < capacityPerShift ? remaining : capacityPerShift
+          qty: remaining < itemCap ? remaining : itemCap
         };
       } else {
         targetDay.shifts[shift].active = nextActive;
@@ -244,7 +242,7 @@ export default function FormDemand() {
       newList[itemIdx].calendar[dayIdx] = targetDay;
       return newList;
     });
-  }, [capacityPerShift]); // Tambahkan dependency capacity
+  }, []); // Dependency capacityPerShift dihapus
 
   // ... fungsi updateShiftQty, handleExportExcel, handleSubmit tetap sama ...
   const validateQtyLimit = (item, currentShiftValue, newValue) => {
@@ -295,22 +293,22 @@ export default function FormDemand() {
     if (!header.soNo || !header.deliveryDate || !header.productionDate) {
       return Swal.fire("Peringatan", "Lengkapi semua tanggal!", "warning");
     }
-  
+
     try {
       setLoading(true);
       await api.post("/demand", { header, items });
-      
+
       await Swal.fire("Berhasil!", "Data tersimpan.", "success");
-  
+
       // REFRESH DAFTAR SO AGAR YANG SUDAH TERISI HILANG
       const res = await api.get("/demand/sales-orders");
       setSalesOrders(res.data);
-  
+
       // RESET FORM (Opsional)
       setSelectedSO("");
       setHeader({ soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "" });
       setItems([createItem(new Date())]);
-  
+
     } catch (error) {
       Swal.fire("Error", "Gagal simpan data", "error");
     } finally {
@@ -338,15 +336,6 @@ export default function FormDemand() {
             value={options.find((opt) => opt.value === selectedSO) || null}
             onChange={(selected) => handleSelectSO({ target: { value: selected ? selected.value : "" } })}
             isSearchable isClearable placeholder="-- Cari SO Number --" className="text-sm"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-bold text-blue-600 mb-1 block uppercase">Qty Per Shift (Auto)</label>
-          <input
-            type="number"
-            className="w-full border border-blue-200 p-[7px] rounded text-sm font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500"
-            value={capacityPerShift}
-            onChange={(e) => setCapacityPerShift(Number(e.target.value))}
           />
         </div>
       </div>
@@ -398,11 +387,17 @@ export default function FormDemand() {
           </div>
 
           <div className="flex justify-between items-center mb-4">
-            <div className="text-[11px] font-bold uppercase">
-              Sisa Plotting:
-              <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
-                {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
-              </span>
+            <div className="flex gap-4 text-[11px] font-bold uppercase">
+              <div>
+                Sisa Plotting:
+                <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                  {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
+                </span>
+              </div>
+              {/* Info Kapasitas Spesifik Item */}
+              <div className="text-blue-600 border-l pl-4">
+                Max Cap/Shift: <span className="bg-blue-50 px-2 py-0.5 rounded">{item.capacity_per_shift || 0} Pcs</span>
+              </div>
             </div>
           </div>
 
