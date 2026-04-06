@@ -174,6 +174,47 @@ exports.deleteCore = async (req, res) => {
     }
 };
 
+exports.importExcelCore = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
+
+        const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+        await pool.query("BEGIN");
+        for (const row of data) {
+            // Header di Excel: assembly_code, description, warehouse, cycle_time
+            const { assembly_code, description, warehouse, cycle_time } = row;
+            if (!assembly_code) continue;
+
+            const capacity = calculateCapacity(cycle_time);
+            const query = `
+                INSERT INTO item_assembly_core (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (assembly_code) 
+                DO UPDATE SET 
+                  description = EXCLUDED.description,
+                  warehouse = EXCLUDED.warehouse,
+                  cycle_time = EXCLUDED.cycle_time,
+                  capacity_per_shift = EXCLUDED.capacity_per_shift,
+                  updated_at = NOW()
+            `;
+            await pool.query(query, [
+                assembly_code.toString().toUpperCase(), 
+                description || "", 
+                warehouse || 'WIPA', 
+                cycle_time || 0, 
+                capacity
+            ]);
+        }
+        await pool.query("COMMIT");
+        res.json({ message: "Import Excel Core berhasil" });
+    } catch (err) {
+        await pool.query("ROLLBACK");
+        res.status(500).json({ error: "Gagal import excel core: " + err.message });
+    }
+};
+
 //====================================ASSEMBLY GENERATE=============================================
 
 const calculateAssemblySchedule = (finishingSchedule) => {

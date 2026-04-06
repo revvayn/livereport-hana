@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer"); // 1. PASTIKAN SUDAH DI-REQUIRE
+const upload = multer({ storage: multer.memoryStorage() });
 const finishingCtrl = require("../controllers/finishing.controller");
+
+router.post("/import-excel", upload.single("file"), finishingCtrl.importExcel);
 
 // 1. Route Statis & Global
 router.get("/", finishingCtrl.getAllFinishing); // Ambil semua data
