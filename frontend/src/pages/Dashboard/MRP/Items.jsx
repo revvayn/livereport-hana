@@ -76,11 +76,75 @@ export default function Items() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Fungsi Kalkulasi EWH (80% dari 7 jam)
-  const calculateDailyCapacity = (ct) => {
-    if (!ct || ct <= 0) return 0;
-    const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
-    return Math.floor(ewhSeconds / ct);
+  const handleDelete = async (id) => {
+    // 1. Konfirmasi menggunakan SweetAlert2
+    const result = await Swal.fire({
+      title: "Apakah Anda yakin?",
+      text: "Data yang dihapus tidak dapat dikembalikan!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Ya, Hapus!",
+      cancelButtonText: "Batal"
+    });
+  
+    if (result.isConfirmed) {
+      try {
+        setLoading(true);
+        // 2. Panggil API delete
+        await api.delete(`/items/${id}`);
+        
+        // 3. Notifikasi Berhasil
+        Swal.fire("Terhapus!", "Item telah berhasil dihapus.", "success");
+        
+        // 4. Refresh data tabel
+        fetchItems();
+      } catch (err) {
+        console.error(err);
+        Swal.fire("Gagal", err.response?.data?.error || "Gagal menghapus data", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validasi format file
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    if (fileExtension !== 'xlsx' && fileExtension !== 'xls') {
+      return Swal.fire("Gagal", "Hanya diperbolehkan file Excel (.xlsx atau .xls)", "error");
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setLoading(true);
+      // Sesuaikan endpoint dengan router backend Anda (misal: /items/import-excel)
+      const res = await api.post("/items/import-excel", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      Swal.fire({
+        icon: "success",
+        title: "Berhasil",
+        text: res.data.message || "Data Excel berhasil di-import",
+        timer: 2000,
+        showConfirmButton: false
+      });
+
+      fetchItems(); // Refresh tabel setelah import
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal mengunggah file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = ""; // Reset input file agar bisa pilih file yang sama lagi
+    }
   };
 
   return (
@@ -100,7 +164,13 @@ export default function Items() {
           </div>
 
           <div className="flex flex-col md:flex-row gap-2">
-            <input type="file" id="upload-excel" className="hidden" accept=".xlsx, .xls" onChange={(e) => {/* handleImportExcel logic */ }} />
+            <input
+              type="file"
+              id="upload-excel"
+              className="hidden"
+              accept=".xlsx, .xls"
+              onChange={handleImportExcel} // <--- Hubungkan di sini
+            />
             <label htmlFor="upload-excel" className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer transition-all">
               {loading ? <Loader2 className="animate-spin" size={16} /> : <FileUp size={16} />}
               IMPORT EXCEL

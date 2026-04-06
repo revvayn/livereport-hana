@@ -182,7 +182,15 @@ export default function FinishingItems() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 text-slate-600"><Clock size={14} className="text-blue-500" /> <span className="text-sm">{i.cycle_time}s</span></div>
-                      <div className="flex items-center gap-1 border-l pl-4 text-green-700 font-bold"><Target size={14} /> {i.capacity_per_shift} <small className="font-normal text-slate-400">/7h</small></div>
+                      <div className="flex items-center gap-1.5 text-slate-600 border-l pl-4">
+                          <Target size={14} className="text-green-500" />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-green-700">
+                              {i.capacity_per_shift || 0}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal">Pcs / 7h Shift</span>
+                          </div>
+                        </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
