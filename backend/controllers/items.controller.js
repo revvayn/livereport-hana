@@ -1,14 +1,29 @@
 const pool = require("../db");
 const xlsx = require('xlsx');
 
+
+const calculateCapacity = (cycleTime) => {
+  const ct = parseInt(cycleTime);
+  if (!ct || ct <= 0) return 0;
+  const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
+  return Math.floor(ewhSeconds / ct);
+};
+
 // GET all items
 exports.getItems = async (req, res) => {
+  const { search } = req.query;
   try {
-    const result = await pool.query("SELECT * FROM items ORDER BY id");
-    res.json(result.rows || []);
+    let query = "SELECT * FROM items";
+    let values = [];
+    if (search) {
+      query += " WHERE item_code ILIKE $1 OR description ILIKE $1";
+      values = [`%${search}%`];
+    }
+    query += " ORDER BY id DESC";
+    const result = await pool.query(query, values);
+    res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch items" });
+    res.status(500).json({ error: "Gagal mengambil data" });
   }
 };
 
@@ -27,54 +42,34 @@ exports.getItemById = async (req, res) => {
 
 // CREATE item
 exports.createItem = async (req, res) => {
-  const { item_code, description, uom, warehouse } = req.body;
-
-  // Perbaikan: Validasi warehouse
-  if (!item_code || !warehouse) {
-    return res.status(400).json({ error: "Item code and warehouse are required" });
-  }
-
-  // Validasi nilai warehouse (Sesuaikan jika ada warehouse lain selain GPAK)
-  if (!["GPAK"].includes(warehouse)) {
-    return res.status(400).json({ error: "Warehouse must be GPAK" });
-  }
+  const { item_code, description, uom, warehouse, cycle_time } = req.body;
+  if (!item_code || !description) return res.status(400).json({ error: "Data tidak lengkap" });
 
   try {
+    const capacity = calculateCapacity(cycle_time);
     const result = await pool.query(
-      "INSERT INTO items(item_code, description, uom, warehouse) VALUES($1,$2,$3,$4) RETURNING *",
-      [item_code, description, uom, warehouse]
+      "INSERT INTO items(item_code, description, uom, warehouse, cycle_time, capacity_per_shift) VALUES($1, $2, $3, $4, $5, $6) RETURNING *",
+      [item_code, description, uom, warehouse || 'GPAK', cycle_time || 0, capacity]
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create item" });
+    res.status(500).json({ error: "Gagal membuat item" });
   }
 };
 
 // UPDATE item
 exports.updateItem = async (req, res) => {
   const { id } = req.params;
-  const { item_code, description, uom, warehouse } = req.body; // Perbaikan: item_type -> warehouse
-
-  // Perbaikan: Validasi variabel warehouse
-  if (!item_code || !warehouse) {
-    return res.status(400).json({ error: "Item code and warehouse are required" });
-  }
-
-  if (!["GPAK"].includes(warehouse)) {
-    return res.status(400).json({ error: "Invalid warehouse name" });
-  }
-
+  const { item_code, description, uom, warehouse, cycle_time } = req.body;
   try {
+    const capacity = calculateCapacity(cycle_time);
     const result = await pool.query(
-      "UPDATE items SET item_code=$1, description=$2, uom=$3, warehouse=$4 WHERE id=$5 RETURNING *",
-      [item_code, description, uom, warehouse, id]
+      "UPDATE items SET item_code=$1, description=$2, uom=$3, warehouse=$4, cycle_time=$5, capacity_per_shift=$6 WHERE id=$7 RETURNING *",
+      [item_code, description, uom, warehouse, cycle_time, capacity, id]
     );
-    if (!result.rows.length) return res.status(404).json({ error: "Item not found" });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update item" });
+    res.status(500).json({ error: "Gagal memperbarui item" });
   }
 };
 
@@ -93,58 +88,35 @@ exports.deleteItem = async (req, res) => {
 
 exports.importExcel = async (req, res) => {
   try {
-    // 1. Cek apakah file ada
-    if (!req.file) {
-      return res.status(400).json({ error: "File tidak ditemukan" });
-    }
+    if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
 
-    // 2. Baca file dari buffer
     const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-    if (data.length === 0) {
-      return res.status(400).json({ error: "File Excel kosong atau format salah" });
-    }
-
-    // 3. Proses setiap baris data
-    // Gunakan BEGIN & COMMIT agar jika satu gagal, semua batal (aman)
     await pool.query("BEGIN");
-
     for (const row of data) {
-      // Pastikan nama properti (item_code, dll) sama dengan header di Excel Anda
-      const { item_code, description, uom, warehouse } = row;
+      const { item_code, description, uom, warehouse, cycle_time } = row;
+      if (!item_code) continue;
 
-      // Validasi minimal
-      if (!item_code || !description) continue;
-
-      // Query UPSERT (Update jika kode sudah ada, Insert jika belum)
+      const capacity = calculateCapacity(cycle_time);
       const query = `
-        INSERT INTO items (item_code, description, uom, warehouse)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO items (item_code, description, uom, warehouse, cycle_time, capacity_per_shift)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (item_code) 
         DO UPDATE SET 
           description = EXCLUDED.description,
           uom = EXCLUDED.uom,
-          warehouse = EXCLUDED.warehouse
+          warehouse = EXCLUDED.warehouse,
+          cycle_time = EXCLUDED.cycle_time,
+          capacity_per_shift = EXCLUDED.capacity_per_shift
       `;
-      
-      await pool.query(query, [
-        item_code, 
-        description, 
-        uom || "PCS", 
-        warehouse || "GPAK"
-      ]);
+      await pool.query(query, [item_code, description, uom, warehouse, cycle_time || 0, capacity]);
     }
-
     await pool.query("COMMIT");
-    res.json({ message: `${data.length} data berhasil diimport/diperbarui` });
-
+    res.json({ message: "Import berhasil" });
   } catch (err) {
     await pool.query("ROLLBACK");
-    console.error("Error Import Excel:", err);
-    res.status(500).json({ error: "Gagal memproses file Excel ke database" });
+    res.status(500).json({ error: "Gagal import" });
   }
 };
 

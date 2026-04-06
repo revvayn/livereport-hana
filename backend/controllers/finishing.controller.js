@@ -1,13 +1,28 @@
 const pool = require("../db");
+const xlsx = require('xlsx');
+
+// Helper untuk hitung kapasitas (80% EWH dari 7 Jam)
+const calculateCapacity = (ct) => {
+    const cycleTime = parseInt(ct);
+    if (!cycleTime || cycleTime <= 0) return 0;
+    const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
+    return Math.floor(ewhSeconds / cycleTime);
+};
 
 /* ==================== MASTER DATA CONTROLLERS ==================== */
 
 // Get All Finishing (Ganti getFinishingByItem)
 exports.getAllFinishing = async (req, res) => {
+    const { search } = req.query;
     try {
-        const result = await pool.query(
-            "SELECT * FROM item_finishing ORDER BY id DESC"
-        );
+        let query = "SELECT * FROM item_finishing";
+        let values = [];
+        if (search) {
+            query += " WHERE finishing_code ILIKE $1 OR description ILIKE $1";
+            values = [`%${search}%`];
+        }
+        query += " ORDER BY id DESC";
+        const result = await pool.query(query, values);
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: "Gagal mengambil data master finishing" });
@@ -15,36 +30,79 @@ exports.getAllFinishing = async (req, res) => {
 };
 
 exports.createFinishing = async (req, res) => {
-    const { finishing_code, description, warehouse, item_code } = req.body; // Tambah item_code
+    const { finishing_code, description, warehouse, cycle_time } = req.body;
     try {
+        const capacity = calculateCapacity(cycle_time);
         const result = await pool.query(
-            `INSERT INTO item_finishing (finishing_code, description, warehouse) 
-             VALUES ($1, $2, $3) RETURNING *`,
-            [finishing_code, description, warehouse]
+            `INSERT INTO item_finishing (finishing_code, description, warehouse, cycle_time, capacity_per_shift) 
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [finishing_code, description, warehouse || 'FGOD', cycle_time || 0, capacity]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        if (err.code === '23505') {
-            return res.status(400).json({ error: "Kode Finishing sudah ada" });
-        }
+        if (err.code === '23505') return res.status(400).json({ error: "Kode Finishing sudah ada" });
         res.status(500).json({ error: "Gagal menambah master finishing" });
     }
 };
 
 exports.updateFinishing = async (req, res) => {
     const { id } = req.params;
-    const { finishing_code, description, warehouse } = req.body;
+    const { finishing_code, description, warehouse, cycle_time } = req.body;
     try {
+        const capacity = calculateCapacity(cycle_time);
         const result = await pool.query(
             `UPDATE item_finishing 
-             SET finishing_code=$1, description=$2, warehouse=$3 
-             WHERE id=$4 RETURNING *`,
-            [finishing_code, description, warehouse, item_code, id] // Urutan parameter disesuaikan
+             SET finishing_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5
+             WHERE id=$6 RETURNING *`,
+            [finishing_code, description, warehouse, cycle_time, capacity, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: "Data tidak ditemukan" });
         res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: "Gagal update data finishing" });
+    }
+};
+
+exports.deleteFinishing = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query("DELETE FROM item_finishing WHERE id = $1 RETURNING *", [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Data tidak ditemukan" });
+        res.json({ message: "Data finishing dihapus" });
+    } catch (err) {
+        res.status(500).json({ error: "Gagal menghapus data finishing" });
+    }
+};
+
+exports.importExcel = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
+        const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+        await pool.query("BEGIN");
+        for (const row of data) {
+            const { finishing_code, description, warehouse, cycle_time } = row;
+            if (!finishing_code) continue;
+
+            const capacity = calculateCapacity(cycle_time);
+            const query = `
+                INSERT INTO item_finishing (finishing_code, description, warehouse, cycle_time, capacity_per_shift)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (finishing_code) 
+                DO UPDATE SET 
+                    description = EXCLUDED.description,
+                    warehouse = EXCLUDED.warehouse,
+                    cycle_time = EXCLUDED.cycle_time,
+                    capacity_per_shift = EXCLUDED.capacity_per_shift
+            `;
+            await pool.query(query, [finishing_code, description, warehouse, cycle_time || 0, capacity]);
+        }
+        await pool.query("COMMIT");
+        res.json({ message: "Import berhasil" });
+    } catch (err) {
+        await pool.query("ROLLBACK");
+        res.status(500).json({ error: "Gagal import Excel" });
     }
 };
 
