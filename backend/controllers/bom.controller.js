@@ -18,102 +18,109 @@ function toNumber(value) {
   }
   
 
-exports.uploadBOM = async (req, res) => {
+  exports.uploadBOM = async (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ message: "File Excel tidak ditemukan" });
+        return res.status(400).json({ message: "File Excel tidak ditemukan" });
     }
-  
+
     const skipped = [];
     let inserted = 0;
-  
+
     try {
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
-  
-      if (rows.length === 0) {
-        return res.status(400).json({ message: "Excel kosong" });
-      }
-  
-      await pool.query("BEGIN");
-  
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-  
-        if (!r.PRODUCT_ITEM || !r.COMPONENT_ITEM) {
-          skipped.push(i + 2);
-          continue;
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (rows.length === 0) {
+            return res.status(400).json({ message: "Excel kosong" });
         }
-  
-        const quantityItem = toNumber(r.QUANTITY_ITEM);
-        const qtyPcs = toNumber(r.QTYPCS_ITEM);
-        const qtyComponent = toNumber(r.QUANTITY_COMPONENT);
-        const ratio = toNumber(r.RATIO_COMPONENT);
-  
-        if (quantityItem === null || qtyPcs === null || qtyComponent === null) {
-          skipped.push(i + 2);
-          continue;
+
+        await pool.query("BEGIN");
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+
+            // 1. Filter Gudang HO (Diabaikan, tidak masuk database)
+            if (r.COMPONENT_WHS && r.COMPONENT_WHS.toString().toUpperCase() === "HO") {
+                continue;
+            }
+
+            // 2. Validasi kolom wajib
+            if (!r.PRODUCT_ITEM || !r.COMPONENT_ITEM) {
+                skipped.push(i + 2);
+                continue;
+            }
+
+            const quantityItem = toNumber(r.QUANTITY_ITEM);
+            const qtyPcs = toNumber(r.QTYPCS_ITEM);
+            const qtyComponent = toNumber(r.QUANTITY_COMPONENT);
+            const ratio = toNumber(r.RATIO_COMPONENT);
+
+            if (quantityItem === null || qtyPcs === null || qtyComponent === null) {
+                skipped.push(i + 2);
+                continue;
+            }
+
+            // 3. Query INSERT yang benar (Tidak boleh pakai titik-titik)
+            const queryInsert = `
+                INSERT INTO bill_of_materials (
+                    product_item,
+                    product_name,
+                    quantity,
+                    qtypcs_item,
+                    warehouse_fg,
+                    status_bom,
+                    linenum,
+                    component_code,
+                    component_description,
+                    component_quantity,
+                    component_whs,
+                    uom_component,
+                    ratio_component
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+                )
+            `;
+
+            const values = [
+                r.PRODUCT_ITEM,
+                r.PRODUCT_NAME,
+                quantityItem,
+                qtyPcs,
+                r.WAREHOUSE,
+                r.STATUS_BOM,
+                r.LINENUM ?? 0,
+                r.COMPONENT_ITEM,
+                r.COMPONENT_NAME,
+                qtyComponent,
+                r.COMPONENT_WHS,
+                r.UOM_COMPONENT,
+                ratio ?? 1,
+            ];
+
+            await pool.query(queryInsert, values);
+            inserted++;
         }
-  
-        await pool.query(
-          `
-          INSERT INTO bill_of_materials (
-            product_item,
-            product_name,
-            quantity,
-            qtypcs_item,
-            warehouse_fg,
-            status_bom,
-            linenum,
-            component_code,
-            component_description,
-            component_quantity,
-            component_whs,
-            uom_component,
-            ratio_component
-          )
-          VALUES (
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
-          )
-          `,
-          [
-            r.PRODUCT_ITEM,
-            r.PRODUCT_NAME,
-            quantityItem,
-            qtyPcs,
-            r.WAREHOUSE,
-            r.STATUS_BOM,
-            r.LINENUM ?? 0,
-            r.COMPONENT_ITEM,
-            r.COMPONENT_NAME,
-            qtyComponent,
-            r.COMPONENT_WHS,
-            r.UOM_COMPONENT,
-            ratio ?? 1,
-          ]
-        );
-  
-        inserted++;
-      }
-  
-      await pool.query("COMMIT");
-  
-      res.json({
-        success: true,
-        message: "Upload BOM selesai",
-        inserted,
-        skipped: skipped.length,
-        skippedRows: skipped.slice(0, 10),
-      });
+
+        await pool.query("COMMIT");
+
+        res.json({
+            success: true,
+            message: "Upload BOM selesai",
+            inserted,
+            skipped: skipped.length,
+            skippedRows: skipped.slice(0, 10),
+        });
     } catch (err) {
-      await pool.query("ROLLBACK");
-      console.error(err);
-      res.status(500).json({
-        success: false,
-        message: "Gagal upload BOM",
-      });
+        await pool.query("ROLLBACK");
+        console.error("UPLOAD ERROR:", err);
+        res.status(500).json({
+            success: false,
+            message: "Gagal upload BOM: " + err.message,
+        });
     }
-  };
+};
   
 
 
