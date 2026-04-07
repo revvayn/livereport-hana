@@ -39,6 +39,7 @@ import List from "../pages/Dashboard/MRP/List";
 import PackingList from "../pages/Dashboard/MRP/PackingList";
 import FinishingList from "../pages/Dashboard/MRP/FinishingList";
 import AssemblyList from "../pages/Dashboard/MRP/AssemblyList";
+import WorkCenter from "../pages/Dashboard/MRP/WorkCenter";
 import BOMCalculation from "../pages/Dashboard/MRP/BOMCalculation";
 import EntryBOM from "../pages/Dashboard/MRP/EntryBOM";
 
@@ -86,6 +87,7 @@ function AppRoutes() {
           <Route path="master/assembly-items" element={<AssemblyItems />} />
           <Route path="master/assembly/pannel" element={<AssemblyPannel />} />
           <Route path="master/assembly/core" element={<AssemblyCore />} />
+          <Route path="master/work-center" element={<WorkCenter />} />
           {/*<Route path="master/machines" element={<Machines />} />*/}
           {/*<Route path="master/operations" element={<Operations />} />*/}
           <Route path="master/item-routings" element={<ItemRoutings />} />
