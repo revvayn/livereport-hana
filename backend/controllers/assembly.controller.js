@@ -217,7 +217,7 @@ exports.importExcelCore = async (req, res) => {
 
 //====================================ASSEMBLY GENERATE=============================================
 
-const calculateAssemblySchedule = (finishingSchedule) => {
+const calculateAssemblySchedule = (finishingSchedule, capacity) => {
     if (!finishingSchedule || !Array.isArray(finishingSchedule)) return [];
 
     let totalQtyToProcess = 0;
@@ -256,7 +256,8 @@ const calculateAssemblySchedule = (finishingSchedule) => {
     }
 
     const assemblyDataMap = {};
-    const capacityPerShift = 100; // Statis 100
+    // GUNAKAN CAPACITY DARI PARAMETER (Dinamis)
+    const capacityPerShift = Number(capacity) > 0 ? Number(capacity) : 100; 
     let remainingQty = totalQtyToProcess;
 
     while (remainingQty > 0) {
@@ -318,20 +319,20 @@ exports.generateAssembly = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Ambil Delivery Date untuk patokan kalender
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [demandId]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
-        // 2. Query untuk mendapatkan Routing, QTY (M3), dan PCS (Lembar)
         const querySelect = `
             SELECT 
                 dif.demand_id, dif.demand_item_id, dif.item_id, dif.uom, 
                 dif.total_qty, 
                 di.pcs AS pcs_original, 
                 dif.production_schedule AS finishing_schedule,
-                ir.assembly_code_pannel, ap.description AS pannel_desc, ap.warehouse AS pannel_wh,
-                ir.assembly_code_core, ac.description AS core_desc, ac.warehouse AS core_wh
+                ir.assembly_code_pannel, ap.description AS pannel_desc, ap.warehouse AS pannel_wh, 
+                ap.capacity_per_shift AS pannel_cap,
+                ir.assembly_code_core, ac.description AS core_desc, ac.warehouse AS core_wh,
+                ac.capacity_per_shift AS core_cap
             FROM demand_item_finishing dif
             INNER JOIN demand_items di ON dif.demand_item_id = di.id
             INNER JOIN item_routings ir ON di.item_code = ir.item_code
@@ -341,79 +342,83 @@ exports.generateAssembly = async (req, res) => {
         `;
 
         const result = await client.query(querySelect, [demandId]);
-        
-        // 3. Bersihkan data lama sebelum re-generate
         await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [demandId]);
 
         for (const row of result.rows) {
-            // Parsing jadwal finishing
             const finishingSchedule = typeof row.finishing_schedule === 'string' 
                 ? JSON.parse(row.finishing_schedule) : (row.finishing_schedule || []);
             
-            // Hitung slot assembly (QTY utuh)
-            const assemblySlots = calculateAssemblySchedule(finishingSchedule);
+            const realQty = Number(row.total_qty || 0);
+            const realPcs = Number(row.pcs_original || 0);
 
-            // --- DEFINISI finalCalendar (MEMPERBAIKI ERROR) ---
-            const finalCalendar = [];
-            for (let i = 14; i >= 0; i--) {
-                const d = new Date(deliveryDate);
-                d.setDate(deliveryDate.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
-                
-                const found = assemblySlots.find(f => f.date === dateStr);
-                
-                finalCalendar.push({
-                    date: dateStr,
-                    shifts: found ? found.shifts : {
-                        shift1: { qty: 0, active: false, type: "assembly" },
-                        shift2: { qty: 0, active: false, type: "assembly" },
-                        shift3: { qty: 0, active: false, type: "assembly" }
-                    }
-                });
-            }
+            let lastScheduleRef = finishingSchedule; // Default referensi adalah finishing
 
-            const calendarJson = JSON.stringify(finalCalendar);
-            const realQty = Number(row.total_qty || 0);    // Nilai M3 (misal 11.91)
-            const realPcs = Number(row.pcs_original || 0); // Nilai PCS (misal 200)
-
-            // 4. INSERT PANNEL (Gunakan realPcs untuk kolom PCS)
+            // --- 1. PROSES PANNEL (Mundur dari Finishing) ---
+            let pannelSlots = [];
             if (row.assembly_code_pannel) {
+                const pannelCap = Number(row.pannel_cap) || 100;
+                pannelSlots = calculateAssemblySchedule(finishingSchedule, pannelCap);
+                
+                const pannelCalendar = createCalendarArray(deliveryDate, pannelSlots);
+
                 await client.query(
                     `INSERT INTO demand_item_assembly 
                     (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                    [
-                        row.demand_id, row.demand_item_id, row.item_id, 
-                        row.assembly_code_pannel, `[PANNEL] ${row.pannel_desc}`, 
-                        row.uom, realQty, realPcs, calendarJson, row.pannel_wh || 'WIPA'
-                    ]
+                    [row.demand_id, row.demand_item_id, row.item_id, row.assembly_code_pannel, `[PANNEL] ${row.pannel_desc}`, row.uom, realQty, realPcs, JSON.stringify(pannelCalendar), row.pannel_wh || 'WIPA']
                 );
+
+                // Update referensi: Core akan menghitung mundur dari jadwal Pannel
+                lastScheduleRef = pannelSlots; 
             }
 
-            // 5. INSERT CORE (Gunakan realPcs untuk kolom PCS)
+            // --- 2. PROSES CORE (Mundur dari Pannel/Finishing) ---
             if (row.assembly_code_core) {
+                const coreCap = Number(row.core_cap) || 100;
+                
+                // CORE sekarang mereferensikan lastScheduleRef (yaitu Pannel)
+                const coreSlots = calculateAssemblySchedule(lastScheduleRef, coreCap);
+                
+                const coreCalendar = createCalendarArray(deliveryDate, coreSlots);
+
                 await client.query(
                     `INSERT INTO demand_item_assembly 
                     (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                    [
-                        row.demand_id, row.demand_item_id, row.item_id, 
-                        row.assembly_code_core, `[CORE] ${row.core_desc}`, 
-                        row.uom, realQty, realPcs, calendarJson, row.core_wh || 'WIPA'
-                    ]
+                    [row.demand_id, row.demand_item_id, row.item_id, row.assembly_code_core, `[CORE] ${row.core_desc}`, row.uom, realQty, realPcs, JSON.stringify(coreCalendar), row.core_wh || 'WIPA']
                 );
             }
         }
 
         await client.query('UPDATE demands SET is_assembly_generated = true WHERE id = $1', [demandId]);
         await client.query('COMMIT');
-        res.json({ message: "Generate Berhasil" });
+        res.json({ message: "Generate Assembly Sequential Berhasil" });
     } catch (err) {
         await client.query('ROLLBACK');
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
     }
+};
+
+// Helper function agar kode lebih bersih
+const createCalendarArray = (deliveryDate, slots) => {
+    const calendar = [];
+    for (let i = 14; i >= 0; i--) {
+        const d = new Date(deliveryDate);
+        d.setDate(deliveryDate.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const found = slots.find(f => f.date === dateStr);
+        calendar.push({
+            date: dateStr,
+            shifts: found ? found.shifts : {
+                shift1: { qty: 0, active: false, type: "assembly" },
+                shift2: { qty: 0, active: false, type: "assembly" },
+                shift3: { qty: 0, active: false, type: "assembly" }
+            }
+        });
+    }
+    return calendar;
 };
 
 exports.getItemsByDemandId = async (req, res) => {

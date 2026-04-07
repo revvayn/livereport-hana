@@ -120,10 +120,9 @@ exports.deleteFinishing = async (req, res) => {
 
 /* ==================== GENERATE LOGIC (STRICT BY ITEM_CODE RELATION) ==================== */
 
-const calculateFinishingSchedule = (packingSchedule) => {
+const calculateFinishingSchedule = (packingSchedule, capacityPerShift) => { // Tambahkan parameter di sini
     if (!packingSchedule || !Array.isArray(packingSchedule)) return [];
 
-    // 1. Hitung TOTAL QTY yang harus di-finishing dari seluruh jadwal packing
     let totalQtyToProcess = 0;
     packingSchedule.forEach(day => {
         for (let s = 1; s <= 3; s++) {
@@ -133,19 +132,15 @@ const calculateFinishingSchedule = (packingSchedule) => {
 
     if (totalQtyToProcess === 0) return [];
 
-    // 2. Cari tanggal Packing PALING AWAL untuk menentukan titik mulai finishing
-    // Kita ingin finishing SELESAI tepat 1 shift sebelum packing pertama dimulai
     const activeDays = packingSchedule
         .filter(d => (d.shifts.shift1.qty + d.shifts.shift2.qty + d.shifts.shift3.qty) > 0)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (activeDays.length === 0) return [];
     
-    // Titik mulai mundur: Hari pertama packing dimulai
     const firstPackingDateStr = activeDays[0].date.split('T')[0];
     const [year, month, day] = firstPackingDateStr.split("-").map(Number);
     
-    // Cari shift pertama yang ada isinya di hari tersebut
     let firstShift = 1;
     for(let s=1; s<=3; s++) {
         if(activeDays[0].shifts[`shift${s}`].qty > 0) {
@@ -154,7 +149,6 @@ const calculateFinishingSchedule = (packingSchedule) => {
         }
     }
 
-    // Tentukan target Slot Finishing Pertama (Mundur 1 shift dari packing pertama)
     let currentDayObj = new Date(year, month - 1, day);
     let currentShift = firstShift - 1;
     if (currentShift < 1) {
@@ -163,10 +157,10 @@ const calculateFinishingSchedule = (packingSchedule) => {
     }
 
     const finishingDataMap = {};
-    const capacityPerShift = 100; // Sesuaikan dengan kapasitas shift Anda
+    // Gunakan capacityPerShift dari parameter, beri fallback 1 jika 0 untuk menghindari infinite loop
+    const itemCapacity = (parseFloat(capacityPerShift) > 0) ? parseFloat(capacityPerShift) : 100; 
     let remainingQty = totalQtyToProcess;
 
-    // 3. Plotting Mundur secara teratur
     while (remainingQty > 0) {
         const y = currentDayObj.getFullYear();
         const m = String(currentDayObj.getMonth() + 1).padStart(2, "0");
@@ -184,13 +178,12 @@ const calculateFinishingSchedule = (packingSchedule) => {
             };
         }
 
-        const take = Math.min(remainingQty, capacityPerShift);
+        const take = Math.min(remainingQty, itemCapacity); // Gunakan itemCapacity dinamis
         finishingDataMap[dateKey].shifts[`shift${currentShift}`].qty = take;
         finishingDataMap[dateKey].shifts[`shift${currentShift}`].active = true;
         
         remainingQty -= take;
 
-        // Mundur ke slot sebelumnya
         currentShift--;
         if (currentShift < 1) {
             currentDayObj.setDate(currentDayObj.getDate() - 1);
@@ -208,13 +201,11 @@ exports.generateFinishing = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Ambil Delivery Date dari demand utama
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [id]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
-        // 2. Ambil data melalui relasi item_routings (perhatikan akhiran 's')
-        // Gunakan LEFT JOIN itf agar jika master finishing belum diset, query tidak langsung pecah (meskipun data finishing_code wajib ada di routing)
+        // --- PERUBAHAN DI SINI: Ambil di.pcs (asli) DAN itf.capacity_per_shift ---
         const itemsRes = await client.query(
             `SELECT 
                 di.id AS demand_item_id, 
@@ -222,43 +213,38 @@ exports.generateFinishing = async (req, res) => {
                 di.item_code as original_item_code, 
                 di.uom, 
                 di.total_qty, 
-                COALESCE(di.pcs, 0) as capacity_pcs, 
+                di.pcs AS original_pcs, -- Ini jumlah PCS asli item
                 di.production_schedule,
                 ir.finishing_code, 
-                itf.description AS finishing_description
+                itf.description AS finishing_description,
+                itf.capacity_per_shift AS master_capacity 
              FROM demand_items di
              INNER JOIN item_routings ir ON ir.item_code = di.item_code 
              LEFT JOIN item_finishing itf ON itf.finishing_code = ir.finishing_code
              WHERE di.demand_id = $1`, [id]
         );
 
-        // Jika hasil kosong, berarti data di tabel item_routings belum diisi untuk item_code tersebut
         if (itemsRes.rows.length === 0) {
-            throw new Error("Gagal: Data di tabel 'item_routings' belum disetting untuk item-item di demand ini.");
+            throw new Error("Gagal: Data di tabel 'item_routings' belum disetting.");
         }
 
-        // 3. Bersihkan data finishing lama untuk demand ini
         await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
 
-        // 4. Proses Loop setiap Item
         for (const item of itemsRes.rows) {
-            // Parsing jadwal packing
             const packingSchedule = typeof item.production_schedule === 'string'
                 ? JSON.parse(item.production_schedule) : (item.production_schedule || []);
 
-            // Gunakan kapasitas dari kolom pcs di demand_items, jika 0 gunakan default 100 agar tidak infinite loop
-            const shiftCapacity = parseFloat(item.capacity_pcs) > 0 ? parseFloat(item.capacity_pcs) : 100;
+            // Kapasitas master hanya untuk logic kalkulasi mundur shift
+            const shiftCapacity = parseFloat(item.master_capacity) > 0 ? parseFloat(item.master_capacity) : 100;
 
-            // Hitung jadwal mundur
+            // Hitung jadwal menggunakan kapasitas master
             const finishingSchedule = calculateFinishingSchedule(packingSchedule, shiftCapacity);
 
-            // Generate Calendar 15 hari (opsional, tergantung kebutuhan UI Anda)
             const finalCalendar = [];
             for (let i = 14; i >= 0; i--) {
                 const d = new Date(deliveryDate);
                 d.setDate(deliveryDate.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
-
                 const found = finishingSchedule.find(f => f.date === dateStr);
 
                 finalCalendar.push({
@@ -271,8 +257,7 @@ exports.generateFinishing = async (req, res) => {
                 });
             }
 
-            // 5. Simpan ke tabel demand_item_finishing
-            // Catatan: item_code yang disimpan adalah FINISHING_CODE sesuai permintaan Anda
+            // --- PERUBAHAN DI SINI: Simpan item.original_pcs ke kolom pcs ---
             await client.query(
                 `INSERT INTO demand_item_finishing
                 (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
@@ -285,21 +270,18 @@ exports.generateFinishing = async (req, res) => {
                     item.finishing_description || 'No Description', 
                     item.uom, 
                     item.total_qty, 
-                    item.capacity_pcs, 
+                    item.original_pcs, // SEKARANG MENGGUNAKAN PCS ASLI ITEM (bukan kapasitas)
                     JSON.stringify(finalCalendar)
                 ]
             );
         }
 
-        // 6. Update status demand
         await client.query(`UPDATE demands SET is_finishing_generated=true WHERE id=$1`, [id]);
-        
         await client.query('COMMIT');
         res.json({ message: "Generate Finishing Berhasil" });
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("GENERATE FINISHING ERROR:", err.message);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
