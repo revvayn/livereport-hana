@@ -265,9 +265,9 @@ export default function List() {
 
                                         {items[0]?.calendar?.map((_, i) => (
                                             <React.Fragment key={i}>
+                                                <th className="border-r border-slate-500">S3</th>
                                                 <th className="border-r border-slate-500">S1</th>
                                                 <th className="border-r border-slate-500">S2</th>
-                                                <th className="border-r border-slate-500">S3</th>
                                             </React.Fragment>
                                         ))}
                                         <th className="bg-red-700 text-white border-l-4 border-white uppercase py-1">Delivery</th>

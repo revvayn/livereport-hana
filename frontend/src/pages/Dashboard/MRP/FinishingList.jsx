@@ -312,9 +312,9 @@ export default function FinishingList() {
                     <th className="border"></th>
                     {items[0]?.calendar?.map((_, i) => (
                       <React.Fragment key={i}>
+                        <th className="border py-1">S3</th>
                         <th className="border py-1">S1</th>
                         <th className="border py-1">S2</th>
-                        <th className="border py-1">S3</th>
                       </React.Fragment>
                     ))}
                   </tr>

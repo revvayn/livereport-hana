@@ -1,15 +1,6 @@
-// production.controller.js
 const pool = require("../db");
 
-const getDemands = async (req, res) => {
-    try {
-        const result = await pool.query("SELECT * FROM demands ORDER BY delivery_date ASC");
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
+// --- HELPER FUNCTIONS ---
 const robustParse = (data) => {
     if (!data) return [];
     let parsed = data;
@@ -19,41 +10,19 @@ const robustParse = (data) => {
         }
     } catch (e) {
         try {
-            // Jika gagal parse standar, bersihkan tanda kutip ganda manual
             let cleaned = String(parsed).replace(/^"+|"+$/g, '');
             parsed = JSON.parse(cleaned);
         } catch (err) {
-            console.error("Gagal parsing JSON:", err.message);
             return [];
         }
     }
     return Array.isArray(parsed) ? parsed : [];
 };
 
-function parseSchedule(raw) {
-    if (!raw) return [];
-    
-    let data = raw;
-    
-    // Melakukan loop parsing jika data masih berupa string
-    // Ini akan menangani kasus ""[{...}]"" (double escaped string)
-    try {
-        while (typeof data === "string") {
-            data = JSON.parse(data);
-        }
-    } catch (e) {
-        console.error("Gagal total saat parse JSON:", e.message);
-        return [];
-    }
-
-    return Array.isArray(data) ? data : [];
-}
 const mapSchedule = (rows, scheduleKey, resKey) => {
     let finalFlatData = [];
     rows.forEach(row => {
-        // Gunakan robustParse untuk menangani JSON string yang bermasalah
         const schedule = robustParse(row[scheduleKey]); 
-        
         if (Array.isArray(schedule)) {
             const enhanced = schedule.map(s => ({
                 ...s,
@@ -67,39 +36,33 @@ const mapSchedule = (rows, scheduleKey, resKey) => {
     return { [resKey]: finalFlatData };
 };
 
-const getProductionSchedule = async (req, res) => {
-    const { itemId } = req.params;
+// --- HOLIDAY CONTROLLERS ---
+const getHolidays = async (req, res) => {
     try {
-        const result = await pool.query(
-            "SELECT production_schedule FROM demand_items WHERE id = $1",
-            [itemId]
-        );
-
-        if (result.rows.length === 0) return res.status(404).json({ message: "Item tidak ditemukan" });
-
-        let raw = result.rows[0].production_schedule;
-        
-        // LOGIC PEMBERSIHAN EXTRA:
-        // Jika data di DB tersimpan sebagai string yang dibungkus kutip lagi
-        while (typeof raw === 'string') {
-            try {
-                raw = JSON.parse(raw);
-            } catch (e) {
-                // Jika gagal parse, mungkin karena format "" (double quote)
-                // Kita coba bersihkan manual tanda kutip ganda di awal dan akhir
-                raw = raw.replace(/^"+|"+$/g, ''); 
-                raw = JSON.parse(raw);
-            }
-        }
-
-        res.json({
-            production_schedule: Array.isArray(raw) ? raw : []
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        const result = await pool.query("SELECT * FROM public_holidays ORDER BY holiday_date ASC");
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
+const addHoliday = async (req, res) => {
+    const { date, description } = req.body;
+    try {
+        const result = await pool.query(
+            "INSERT INTO public_holidays (holiday_date, description) VALUES ($1, $2) RETURNING *",
+            [date, description]
+        );
+        res.json(result.rows[0]);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
+const deleteHoliday = async (req, res) => {
+    try {
+        await pool.query("DELETE FROM public_holidays WHERE id = $1", [req.params.id]);
+        res.json({ message: "Terhapus" });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
+// --- PRODUCTION CONTROLLERS ---
 const getAllProductionSchedules = async (req, res) => {
     try {
         const result = await pool.query(`
@@ -109,26 +72,7 @@ const getAllProductionSchedules = async (req, res) => {
         res.json(mapSchedule(result.rows, 'production_schedule', 'production_schedule'));
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
-const getFinishingSchedule = async (req, res) => {
-    const { itemId } = req.params;
-    try {
-        const result = await pool.query(
-            "SELECT production_schedule FROM demand_item_finishing WHERE id = $1",
-            [itemId]
-        );
 
-        if (result.rows.length === 0) return res.status(404).json({ message: "Item Finishing tidak ditemukan" });
-
-        const raw = result.rows[0].production_schedule;
-        const schedule = robustParse(raw);
-
-        res.json({ finishing_schedule: schedule });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// Mendapatkan SEMUA schedule finishing (Digabungkan)
 const getAllFinishingSchedules = async (req, res) => {
     try {
         const result = await pool.query(`
@@ -138,84 +82,18 @@ const getAllFinishingSchedules = async (req, res) => {
         res.json(mapSchedule(result.rows, 'production_schedule', 'finishing_schedule'));
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
-// Mendapatkan satu schedule Assembly berdasarkan ID
-const getAssemblySchedule = async (req, res) => {
-    const { itemId } = req.params;
-    try {
-        const result = await pool.query(
-            "SELECT production_schedule FROM demand_item_assembly WHERE id = $1",
-            [itemId]
-        );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Item Assembly tidak ditemukan" });
-        }
-
-        const raw = result.rows[0].production_schedule;
-        const schedule = robustParse(raw);
-
-        res.json({ assembly_schedule: schedule });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// Mendapatkan SEMUA schedule Assembly (Digabungkan)
 const getAllAssemblySchedules = async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT da.production_schedule, d.so_number, da.item_code, da.description 
             FROM demand_item_assembly da 
             JOIN demands d ON da.demand_id = d.id`);
-        // PERHATIKAN: resKey di sini adalah 'assembly_schedule'
         res.json(mapSchedule(result.rows, 'production_schedule', 'assembly_schedule'));
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
-const getFullScheduleBySO = async (req, res) => {
-    const { id } = req.params;
-    try {
-      // 1. Ambil data Header SO
-      const soHeader = await pool.query("SELECT * FROM demands WHERE id = $1", [id]);
-      
-      // 2. Ambil data Packing (demand_items)
-      const packingItems = await pool.query(
-        "SELECT *, 'Packing' as category FROM demand_items WHERE demand_id = $1", [id]
-      );
-  
-      // 3. Ambil data Finishing
-      const finishingItems = await pool.query(
-        "SELECT *, 'Finishing' as category FROM demand_item_finishing WHERE demand_id = $1", [id]
-      );
-  
-      // 4. Ambil data Assembly
-      const assemblyItems = await pool.query(
-        "SELECT *, 'Assembly' as category FROM demand_item_assembly WHERE demand_id = $1", [id]
-      );
-  
-      // Gabungkan semua item ke dalam satu array untuk matriks
-      const allItems = [
-        ...packingItems.rows,
-        ...finishingItems.rows,
-        ...assemblyItems.rows
-      ];
-  
-      res.json({
-        header: soHeader.rows[0],
-        items: allItems
-      });
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send("Server Error");
-    }
-  };
-// Update exports
+
 module.exports = { 
-    getDemands,
-    getProductionSchedule, 
-    getAllProductionSchedules,
-    getFinishingSchedule,
-    getAllFinishingSchedules,
-    getAssemblySchedule,
-    getAllAssemblySchedules,
-    getFullScheduleBySO
+    getHolidays, addHoliday, deleteHoliday,
+    getAllProductionSchedules, getAllFinishingSchedules, getAllAssemblySchedules 
 };
