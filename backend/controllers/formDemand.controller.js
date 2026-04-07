@@ -337,6 +337,20 @@ exports.updateFinishing = async (req, res) => {
         client.release();
     }
 };
+// Tambahkan fungsi baru untuk mengambil hari libur di controller
+exports.getHolidays = async (req, res) => {
+    try {
+        const result = await pool.query("SELECT holiday_date FROM production_holidays ORDER BY holiday_date ASC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: "Gagal memuat hari libur" });
+    }
+};
+
+/**
+ * 2. UPDATE DEMAND
+ * Memperbaiki logika penghapusan agar sinkron dengan finishing & assembly
+ */
 exports.updateDemand = async (req, res) => {
     const { id } = req.params;
     const { header, items } = req.body;
@@ -344,6 +358,7 @@ exports.updateDemand = async (req, res) => {
     try {
         await client.query("BEGIN");
 
+        // 1. Update Header Demand
         await client.query(
             `UPDATE demands 
              SET delivery_date = $1, production_date = $2, so_date = $3, customer_name = $4,
@@ -354,24 +369,34 @@ exports.updateDemand = async (req, res) => {
             [header.deliveryDate, header.productionDate, header.soDate, header.customer, id]
         );
 
-        // Hapus finishing & items lama dulu sebelum insert baru
+        // 2. Bersihkan tabel relasi (Urutan penting untuk foreign key)
         await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
-        await client.query(`DELETE FROM demand_items WHERE demand_id = $1`, [id]); // ← INI YANG KURANG
+        await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [id]); // Jika ada
+        await client.query(`DELETE FROM demand_items WHERE demand_id = $1`, [id]);
+
+        // 3. Insert Items Baru
+        const insertQuery = `INSERT INTO demand_items
+            (demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
 
         for (const item of items) {
-            await client.query(
-                `INSERT INTO demand_items
-                (demand_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-                [id, item.itemId, item.itemCode, item.description, item.uom,
-                    parseFloat(item.qty) || 0, parseFloat(item.pcs) || 0, JSON.stringify(item.calendar)]
-            );
+            await client.query(insertQuery, [
+                id, 
+                item.itemId, 
+                item.itemCode, 
+                item.description, 
+                item.uom,
+                parseFloat(item.qty) || 0, 
+                parseFloat(item.pcs) || 0, 
+                JSON.stringify(item.calendar)
+            ]);
         }
 
         await client.query("COMMIT");
         res.json({ message: "Demand updated successfully" });
     } catch (err) {
         await client.query("ROLLBACK");
+        console.error("UPDATE ERROR:", err.message);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();

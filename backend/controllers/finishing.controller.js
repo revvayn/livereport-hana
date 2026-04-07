@@ -120,18 +120,19 @@ exports.deleteFinishing = async (req, res) => {
 
 /* ==================== GENERATE LOGIC (STRICT BY ITEM_CODE RELATION) ==================== */
 
-const calculateFinishingSchedule = (packingSchedule, capacityPerShift) => { // Tambahkan parameter di sini
+const calculateFinishingSchedule = (packingSchedule, capacityPerShift, holidays = []) => {
     if (!packingSchedule || !Array.isArray(packingSchedule)) return [];
 
+    // 1. Hitung total Qty
     let totalQtyToProcess = 0;
     packingSchedule.forEach(day => {
         for (let s = 1; s <= 3; s++) {
             totalQtyToProcess += (day.shifts?.[`shift${s}`]?.qty || 0);
         }
     });
-
     if (totalQtyToProcess === 0) return [];
 
+    // 2. Cari titik awal packing (Shift pertama yang ada isinya)
     const activeDays = packingSchedule
         .filter(d => (d.shifts.shift1.qty + d.shifts.shift2.qty + d.shifts.shift3.qty) > 0)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -139,33 +140,51 @@ const calculateFinishingSchedule = (packingSchedule, capacityPerShift) => { // T
     if (activeDays.length === 0) return [];
     
     const firstPackingDateStr = activeDays[0].date.split('T')[0];
-    const [year, month, day] = firstPackingDateStr.split("-").map(Number);
-    
-    let firstShift = 1;
+    let [year, month, day] = firstPackingDateStr.split("-").map(Number);
+    let startShift = 1;
     for(let s=1; s<=3; s++) {
         if(activeDays[0].shifts[`shift${s}`].qty > 0) {
-            firstShift = s;
+            startShift = s;
             break;
         }
     }
 
+    // 3. Helper untuk cek apakah hari libur (Minggu atau masuk tabel holiday)
+    const isHoliday = (dateObj) => {
+        const dayOfWeek = dateObj.getDay(); // 0 = Minggu
+        if (dayOfWeek === 0) return true;
+        const dateStr = dateObj.toISOString().split('T')[0];
+        return holidays.includes(dateStr);
+    };
+
+    // 4. Hitung Mundur Jeda 2 Shift (Total mundur 3 langkah dari shift packing pertama)
     let currentDayObj = new Date(year, month - 1, day);
-    let currentShift = firstShift - 1;
-    if (currentShift < 1) {
-        currentDayObj.setDate(currentDayObj.getDate() - 1);
-        currentShift = 3;
+    let currentShift = startShift;
+
+    for (let i = 0; i < 3; i++) { // Mundur 3 kali (1 sinkron + 2 jeda)
+        currentShift--;
+        if (currentShift < 1) {
+            currentShift = 3;
+            currentDayObj.setDate(currentDayObj.getDate() - 1);
+            // Jika hari pindah ke libur, terus mundur sampai ketemu hari kerja
+            while (isHoliday(currentDayObj)) {
+                currentDayObj.setDate(currentDayObj.getDate() - 1);
+            }
+        }
     }
 
+    // 5. Plotting Produksi
     const finishingDataMap = {};
-    // Gunakan capacityPerShift dari parameter, beri fallback 1 jika 0 untuk menghindari infinite loop
     const itemCapacity = (parseFloat(capacityPerShift) > 0) ? parseFloat(capacityPerShift) : 100; 
     let remainingQty = totalQtyToProcess;
 
     while (remainingQty > 0) {
-        const y = currentDayObj.getFullYear();
-        const m = String(currentDayObj.getMonth() + 1).padStart(2, "0");
-        const d = String(currentDayObj.getDate()).padStart(2, "0");
-        const dateKey = `${y}-${m}-${d}`;
+        // Pastikan kita tidak mengisi di hari libur
+        while (isHoliday(currentDayObj)) {
+            currentDayObj.setDate(currentDayObj.getDate() - 1);
+        }
+
+        const dateKey = currentDayObj.toISOString().split('T')[0];
 
         if (!finishingDataMap[dateKey]) {
             finishingDataMap[dateKey] = {
@@ -178,16 +197,16 @@ const calculateFinishingSchedule = (packingSchedule, capacityPerShift) => { // T
             };
         }
 
-        const take = Math.min(remainingQty, itemCapacity); // Gunakan itemCapacity dinamis
+        const take = Math.min(remainingQty, itemCapacity);
         finishingDataMap[dateKey].shifts[`shift${currentShift}`].qty = take;
         finishingDataMap[dateKey].shifts[`shift${currentShift}`].active = true;
-        
         remainingQty -= take;
 
+        // Mundur shift untuk iterasi berikutnya
         currentShift--;
         if (currentShift < 1) {
-            currentDayObj.setDate(currentDayObj.getDate() - 1);
             currentShift = 3;
+            currentDayObj.setDate(currentDayObj.getDate() - 1);
         }
     }
 
@@ -201,32 +220,24 @@ exports.generateFinishing = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // 1. Ambil data Libur Nasional
+        const holidayRes = await client.query(`SELECT holiday_date FROM public_holidays`);
+        const holidays = holidayRes.rows.map(h => h.holiday_date.toISOString().split('T')[0]);
+
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [id]);
         if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
-        // --- PERUBAHAN DI SINI: Ambil di.pcs (asli) DAN itf.capacity_per_shift ---
         const itemsRes = await client.query(
-            `SELECT 
-                di.id AS demand_item_id, 
-                di.item_id, 
-                di.item_code as original_item_code, 
-                di.uom, 
-                di.total_qty, 
-                di.pcs AS original_pcs, -- Ini jumlah PCS asli item
-                di.production_schedule,
-                ir.finishing_code, 
-                itf.description AS finishing_description,
-                itf.capacity_per_shift AS master_capacity 
+            `SELECT di.id AS demand_item_id, di.item_id, di.item_code, di.uom, 
+                    di.total_qty, di.pcs AS original_pcs, di.production_schedule,
+                    ir.finishing_code, itf.description AS finishing_description,
+                    itf.capacity_per_shift AS master_capacity 
              FROM demand_items di
              INNER JOIN item_routings ir ON ir.item_code = di.item_code 
              LEFT JOIN item_finishing itf ON itf.finishing_code = ir.finishing_code
              WHERE di.demand_id = $1`, [id]
         );
-
-        if (itemsRes.rows.length === 0) {
-            throw new Error("Gagal: Data di tabel 'item_routings' belum disetting.");
-        }
 
         await client.query(`DELETE FROM demand_item_finishing WHERE demand_id = $1`, [id]);
 
@@ -234,11 +245,10 @@ exports.generateFinishing = async (req, res) => {
             const packingSchedule = typeof item.production_schedule === 'string'
                 ? JSON.parse(item.production_schedule) : (item.production_schedule || []);
 
-            // Kapasitas master hanya untuk logic kalkulasi mundur shift
             const shiftCapacity = parseFloat(item.master_capacity) > 0 ? parseFloat(item.master_capacity) : 100;
 
-            // Hitung jadwal menggunakan kapasitas master
-            const finishingSchedule = calculateFinishingSchedule(packingSchedule, shiftCapacity);
+            // 2. Masukkan array holidays ke fungsi kalkulasi
+            const finishingSchedule = calculateFinishingSchedule(packingSchedule, shiftCapacity, holidays);
 
             const finalCalendar = [];
             for (let i = 14; i >= 0; i--) {
@@ -278,7 +288,7 @@ exports.generateFinishing = async (req, res) => {
 
         await client.query(`UPDATE demands SET is_finishing_generated=true WHERE id=$1`, [id]);
         await client.query('COMMIT');
-        res.json({ message: "Generate Finishing Berhasil" });
+        res.json({ message: "Generate Finishing Berhasil dengan Jeda 2 Shift & Filter Hari Libur" });
 
     } catch (err) {
         await client.query('ROLLBACK');

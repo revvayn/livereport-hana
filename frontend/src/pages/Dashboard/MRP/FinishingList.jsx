@@ -70,22 +70,52 @@ export default function FinishingList() {
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-      const resItems = await api.get(`/finishing/${so.id}/finishing-items`);
+      
+      const [resItems, resHolidays] = await Promise.all([
+        api.get(`/finishing/${so.id}/finishing-items`),
+        api.get(`/holidays`).catch(() => ({ data: [] })) 
+      ]);
 
       if (!resItems.data || resItems.data.length === 0) {
         Swal.fire("Data Kosong", "Data belum digenerate.", "warning");
         return;
       }
 
+      const holidayDates = resHolidays.data.map(h => {
+        const d = new Date(h.date);
+        return d.toISOString().split('T')[0];
+      });
+
       const mappedItems = resItems.data.map((it) => {
-        let schedule = it.production_schedule;
-        if (typeof schedule === "string") {
-          try {
-            schedule = JSON.parse(schedule);
-          } catch {
-            schedule = [];
-          }
-        }
+        // 1. Ambil Jadwal Packing (sebagai acuan hitung mundur)
+        // Di controller backend, pastikan field ini dikirim
+        let packingRef = [];
+        try {
+          packingRef = typeof it.packing_schedule === "string" 
+            ? JSON.parse(it.packing_schedule) 
+            : (it.packing_schedule || []);
+        } catch (e) { packingRef = []; }
+
+        // 2. Ambil Jadwal Finishing yang sudah tersimpan (jika ada)
+        let savedFinishing = [];
+        try {
+          savedFinishing = typeof it.production_schedule === "string" 
+            ? JSON.parse(it.production_schedule) 
+            : (it.production_schedule || []);
+        } catch (e) { savedFinishing = []; }
+
+        // 3. Tentukan apakah pakai data DB atau hitung otomatis
+        const hasSavedData = savedFinishing.some(d => 
+          (Number(d.shifts.shift1.qty) || 0) + 
+          (Number(d.shifts.shift2.qty) || 0) + 
+          (Number(d.shifts.shift3.qty) || 0) > 0
+        );
+
+        // Jika DB kosong, panggil fungsi calculate
+        // Gunakan it.capacity_per_shift jika ada, jika tidak default ke 1000
+        let finalSchedule = hasSavedData 
+          ? savedFinishing 
+          : calculateFinishingSchedule(packingRef, it.capacity_per_shift || 1000, holidayDates);
 
         return {
           id: it.id,
@@ -93,8 +123,8 @@ export default function FinishingList() {
           description: it.description,
           uom: it.uom || "PCS",
           qty: it.total_qty || 0,
-          pcs: Number(it.pcs || 0),
-          calendar: Array.isArray(schedule) ? schedule : [],
+          pcs: Number(it.pcs || 0), // Total target PCS
+          calendar: finalSchedule,
         };
       });
 
@@ -102,7 +132,8 @@ export default function FinishingList() {
       setSelectedSO(so);
       setView("detail");
     } catch (err) {
-      Swal.fire("Error", "Gagal memuat detail", "error");
+      console.error("Error Detail:", err);
+      Swal.fire("Error", "Gagal memuat detail jadwal", "error");
     } finally {
       setLoading(false);
     }

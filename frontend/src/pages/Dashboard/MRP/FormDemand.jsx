@@ -6,16 +6,6 @@ import api from "../../../api/api";
 const ITEM_COLORS = ["bg-green-600", "bg-blue-600", "bg-purple-600", "bg-orange-600", "bg-pink-600", "bg-teal-600"];
 
 /* ================= HELPERS ================= */
-const addDays = (date, d) => {
-  const n = new Date(date);
-  n.setDate(n.getDate() + d);
-  return n;
-};
-
-const isSameDay = (d1, d2) => {
-  return d1 === d2;
-};
-
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("id-ID", {
     day: "2-digit",
@@ -38,7 +28,6 @@ const formatToYYYYMMDD = (date) => {
 
 const buildCalendar = (deliveryDate, days = 14) => {
   return Array.from({ length: days }, (_, i) => {
-    // i=0 adalah H-13, i=13 adalah Hari Delivery
     const offset = i - (days - 1);
     const newDate = new Date(deliveryDate);
     newDate.setDate(newDate.getDate() + offset);
@@ -61,7 +50,7 @@ const createItem = (start) => ({
   uom: "",
   qty: "",
   pcs: "",
-  calendarStart: start,
+  capacity_per_shift: 0,
   calendar: buildCalendar(start),
 });
 
@@ -78,8 +67,7 @@ const getTotalPlottedQty = (calendar) => {
 };
 
 /* ================= LOGIC: CUMULATIVE BACKWARD PLOTTING ================= */
-// Ditambahkan parameter capacity agar dinamis
-const autoPlotGlobalBackward = (items, deliveryDate) => {
+const autoPlotGlobalBackward = (items, deliveryDate, holidays = []) => {
   if (!deliveryDate || items.length === 0) return items;
 
   let updatedItems = items.map((it) => ({
@@ -87,19 +75,29 @@ const autoPlotGlobalBackward = (items, deliveryDate) => {
     calendar: buildCalendar(new Date(deliveryDate + "T00:00:00"), 14),
   }));
 
-  let currentDayIdx = 12;
+  let currentDayIdx = 12; // Mulai dari H-1 Delivery
   let currentShift = 3;
 
   updatedItems.forEach((item) => {
     let targetPcs = Number(item.pcs) || 0;
-    // Ambil kapasitas spesifik item, default ke 1 jika tidak ada agar tidak infinite loop
-    const itemCapacity = Number(item.capacity_per_shift) || 1;
+    const itemCapacity = Number(item.capacity_per_shift) || 0;
 
-    if (targetPcs <= 0) return;
+    if (targetPcs <= 0 || itemCapacity <= 0) return;
 
     let currentPlotted = 0;
 
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
+      const dateString = item.calendar[currentDayIdx].date;
+      const dateObj = new Date(dateString);
+      const isSunday = dateObj.getDay() === 0;
+      const isHoliday = (holidays || []).includes(dateString);
+
+      if (isHoliday || isSunday) {
+        currentDayIdx--;
+        currentShift = 3;
+        continue;
+      }
+
       const sKey = `shift${currentShift}`;
       const remaining = targetPcs - currentPlotted;
       const amountToPlot = Math.min(remaining, itemCapacity);
@@ -118,34 +116,33 @@ const autoPlotGlobalBackward = (items, deliveryDate) => {
 
   return updatedItems;
 };
+
 /* ================= COMPONENT ================= */
 export default function FormDemand() {
   const [salesOrders, setSalesOrders] = useState([]);
   const [selectedSO, setSelectedSO] = useState("");
-  const [capacityPerShift, setCapacityPerShift] = useState(50); // State kapasitas
   const [header, setHeader] = useState({
     soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "",
   });
   const [items, setItems] = useState([createItem(new Date())]);
   const [drag, setDrag] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [holidays, setHolidays] = useState([]);
 
   useEffect(() => {
-    const fetchAvailableSO = async () => {
+    const initData = async () => {
       try {
-        setLoading(true);
-        // Panggil endpoint yang sudah kita buat di backend tadi
-        const res = await api.get("/demand/sales-orders");
-        setSalesOrders(res.data);
+        const [soRes, holidayRes] = await Promise.all([
+          api.get("/demand/sales-orders"),
+          api.get("/production/holidays")
+        ]);
+        setSalesOrders(soRes.data);
+        setHolidays(holidayRes.data.map(h => h.holiday_date.split('T')[0]));
       } catch (err) {
-        console.error("Gagal load daftar SO", err);
-        Swal.fire("Error", "Gagal mengambil daftar Sales Order", "error");
-      } finally {
-        setLoading(false);
+        console.error("Gagal load data awal", err);
       }
     };
-
-    fetchAvailableSO();
+    initData();
   }, []);
 
   const handleSelectSO = async (e) => {
@@ -175,12 +172,11 @@ export default function FormDemand() {
         uom: it.uom || 'PCS',
         qty: Number(it.quantity || 0),
         pcs: Number(it.pcs || 0),
-        // PASTIKAN FIELD INI ADA (sesuaikan dengan nama kolom di database)
         capacity_per_shift: Number(it.capacity_per_shift || 0),
       }));
 
       if (newHeader.deliveryDate && initialItems.length > 0) {
-        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate));
+        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate, holidays));
       } else {
         setItems(initialItems);
       }
@@ -195,8 +191,8 @@ export default function FormDemand() {
     setItems(prev => {
       const newList = [...prev];
       newList[idx] = { ...newList[idx], [field]: value };
-      if (field === "pcs") {
-        return autoPlotGlobalBackward(newList, header.deliveryDate, capacityPerShift);
+      if (field === "pcs" || field === "capacity_per_shift") {
+        return autoPlotGlobalBackward(newList, header.deliveryDate, holidays);
       }
       return newList;
     });
@@ -206,7 +202,7 @@ export default function FormDemand() {
     setHeader(prev => {
       const nextHeader = { ...prev, [k]: v };
       if (k === "deliveryDate") {
-        setItems(oldItems => autoPlotGlobalBackward(oldItems, v, capacityPerShift));
+        setItems(oldItems => autoPlotGlobalBackward(oldItems, v, holidays));
       }
       return nextHeader;
     });
@@ -224,7 +220,6 @@ export default function FormDemand() {
         const currentTotal = getTotalPlottedQty(item.calendar);
         const targetPcs = Number(item.pcs) || 0;
         const remaining = targetPcs - currentTotal;
-        // Gunakan kapasitas spesifik item ini
         const itemCap = Number(item.capacity_per_shift) || 0;
 
         if (remaining <= 0) return prev;
@@ -242,27 +237,23 @@ export default function FormDemand() {
       newList[itemIdx].calendar[dayIdx] = targetDay;
       return newList;
     });
-  }, []); // Dependency capacityPerShift dihapus
-
-  // ... fungsi updateShiftQty, handleExportExcel, handleSubmit tetap sama ...
-  const validateQtyLimit = (item, currentShiftValue, newValue) => {
-    const targetPcs = Number(item.pcs) || 0;
-    const currentTotalPlotted = getTotalPlottedQty(item.calendar);
-    const newTotal = currentTotalPlotted - Number(currentShiftValue || 0) + Number(newValue);
-    if (newTotal > targetPcs) {
-      Swal.fire({ icon: 'warning', title: 'Melebihi Kapasitas', text: `Total plotting (${newTotal} Pcs) tidak boleh melebihi Total Pcs (${targetPcs} Pcs).`, timer: 2000, showConfirmButton: false });
-      return false;
-    }
-    return true;
-  };
+  }, [holidays]);
 
   const updateShiftQty = (itemIdx, dayIdx, shift, value) => {
     const valNum = Number(value) || 0;
     setItems(prev => {
       const newList = [...prev];
       const item = newList[itemIdx];
+      
+      const currentTotal = getTotalPlottedQty(item.calendar);
       const currentVal = item.calendar[dayIdx].shifts[shift].qty;
-      if (!validateQtyLimit(item, currentVal, valNum)) return prev;
+      const newTotal = currentTotal - currentVal + valNum;
+
+      if (newTotal > Number(item.pcs)) {
+        Swal.fire({ icon: 'warning', title: 'Limit!', text: 'Melebihi Total Pcs', timer: 1500, showConfirmButton: false });
+        return prev;
+      }
+
       const targetDay = { ...item.calendar[dayIdx] };
       targetDay.shifts[shift] = { ...targetDay.shifts[shift], qty: valNum, active: valNum > 0 };
       newList[itemIdx].calendar[dayIdx] = targetDay;
@@ -276,10 +267,9 @@ export default function FormDemand() {
       setLoading(true);
       const response = await api.post("/demand/export-excel", { header, items }, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.body.appendChild(document.createElement('a'));
       link.href = url;
-      link.setAttribute('download', `Demand_${header.soNo}.xlsx`);
-      document.body.appendChild(link);
+      link.download = `Demand_${header.soNo}.xlsx`;
       link.click();
       link.remove();
     } catch (error) {
@@ -290,25 +280,12 @@ export default function FormDemand() {
   };
 
   const handleSubmit = async () => {
-    if (!header.soNo || !header.deliveryDate || !header.productionDate) {
-      return Swal.fire("Peringatan", "Lengkapi semua tanggal!", "warning");
-    }
-
+    if (!header.soNo || !header.deliveryDate) return Swal.fire("Peringatan", "Lengkapi SO & Tanggal!", "warning");
     try {
       setLoading(true);
       await api.post("/demand", { header, items });
-
       await Swal.fire("Berhasil!", "Data tersimpan.", "success");
-
-      // REFRESH DAFTAR SO AGAR YANG SUDAH TERISI HILANG
-      const res = await api.get("/demand/sales-orders");
-      setSalesOrders(res.data);
-
-      // RESET FORM (Opsional)
-      setSelectedSO("");
-      setHeader({ soNo: "", soDate: "", customer: "", deliveryDate: "", productionDate: "" });
-      setItems([createItem(new Date())]);
-
+      window.location.reload();
     } catch (error) {
       Swal.fire("Error", "Gagal simpan data", "error");
     } finally {
@@ -323,11 +300,8 @@ export default function FormDemand() {
 
   return (
     <div className="min-h-screen p-6 bg-white rounded-lg border border-gray-300 w-full overflow-y-auto" onMouseUp={() => setDrag(null)}>
-      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">
-        FORM
-      </h1>
+      <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">PRODUCTION DEMAND FORM</h1>
 
-      {/* Baris Pilih SO & Input Kapasitas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="md:col-span-3">
           <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">Pilih Sales Order</label>
@@ -340,7 +314,6 @@ export default function FormDemand() {
         </div>
       </div>
 
-      {/* Header Info */}
       <div className="space-y-4 mb-6">
         <div className="grid grid-cols-3 gap-4">
           {[{ k: "soNo", l: "SO Number" }, { k: "soDate", l: "Tanggal SO" }, { k: "customer", l: "Customer" }].map((f) => (
@@ -362,7 +335,6 @@ export default function FormDemand() {
         </div>
       </div>
 
-      {/* Items Calendar Loop */}
       {items.map((item, i) => (
         <div key={i} className="border border-gray-200 rounded-lg p-4 mb-6 bg-white shadow-sm">
           <div className="flex items-end gap-3 mb-2 pb-4 border-b border-gray-100">
@@ -376,47 +348,39 @@ export default function FormDemand() {
               <input type="text" className="h-10 w-full border border-gray-200 px-3 rounded text-sm" value={item.description || ""} onChange={(e) => updateItem(i, "description", e.target.value)} />
             </div>
             <div className="w-24">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">Qty (m3)</label>
-              <input type="number" step="0.01" className="h-10 w-full border border-gray-200 px-2 rounded text-sm text-center" value={item.qty || ""} onChange={(e) => updateItem(i, "qty", e.target.value)} />
-            </div>
-            <div className="w-24">
               <label className="text-[10px] font-bold text-blue-600 uppercase">Total Pcs</label>
               <input type="number" className="h-10 w-full border border-blue-200 px-2 rounded text-sm text-center font-bold" value={item.pcs || ""} onChange={(e) => updateItem(i, "pcs", e.target.value)} />
+            </div>
+            <div className="w-24">
+              <label className="text-[10px] font-bold text-gray-500 uppercase">Cap/Shift</label>
+              <input type="number" className="h-10 w-full border border-gray-200 px-2 rounded text-sm text-center" value={item.capacity_per_shift || ""} onChange={(e) => updateItem(i, "capacity_per_shift", e.target.value)} />
             </div>
             <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="h-10 px-3 bg-red-50 text-red-500 border border-red-100 rounded text-[10px] font-bold">HAPUS</button>
           </div>
 
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex gap-4 text-[11px] font-bold uppercase">
-              <div>
-                Sisa Plotting:
-                <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
-                  {Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs
-                </span>
-              </div>
-              {/* Info Kapasitas Spesifik Item */}
-              <div className="text-blue-600 border-l pl-4">
-                Max Cap/Shift: <span className="bg-blue-50 px-2 py-0.5 rounded">{item.capacity_per_shift || 0} Pcs</span>
-              </div>
-            </div>
+          <div className="flex gap-4 text-[11px] font-bold uppercase mb-4">
+            <div>Sisa Plotting: <span className={`ml-2 px-2 py-0.5 rounded ${Number(item.pcs) - getTotalPlottedQty(item.calendar) === 0 ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>{Number(item.pcs) - getTotalPlottedQty(item.calendar)} Pcs</span></div>
           </div>
 
           <div className="overflow-x-auto pb-2">
             <div className="flex gap-2">
               {item.calendar.map((d, idx) => {
-                const isShip =
-                  header.deliveryDate &&
-                  d.date === header.deliveryDate;
+                const isHoliday = (holidays || []).includes(d.date);
+                const isSunday = new Date(d.date).getDay() === 0;
+                const isShip = header.deliveryDate && d.date === header.deliveryDate;
+
                 return (
-                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
-                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isShip ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isHoliday || isSunday ? 'bg-red-50 border-red-200' : isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
+                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isHoliday || isSunday ? 'text-red-600' : isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
                       {isShip && <span className="block text-[9px] font-black uppercase">📦 Delivery</span>}
+                      {(isHoliday || isSunday) && <span className="block text-[8px] uppercase">❌ LIBUR</span>}
                     </div>
+
                     <div className="grid grid-cols-3 gap-1 pt-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
-                        <div key={s} className={`relative h-7 border rounded flex items-center justify-center ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white` : "bg-gray-50 text-gray-300"} ${isShip ? "opacity-20" : ""}`}>
-                          {!isShip && (
+                        <div key={s} className={`relative h-7 border rounded flex items-center justify-center ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white` : "bg-gray-50 text-gray-300"} ${isShip || isHoliday || isSunday ? "opacity-20 pointer-events-none" : ""}`}>
+                          {(!isShip && !isHoliday && !isSunday) && (
                             <>
                               <div className="absolute inset-0 z-0 cursor-pointer"
                                 onMouseDown={(e) => {
