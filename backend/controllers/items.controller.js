@@ -2,11 +2,26 @@ const pool = require("../db");
 const xlsx = require('xlsx');
 
 
-const calculateCapacity = (cycleTime) => {
+const calculateCapacity = (cycleTime, ewhFromDb) => {
   const ct = parseInt(cycleTime);
   if (!ct || ct <= 0) return 0;
-  const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
+  // Jika ewhFromDb tidak ada, gunakan fallback 20160
+  const ewhSeconds = ewhFromDb || 20160; 
   return Math.floor(ewhSeconds / ct);
+};
+
+const getPackingEwh = async () => {
+  try {
+    const res = await pool.query(
+      "SELECT ewh FROM work_centers WHERE work_center_name = $1 LIMIT 1",
+      ['Packing']
+    );
+    // Jika data "Packing" ditemukan, kembalikan nilai ewh-nya
+    return res.rows.length > 0 ? res.rows[0].ewh : 20160;
+  } catch (err) {
+    console.error("Error fetching Packing EWH:", err);
+    return 20160; // Fallback jika error
+  }
 };
 
 // GET all items
@@ -46,7 +61,9 @@ exports.createItem = async (req, res) => {
   if (!item_code || !description) return res.status(400).json({ error: "Data tidak lengkap" });
 
   try {
-    const capacity = calculateCapacity(cycle_time);
+    const ewh = await getPackingEwh(); // Ambil EWH dinamis
+    const capacity = calculateCapacity(cycle_time, ewh);
+    
     const result = await pool.query(
       "INSERT INTO items(item_code, description, uom, warehouse, cycle_time, capacity_per_shift) VALUES($1, $2, $3, $4, $5, $6) RETURNING *",
       [item_code, description, uom, warehouse || 'GPAK', cycle_time || 0, capacity]
@@ -62,7 +79,9 @@ exports.updateItem = async (req, res) => {
   const { id } = req.params;
   const { item_code, description, uom, warehouse, cycle_time } = req.body;
   try {
-    const capacity = calculateCapacity(cycle_time);
+    const ewh = await getPackingEwh(); // Ambil EWH dinamis
+    const capacity = calculateCapacity(cycle_time, ewh);
+
     const result = await pool.query(
       "UPDATE items SET item_code=$1, description=$2, uom=$3, warehouse=$4, cycle_time=$5, capacity_per_shift=$6 WHERE id=$7 RETURNING *",
       [item_code, description, uom, warehouse, cycle_time, capacity, id]
@@ -92,13 +111,15 @@ exports.importExcel = async (req, res) => {
 
     const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
     const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+    
+    const ewh = await getPackingEwh(); // Ambil sekali di luar loop untuk efisiensi
 
     await pool.query("BEGIN");
     for (const row of data) {
       const { item_code, description, uom, warehouse, cycle_time } = row;
       if (!item_code) continue;
 
-      const capacity = calculateCapacity(cycle_time);
+      const capacity = calculateCapacity(cycle_time, ewh);
       const query = `
         INSERT INTO items (item_code, description, uom, warehouse, cycle_time, capacity_per_shift)
         VALUES ($1, $2, $3, $4, $5, $6)

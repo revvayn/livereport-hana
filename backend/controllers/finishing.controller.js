@@ -1,11 +1,24 @@
 const pool = require("../db");
 const xlsx = require('xlsx');
 
-// Helper untuk hitung kapasitas (80% EWH dari 7 Jam)
-const calculateCapacity = (ct) => {
+const getFinishingEwh = async () => {
+    try {
+        const res = await pool.query(
+            "SELECT ewh FROM work_centers WHERE work_center_name = $1 LIMIT 1",
+            ['Finishing'] // Diganti dari 'Packing' ke 'Finishing'
+        );
+        // Jika data "Finishing" ditemukan, gunakan nilai ewh-nya. 
+        // Jika tidak ada, gunakan fallback 20160 (7 jam * 80%)
+        return res.rows.length > 0 ? res.rows[0].ewh : 20160;
+    } catch (err) {
+        console.error("Error fetching Finishing EWH:", err);
+        return 20160;
+    }
+};
+
+const calculateCapacity = (ct, ewhSeconds) => {
     const cycleTime = parseInt(ct);
     if (!cycleTime || cycleTime <= 0) return 0;
-    const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
     return Math.floor(ewhSeconds / cycleTime);
 };
 
@@ -32,7 +45,9 @@ exports.getAllFinishing = async (req, res) => {
 exports.createFinishing = async (req, res) => {
     const { finishing_code, description, warehouse, cycle_time } = req.body;
     try {
-        const capacity = calculateCapacity(cycle_time);
+        const ewh = await getFinishingEwh(); // Mengambil data EWH Finishing
+        const capacity = calculateCapacity(cycle_time, ewh);
+        
         const result = await pool.query(
             `INSERT INTO item_finishing (finishing_code, description, warehouse, cycle_time, capacity_per_shift) 
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -49,7 +64,9 @@ exports.updateFinishing = async (req, res) => {
     const { id } = req.params;
     const { finishing_code, description, warehouse, cycle_time } = req.body;
     try {
-        const capacity = calculateCapacity(cycle_time);
+        const ewh = await getFinishingEwh(); 
+        const capacity = calculateCapacity(cycle_time, ewh);
+        
         const result = await pool.query(
             `UPDATE item_finishing 
              SET finishing_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5
@@ -80,12 +97,14 @@ exports.importExcel = async (req, res) => {
         const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+        const ewh = await getFinishingEwh(); 
+
         await pool.query("BEGIN");
         for (const row of data) {
             const { finishing_code, description, warehouse, cycle_time } = row;
             if (!finishing_code) continue;
 
-            const capacity = calculateCapacity(cycle_time);
+            const capacity = calculateCapacity(cycle_time, ewh);
             const query = `
                 INSERT INTO item_finishing (finishing_code, description, warehouse, cycle_time, capacity_per_shift)
                 VALUES ($1, $2, $3, $4, $5)
@@ -99,7 +118,7 @@ exports.importExcel = async (req, res) => {
             await pool.query(query, [finishing_code, description, warehouse, cycle_time || 0, capacity]);
         }
         await pool.query("COMMIT");
-        res.json({ message: "Import berhasil" });
+        res.json({ message: "Import berhasil menggunakan parameter EWH Finishing" });
     } catch (err) {
         await pool.query("ROLLBACK");
         res.status(500).json({ error: "Gagal import Excel" });

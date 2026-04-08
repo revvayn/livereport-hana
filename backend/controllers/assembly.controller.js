@@ -1,11 +1,30 @@
 const pool = require('../db');
 const xlsx = require('xlsx');
 
-// Logika Kapasitas: 7 jam * 80% efisiensi * 3600 detik = 20,160 detik
-const calculateCapacity = (cycleTime) => {
+/**
+ * Mengambil nilai EWH secara dinamis dari tabel work_centers
+ * @param {string} wcName - Nama Work Center (e.g., 'Assembly Pannel')
+ */
+const getWorkCenterEwh = async (wcName) => {
+    try {
+        const res = await pool.query(
+            "SELECT ewh FROM work_centers WHERE work_center_name = $1 LIMIT 1",
+            [wcName]
+        );
+        // Jika data ditemukan gunakan nilai DB, jika tidak gunakan fallback 20160 (7h * 80% * 3600s)
+        return res.rows.length > 0 ? res.rows[0].ewh : 20160;
+    } catch (err) {
+        console.error(`Error fetching EWH for ${wcName}:`, err);
+        return 20160;
+    }
+};
+
+/**
+ * Menghitung kapasitas per shift berdasarkan cycle time dan EWH
+ */
+const calculateCapacity = (cycleTime, ewhSeconds) => {
     const ct = parseInt(cycleTime);
     if (!ct || ct <= 0) return 0;
-    const ewhSeconds = 7 * 0.8 * 3600; // 20,160 detik
     return Math.floor(ewhSeconds / ct);
 };
 
@@ -33,44 +52,46 @@ exports.createPannel = async (req, res) => {
     if (!assembly_code || !description) return res.status(400).json({ error: "Data tidak lengkap" });
 
     try {
-        const capacity = calculateCapacity(cycle_time);
+        const ewh = await getWorkCenterEwh("Assembly Pannel");
+        const capacity = calculateCapacity(cycle_time, ewh);
+
         const result = await pool.query(
             `INSERT INTO item_assembly_pannel (assembly_code, description, warehouse, cycle_time, capacity_per_shift) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
             [assembly_code.toUpperCase(), description, warehouse || 'PFIN', cycle_time || 0, capacity]
         );
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: "Gagal membuat data" });
+        res.status(500).json({ error: "Gagal membuat data pannel" });
     }
 };
-
 // UPDATE
 exports.updatePannel = async (req, res) => {
     const { id } = req.params;
     const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const capacity = calculateCapacity(cycle_time);
+        const ewh = await getWorkCenterEwh("Assembly Pannel");
+        const capacity = calculateCapacity(cycle_time, ewh);
+
         const result = await pool.query(
             `UPDATE item_assembly_pannel 
-       SET assembly_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5 
-       WHERE id=$6 RETURNING *`,
+             SET assembly_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5 
+             WHERE id=$6 RETURNING *`,
             [assembly_code.toUpperCase(), description, warehouse, cycle_time || 0, capacity, id]
         );
         res.json(result.rows[0]);
     } catch (err) {
-        res.status(500).json({ error: "Gagal memperbarui data" });
+        res.status(500).json({ error: "Gagal memperbarui data pannel" });
     }
 };
 
 // DELETE
 exports.deletePannel = async (req, res) => {
-    const { id } = req.params;
     try {
-        await pool.query("DELETE FROM item_assembly_pannel WHERE id=$1", [id]);
-        res.json({ message: "Data terhapus" });
+        await pool.query("DELETE FROM item_assembly_pannel WHERE id=$1", [req.params.id]);
+        res.json({ message: "Data pannel terhapus" });
     } catch (err) {
-        res.status(500).json({ error: "Gagal menghapus data" });
+        res.status(500).json({ error: "Gagal menghapus data pannel" });
     }
 };
 
@@ -78,42 +99,42 @@ exports.deletePannel = async (req, res) => {
 exports.importExcelPannel = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
-
         const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+        const ewh = await getWorkCenterEwh("Assembly Pannel");
+
         await pool.query("BEGIN");
         for (const row of data) {
-            // Pastikan header di Excel Anda: assembly_code, description, warehouse, cycle_time
             const { assembly_code, description, warehouse, cycle_time } = row;
             if (!assembly_code) continue;
 
-            const capacity = calculateCapacity(cycle_time);
+            const capacity = calculateCapacity(cycle_time, ewh);
             const query = `
-        INSERT INTO item_assembly_pannel (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (assembly_code) 
-        DO UPDATE SET 
-          description = EXCLUDED.description,
-          warehouse = EXCLUDED.warehouse,
-          cycle_time = EXCLUDED.cycle_time,
-          capacity_per_shift = EXCLUDED.capacity_per_shift
-      `;
+                INSERT INTO item_assembly_pannel (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (assembly_code) DO UPDATE SET 
+                  description = EXCLUDED.description,
+                  warehouse = EXCLUDED.warehouse,
+                  cycle_time = EXCLUDED.cycle_time,
+                  capacity_per_shift = EXCLUDED.capacity_per_shift`;
+            
             await pool.query(query, [
                 assembly_code.toString().toUpperCase(),
                 description || "",
                 warehouse || 'PFIN',
                 cycle_time || 0,
-                capacity // Gunakan variabel 'capacity' hasil perhitungan
+                capacity
             ]);
         }
         await pool.query("COMMIT");
-        res.json({ message: "Import Excel berhasil" });
+        res.json({ message: "Import Excel Pannel berhasil" });
     } catch (err) {
         await pool.query("ROLLBACK");
-        res.status(500).json({ error: "Gagal import excel: " + err.message });
+        res.status(500).json({ error: "Gagal import excel pannel: " + err.message });
     }
 };
+
 //====================================ASSEMBLY CORE=============================================
 exports.getAllCore = async (req, res) => {
     try {
@@ -124,20 +145,16 @@ exports.getAllCore = async (req, res) => {
     }
 };
 
-
 exports.createCore = async (req, res) => {
+    const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const { assembly_code, description, warehouse, cycle_time } = req.body;
-
-        // Kalkulasi Capacity (Asumsi 7 jam shift, 80% efisiensi)
-        // 7 jam * 3600 detik * 0.8 = 20160 detik efektif
-        const cycleTimeNum = parseInt(cycle_time) || 0;
-        const capacity = cycleTimeNum > 0 ? Math.floor(20160 / cycleTimeNum) : 0;
+        const ewh = await getWorkCenterEwh("Assembly Core");
+        const capacity = calculateCapacity(cycle_time, ewh);
 
         const result = await pool.query(
             `INSERT INTO item_assembly_core (assembly_code, description, warehouse, cycle_time, capacity_per_shift) 
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [assembly_code, description, warehouse || 'WIPA', cycleTimeNum, capacity]
+            [assembly_code.toUpperCase(), description, warehouse || 'WIPA', cycle_time || 0, capacity]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -146,20 +163,19 @@ exports.createCore = async (req, res) => {
 };
 
 exports.updateCore = async (req, res) => {
+    const { id } = req.params;
+    const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const { id } = req.params;
-        const { assembly_code, description, warehouse, cycle_time } = req.body;
-
-        const cycleTimeNum = parseInt(cycle_time) || 0;
-        const capacity = cycleTimeNum > 0 ? Math.floor(20160 / cycleTimeNum) : 0;
+        const ewh = await getWorkCenterEwh("Assembly Core");
+        const capacity = calculateCapacity(cycle_time, ewh);
 
         await pool.query(
             `UPDATE item_assembly_core 
              SET assembly_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5, updated_at=NOW() 
              WHERE id=$6`,
-            [assembly_code, description, warehouse, cycleTimeNum, capacity, id]
+            [assembly_code.toUpperCase(), description, warehouse, cycle_time || 0, capacity, id]
         );
-        res.json({ message: "Updated successfully" });
+        res.json({ message: "Updated core successfully" });
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
@@ -168,7 +184,7 @@ exports.updateCore = async (req, res) => {
 exports.deleteCore = async (req, res) => {
     try {
         await pool.query('DELETE FROM item_assembly_core WHERE id = $1', [req.params.id]);
-        res.json({ message: "Deleted successfully" });
+        res.json({ message: "Data core terhapus" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -177,28 +193,27 @@ exports.deleteCore = async (req, res) => {
 exports.importExcelCore = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
-
         const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+        const ewh = await getWorkCenterEwh("Assembly Core");
+
         await pool.query("BEGIN");
         for (const row of data) {
-            // Header di Excel: assembly_code, description, warehouse, cycle_time
             const { assembly_code, description, warehouse, cycle_time } = row;
             if (!assembly_code) continue;
 
-            const capacity = calculateCapacity(cycle_time);
+            const capacity = calculateCapacity(cycle_time, ewh);
             const query = `
                 INSERT INTO item_assembly_core (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (assembly_code) 
-                DO UPDATE SET 
+                ON CONFLICT (assembly_code) DO UPDATE SET 
                   description = EXCLUDED.description,
                   warehouse = EXCLUDED.warehouse,
                   cycle_time = EXCLUDED.cycle_time,
                   capacity_per_shift = EXCLUDED.capacity_per_shift,
-                  updated_at = NOW()
-            `;
+                  updated_at = NOW()`;
+            
             await pool.query(query, [
                 assembly_code.toString().toUpperCase(),
                 description || "",
