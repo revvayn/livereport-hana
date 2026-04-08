@@ -44,6 +44,7 @@ app.use("/api/finishing-items", require("./routes/finishing.routes")); // Pastik
 app.use("/api/assembly", require("./routes/assembly.routes"));
 app.use("/api/machines", require("./routes/machines.routes"));
 app.use("/api/operations", require("./routes/operations.routes"));
+app.use("/api/work-centers", require("./routes/workCenter.routes"));
 app.use("/api/item-routings", require("./routes/itemRoutings.routes"));
 app.use("/api/sales-orders", require("./routes/salesOrders.routes"));
 app.use("/api/sales-order-items", require("./routes/salesOrderItems.routes"));
