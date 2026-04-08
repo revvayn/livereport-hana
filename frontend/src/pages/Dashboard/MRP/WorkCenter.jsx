@@ -283,7 +283,7 @@ export default function WorkCenter() {
                         <div className="flex flex-col gap-1">
                           <span className="text-xs font-medium text-slate-600 uppercase">Line: {i.line_name}</span>
                           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                            <Clock size={10} /> {i.lead_time} HARI
+                            <Clock size={10} /> {i.lead_time} SHIFT
                           </div>
                         </div>
                       </td>
