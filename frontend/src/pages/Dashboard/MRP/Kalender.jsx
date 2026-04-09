@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { 
-  Calendar as CalendarIcon, Package, Zap, Wrench, 
-  Loader2, Search, ChevronRight, Plus, Trash2, X 
+import {
+  Calendar as CalendarIcon, Package, Zap, Wrench,
+  Loader2, Search, ChevronRight, Plus, Trash2, X
 } from "lucide-react";
 import axios from "axios";
 
@@ -12,7 +12,6 @@ const CATEGORIES = [
 ];
 
 const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-
 export default function ExcelSchedule() {
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth());
@@ -26,6 +25,15 @@ export default function ExcelSchedule() {
   const [holidays, setHolidays] = useState([]);
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [newHoliday, setNewHoliday] = useState({ date: "", description: "" });
+  const [filterMonth, setFilterMonth] = useState(''); // '' berarti 'Semua Bulan'
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString()); // Default tahun sekarang
+
+  const filteredHolidays = holidays.filter(h => {
+    const date = new Date(h.holiday_date);
+    const matchesMonth = filterMonth === '' || (date.getMonth() + 1).toString() === filterMonth;
+    const matchesYear = filterYear === '' || date.getFullYear().toString() === filterYear;
+    return matchesMonth && matchesYear;
+  });
 
   // Fetch Data (Jadwal + Libur)
   const fetchData = useCallback(async () => {
@@ -87,6 +95,24 @@ export default function ExcelSchedule() {
     }
     return days;
   }, [month, year]);
+  // State untuk menyimpan kolom mana yang di-sort dan arahnya
+  const [sortConfig, setSortConfig] = useState({ key: 'holiday_date', direction: 'asc' });
+
+  // Fungsi untuk mengubah kriteria sort
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Data yang sudah di-sort untuk di-render
+  const sortedHolidays = [...filteredHolidays].sort((a, b) => {
+    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   const tableData = useMemo(() => {
     const currentCategoryData = rawData[activeTab];
@@ -136,63 +162,186 @@ export default function ExcelSchedule() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8 font-sans text-slate-900">
-      
+
       {/* --- MODAL HARI LIBUR --- */}
       {isHolidayModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                <CalendarIcon size={18} className="text-rose-500" /> Atur Hari Libur
-              </h3>
-              <button onClick={() => setIsHolidayModalOpen(false)} className="hover:bg-slate-200 p-1 rounded-full transition-colors">
-                <X size={20} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 transition-all">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300 border border-slate-100">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50/80">
+              <div>
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
+                  <div className="bg-rose-100 p-1.5 rounded-lg">
+                    <CalendarIcon size={20} className="text-rose-600" />
+                  </div>
+                  Atur Hari Libur
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium ml-10">Manajemen kalender operasional</p>
+              </div>
+              <button
+                onClick={() => setIsHolidayModalOpen(false)}
+                className="bg-white border hover:bg-slate-100 text-slate-400 hover:text-slate-600 p-2 rounded-xl transition-all shadow-sm"
+              >
+                <X size={18} />
               </button>
             </div>
-            <div className="p-4">
-              <div className="grid grid-cols-1 gap-3 mb-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Tanggal</label>
-                  <input type="date" className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-rose-500/20 outline-none" 
-                    value={newHoliday.date} onChange={(e) => setNewHoliday({...newHoliday, date: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Keterangan</label>
-                  <div className="flex gap-2">
-                    <input type="text" placeholder="Contoh: Idul Fitri" className="flex-1 border rounded-lg p-2 text-sm focus:ring-2 focus:ring-rose-500/20 outline-none" 
-                      value={newHoliday.description} onChange={(e) => setNewHoliday({...newHoliday, description: e.target.value})} />
-                    <button onClick={handleAddHoliday} className="bg-rose-500 text-white px-4 rounded-lg hover:bg-rose-600 transition-colors">
-                      <Plus size={20} />
-                    </button>
+
+            <div className="p-6">
+              {/* Form Input Section */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-6 shadow-inner">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Pilih Tanggal</label>
+                    <input
+                      type="date"
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all shadow-sm"
+                      value={newHoliday.date}
+                      onChange={(e) => setNewHoliday({ ...newHoliday, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">Keterangan Libur</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Contoh: Libur Nasional Idul Fitri"
+                        className="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all shadow-sm"
+                        value={newHoliday.description}
+                        onChange={(e) => setNewHoliday({ ...newHoliday, description: e.target.value })}
+                      />
+                      <button
+                        onClick={handleAddHoliday}
+                        className="bg-rose-500 text-white px-5 rounded-xl hover:bg-rose-600 active:scale-95 transition-all shadow-lg shadow-rose-200 flex items-center justify-center group"
+                      >
+                        <Plus size={22} className="group-hover:rotate-90 transition-transform duration-300" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="max-h-60 overflow-y-auto border rounded-xl bg-slate-50">
-                <table className="w-full text-xs">
-                  <thead className="bg-white sticky top-0 border-b">
-                    <tr>
-                      <th className="p-2 text-left text-slate-500">Tgl</th>
-                      <th className="p-2 text-left text-slate-500">Nama Libur</th>
-                      <th className="p-2 text-right"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {holidays.length > 0 ? holidays.map(h => (
-                      <tr key={h.id} className="hover:bg-white transition-colors">
-                        <td className="p-2 font-medium">{h.holiday_date.split('T')[0]}</td>
-                        <td className="p-2 text-slate-600">{h.description}</td>
-                        <td className="p-2 text-right">
-                          <button onClick={() => handleDeleteHoliday(h.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Belum ada hari libur</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              {/* Search & Filter Section */}
+              <div className="flex gap-2 mb-4">
+                <div className="flex-1 grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                  <select
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                    className="bg-white border-none rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none shadow-sm focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="">Semua Bulan</option>
+                    {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((m, i) => (
+                      <option key={m} value={(i + 1).toString()}>{m}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filterYear}
+                    onChange={(e) => setFilterYear(e.target.value)}
+                    className="bg-white border-none rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none shadow-sm focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="">Semua Tahun</option>
+                    {[2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y.toString()}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tombol Reset Filter jika diperlukan */}
+                {(filterMonth !== '' || filterYear !== '') && (
+                  <button
+                    onClick={() => { setFilterMonth(''); setFilterYear(''); }}
+                    className="px-3 py-1 text-[10px] font-bold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                  >
+                    RESET
+                  </button>
+                )}
               </div>
+              {/* Table Section */}
+              <div className="relative border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+                      <tr>
+                        {/* Header Tanggal - Clickable */}
+                        <th
+                          onClick={() => requestSort('holiday_date')}
+                          className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1">
+                            Tanggal
+                            <span className="inline-block transition-transform duration-200">
+                              {sortConfig.key === 'holiday_date' ? (
+                                sortConfig.direction === 'asc' ? '↑' : '↓'
+                              ) : (
+                                <span className="opacity-0 group-hover:opacity-100 text-slate-300">↑</span>
+                              )}
+                            </span>
+                          </div>
+                        </th>
+
+                        {/* Header Keterangan - Clickable */}
+                        <th
+                          onClick={() => requestSort('description')}
+                          className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors group"
+                        >
+                          <div className="flex items-center gap-1">
+                            Keterangan
+                            <span className="inline-block transition-transform duration-200">
+                              {sortConfig.key === 'description' ? (
+                                sortConfig.direction === 'asc' ? '↑' : '↓'
+                              ) : (
+                                <span className="opacity-0 group-hover:opacity-100 text-slate-300">↑</span>
+                              )}
+                            </span>
+                          </div>
+                        </th>
+                        <th className="px-4 py-3 text-right"></th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {/* GUNAKAN sortedHolidays di sini, bukan holidays mentah */}
+                      {sortedHolidays.length > 0 ? (
+                        sortedHolidays.map((h) => (
+                          <tr key={h.id} className="hover:bg-rose-50/30 transition-colors group">
+                            <td className="px-4 py-3 text-xs font-semibold text-slate-700">
+                              {new Date(h.holiday_date).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-600 font-medium italic">
+                              {h.description}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => handleDeleteHoliday(h.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-100 rounded-lg transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="3" className="px-4 py-12 text-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <CalendarIcon size={32} className="text-slate-200" />
+                              <p className="text-sm text-slate-400 italic">Belum ada hari libur terdaftar</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <p className="mt-4 text-[10px] text-center text-slate-400">
+                * Hari Minggu otomatis dianggap libur oleh sistem
+              </p>
             </div>
           </div>
         </div>
@@ -211,7 +360,7 @@ export default function ExcelSchedule() {
 
           <div className="flex flex-wrap items-center gap-3">
             {/* --- TOMBOL MODAL LIBUR --- */}
-            <button 
+            <button
               onClick={() => setIsHolidayModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl text-xs font-bold shadow-sm hover:bg-rose-50 transition-all"
             >
@@ -222,9 +371,8 @@ export default function ExcelSchedule() {
               {CATEGORIES.map(cat => (
                 <button
                   key={cat.id} onClick={() => setActiveTab(cat.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    activeTab === cat.id ? cat.activeClass : "text-slate-500 hover:text-slate-800"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${activeTab === cat.id ? cat.activeClass : "text-slate-500 hover:text-slate-800"
+                    }`}
                 >
                   {cat.icon} {cat.label}
                 </button>
@@ -244,13 +392,13 @@ export default function ExcelSchedule() {
             value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
+
         <div className="flex gap-2">
-          <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} 
+          <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))}
             className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-slate-50">
             {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
           </select>
-          <select value={year} onChange={(e) => setYear(parseInt(e.target.value))} 
+          <select value={year} onChange={(e) => setYear(parseInt(e.target.value))}
             className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-slate-50">
             {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -353,7 +501,7 @@ export default function ExcelSchedule() {
           </table>
         </div>
       </div>
-      
+
       {/* ... Footer Legend (tetap sama) ... */}
     </div>
   );
