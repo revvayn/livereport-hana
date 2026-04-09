@@ -244,87 +244,66 @@ exports.deleteCore = async (req, res) => {
 
 //====================================ASSEMBLY GENERATE=============================================
 
-const calculateAssemblySchedule = (referenceSchedule, capacity, holidays = []) => {
+const calculateAssemblySchedule = (referenceSchedule, capacity, holidays = [], leadTime = 2) => {
     if (!referenceSchedule || !Array.isArray(referenceSchedule)) return [];
 
-    // 1. Hitung total Qty dari jadwal referensi (bisa finishing atau pannel)
-    let totalQtyToProcess = 0;
-    referenceSchedule.forEach(day => {
-        const shifts = day.shifts || {};
-        totalQtyToProcess += (shifts.shift1?.qty || 0) + (shifts.shift2?.qty || 0) + (shifts.shift3?.qty || 0);
-    });
-
-    if (totalQtyToProcess === 0) return [];
-
-    // 2. Cari titik awal jadwal referensi
-    const activeDays = referenceSchedule
-        .filter(d => {
-            const s = d.shifts || {};
-            return ((s.shift1?.qty || 0) + (s.shift2?.qty || 0) + (s.shift3?.qty || 0)) > 0;
-        })
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (activeDays.length === 0) return [];
-
-    const firstRefDateStr = activeDays[0].date.split('T')[0];
-    let [year, month, day] = firstRefDateStr.split("-").map(Number);
-
-    let startShift = 1;
-    for (let s = 1; s <= 3; s++) {
-        if ((activeDays[0].shifts[`shift${s}`]?.qty || 0) > 0) {
-            startShift = s;
-            break;
-        }
-    }
-    // 3. Helper Cek Libur yang lebih aman terhadap Timezone
-    const isHoliday = (dateObj) => {
-        // Clone agar tidak merusak objek asli
-        const tempDate = new Date(dateObj.getTime());
-        const dayOfWeek = tempDate.getDay();
-
-        if (dayOfWeek === 0) return true; // Minggu (0) PASTI Libur
-
-        // Format YYYY-MM-DD untuk cek di array holidays
-        const y = tempDate.getFullYear();
-        const m = String(tempDate.getMonth() + 1).padStart(2, "0");
-        const d = String(tempDate.getDate()).padStart(2, "0");
-        const dateStr = `${y}-${m}-${d}`;
-
+    const capPerShift = Number(capacity) || 100;
+    const isHoliday = (dateStr) => {
+        const d = new Date(dateStr);
+        if (d.getDay() === 0) return true; // Minggu libur
         return holidays.includes(dateStr);
     };
 
-    // 4. Inisialisasi Titik Mundur (PENTING: Gunakan jam 00:00:00 agar getDay() akurat)
-    let currentDayObj = new Date(year, month - 1, day, 0, 0, 0);
-    let currentShift = startShift;
+    // 1. Hitung TOTAL QTY yang dibutuhkan dari referensi
+    let totalQtyNeeded = 0;
+    const sortedRef = [...referenceSchedule].sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Cari titik awal (Shift paling pertama yang ada isinya di referensi)
+    let refStartDay = "";
+    let refStartShift = -1;
 
-    for (let i = 0; i < 3; i++) {
-        currentShift--;
-        if (currentShift < 1) {
-            currentShift = 3;
-            currentDayObj.setDate(currentDayObj.getDate() - 1);
-
-            // Jika hari hasil mundur adalah hari libur, terus mundur ke hari kerja sebelumnya
-            while (isHoliday(currentDayObj)) {
-                currentDayObj.setDate(currentDayObj.getDate() - 1);
+    for (const day of sortedRef) {
+        for (let s = 1; s <= 3; s++) {
+            const q = Number(day.shifts[`shift${s}`]?.qty || 0);
+            if (q > 0) {
+                totalQtyNeeded += q;
+                if (!refStartDay) {
+                    refStartDay = day.date;
+                    refStartShift = s;
+                }
             }
         }
     }
 
-    // 5. Plotting Produksi Assembly
+    if (totalQtyNeeded <= 0 || !refStartDay) return [];
+
+    // 2. Tentukan titik awal produksi (Mundur sesuai Lead Time dari refStartShift)
+    let currentDay = new Date(refStartDay);
+    let currentShift = refStartShift;
+
+    for (let i = 0; i < leadTime; i++) {
+        currentShift--;
+        if (currentShift < 1) {
+            currentShift = 3;
+            currentDay.setDate(currentDay.getDate() - 1);
+            while (isHoliday(currentDay.toISOString().split('T')[0])) {
+                currentDay.setDate(currentDay.getDate() - 1);
+            }
+        }
+    }
+
+    // 3. Plotting Qty secara PADAT (Fill to Capacity) mundur ke belakang
     const assemblyDataMap = {};
-    const capacityPerShift = Number(capacity) > 0 ? Number(capacity) : 100;
-    let remainingQty = totalQtyToProcess;
+    let remainingQty = totalQtyNeeded;
 
     while (remainingQty > 0) {
-        // Validasi Hari Libur sebelum mengisi Qty
-        while (isHoliday(currentDayObj)) {
-            currentDayObj.setDate(currentDayObj.getDate() - 1);
-        }
+        let dateKey = currentDay.toISOString().split('T')[0];
 
-        const y = currentDayObj.getFullYear();
-        const m = String(currentDayObj.getMonth() + 1).padStart(2, "0");
-        const d = String(currentDayObj.getDate()).padStart(2, "0");
-        const dateKey = `${y}-${m}-${d}`;
+        // Jika hari libur, mundur ke hari sebelumnya
+        if (isHoliday(dateKey)) {
+            currentDay.setDate(currentDay.getDate() - 1);
+            continue;
+        }
 
         if (!assemblyDataMap[dateKey]) {
             assemblyDataMap[dateKey] = {
@@ -337,16 +316,19 @@ const calculateAssemblySchedule = (referenceSchedule, capacity, holidays = []) =
             };
         }
 
-        const take = Math.min(remainingQty, capacityPerShift);
+        // Isi maksimal sesuai kapasitas shift
+        const canTake = capPerShift;
+        const take = Math.min(remainingQty, canTake);
+
         assemblyDataMap[dateKey].shifts[`shift${currentShift}`].qty = take;
         assemblyDataMap[dateKey].shifts[`shift${currentShift}`].active = true;
         remainingQty -= take;
 
-        // Mundur ke shift sebelumnya untuk sisa Qty
+        // Mundur ke shift sebelumnya
         currentShift--;
         if (currentShift < 1) {
             currentShift = 3;
-            currentDayObj.setDate(currentDayObj.getDate() - 1);
+            currentDay.setDate(currentDay.getDate() - 1);
         }
     }
 
@@ -381,110 +363,92 @@ exports.generateAssembly = async (req, res) => {
 
         // 1. Ambil List Hari Libur
         const holidayRes = await client.query(`SELECT holiday_date FROM public_holidays`);
-        const holidays = holidayRes.rows.map(h => h.holiday_date.toISOString().split('T')[0]);
+        const holidays = holidayRes.rows.map(h => new Date(h.holiday_date).toISOString().split('T')[0]);
 
-        // 2. Ambil Info Demand (Delivery Date)
+        // 2. Ambil Lead Time (Gunakan default jika tidak ditemukan)
+        const wcRes = await client.query("SELECT work_center_name, lead_time FROM work_centers");
+        const getLT = (name) => {
+            const found = wcRes.rows.find(w => w.work_center_name?.toLowerCase().includes(name.toLowerCase()));
+            return found ? parseInt(found.lead_time) : 2;
+        };
+        const pannelLT = getLT('pannel');
+        const coreLT = getLT('core');
+
+        // 3. Ambil Data Dasar
         const demandRes = await client.query(`SELECT delivery_date FROM demands WHERE id = $1`, [demandId]);
-        if (demandRes.rows.length === 0) throw new Error("Demand tidak ditemukan");
         const deliveryDate = new Date(demandRes.rows[0].delivery_date);
 
-        // 3. Ambil Data Finishing sebagai referensi awal dan join ke routing
-        const querySelect = `
+        const result = await client.query(`
             SELECT 
-                dif.demand_id, dif.demand_item_id, dif.item_id, dif.uom, 
-                dif.total_qty, 
-                di.pcs AS pcs_original, 
-                dif.production_schedule AS finishing_schedule,
-                ir.assembly_code_pannel, ap.description AS pannel_desc, ap.warehouse AS pannel_wh, 
-                ap.capacity_per_shift AS pannel_cap,
-                ir.assembly_code_core, ac.description AS core_desc, ac.warehouse AS core_wh,
-                ac.capacity_per_shift AS core_cap
+                dif.demand_id, dif.demand_item_id, dif.production_schedule AS finishing_schedule, 
+                dif.uom, dif.total_qty, di.item_code, di.pcs AS pcs_original, di.item_id,
+                ir.assembly_code_pannel, ap.description AS pannel_desc, ap.capacity_per_shift AS pannel_cap,
+                ir.assembly_code_core, ac.description AS core_desc, ac.capacity_per_shift AS core_cap
             FROM demand_item_finishing dif
             INNER JOIN demand_items di ON dif.demand_item_id = di.id
-            INNER JOIN item_routings ir ON di.item_code = ir.item_code
+            LEFT JOIN item_routings ir ON UPPER(di.item_code) = UPPER(ir.item_code)
             LEFT JOIN item_assembly_pannel ap ON ir.assembly_code_pannel = ap.assembly_code
             LEFT JOIN item_assembly_core ac ON ir.assembly_code_core = ac.assembly_code
             WHERE dif.demand_id = $1
-        `;
+        `, [demandId]);
 
-        const result = await client.query(querySelect, [demandId]);
-
-        // Bersihkan data lama sebelum re-generate
         await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [demandId]);
 
         for (const row of result.rows) {
-            const finishingSchedule = typeof row.finishing_schedule === 'string'
+            const finishingSchedule = typeof row.finishing_schedule === 'string' 
                 ? JSON.parse(row.finishing_schedule) : (row.finishing_schedule || []);
 
-            const realQty = Number(row.total_qty || 0);
-            const realPcs = Number(row.pcs_original || 0);
-
-            // Pointer referensi: Core akan mengikuti Pannel, Pannel mengikuti Finishing
-            let lastScheduleRef = finishingSchedule;
-
-            // --- A. PROSES PANNEL ---
+            // --- PROSES PANNEL ---
+            let pannelFinalSchedule = [];
             if (row.assembly_code_pannel) {
-                const pannelCap = Number(row.pannel_cap) || 100;
-                const pannelSlots = calculateAssemblySchedule(finishingSchedule, pannelCap, holidays);
-                const pannelCalendar = createCalendarArray(deliveryDate, pannelSlots);
-
-                await client.query(
-                    `INSERT INTO demand_item_assembly 
-                    (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                    [
-                        row.demand_id, row.demand_item_id, row.item_id, row.assembly_code_pannel,
-                        `[PANNEL] ${row.pannel_desc}`, row.uom, realQty, realPcs,
-                        JSON.stringify(pannelCalendar), row.pannel_wh || 'WIPA'
-                    ]
-                );
-
-                // Update referensi agar Core mundur dari jadwal Pannel yang baru dibuat
-                lastScheduleRef = pannelSlots;
+                const pannelSlots = calculateAssemblySchedule(finishingSchedule, row.pannel_cap, holidays, pannelLT);
+                pannelFinalSchedule = createCalendarArray(deliveryDate, pannelSlots);
+                
+                await insertToAssembly(client, row, row.assembly_code_pannel, `[PANNEL] ${row.pannel_desc || ''}`, pannelFinalSchedule);
             }
 
-            // --- B. PROSES CORE ---
+            // --- PROSES CORE ---
             if (row.assembly_code_core) {
-                const coreCap = Number(row.core_cap) || 100;
-                const coreSlots = calculateAssemblySchedule(lastScheduleRef, coreCap, holidays);
-                const coreCalendar = createCalendarArray(deliveryDate, coreSlots);
-
-                await client.query(
-                    `INSERT INTO demand_item_assembly 
-                    (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                    [
-                        row.demand_id, row.demand_item_id, row.item_id, row.assembly_code_core,
-                        `[CORE] ${row.core_desc}`, row.uom, realQty, realPcs,
-                        JSON.stringify(coreCalendar), row.core_wh || 'WIPA'
-                    ]
-                );
+                // CORE merujuk ke PANNEL (jika ada), jika tidak ada baru merujuk ke FINISHING
+                const refForCore = pannelFinalSchedule.length > 0 ? pannelFinalSchedule : finishingSchedule;
+                const coreSlots = calculateAssemblySchedule(refForCore, row.core_cap, holidays, coreLT);
+                const coreFinalSchedule = createCalendarArray(deliveryDate, coreSlots);
+                
+                await insertToAssembly(client, row, row.assembly_code_core, `[CORE] ${row.core_desc || ''}`, coreFinalSchedule);
             }
         }
 
-        // 4. Update flag status demand
         await client.query('UPDATE demands SET is_assembly_generated = true WHERE id = $1', [demandId]);
-
         await client.query('COMMIT');
-        res.json({ message: "Generate Assembly Sequential Berhasil (Jeda 2 Shift & Filter Libur)" });
+        res.json({ message: "Generate Assembly Berhasil" });
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Assembly Error:", err);
         res.status(500).json({ error: err.message });
     } finally {
         client.release();
     }
 };
 
-// Helper function agar kode lebih bersih
+// Helper Insert untuk menjaga kerapihan
+const insertToAssembly = async (client, row, code, desc, calendar, wh) => {
+    await client.query(
+        `INSERT INTO demand_item_assembly 
+        (demand_id, demand_item_id, item_id, item_code, description, uom, total_qty, pcs, production_schedule, warehouse)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [row.demand_id, row.demand_item_id, row.item_id, code, desc, row.uom, row.total_qty, row.pcs_original, JSON.stringify(calendar), wh]
+    );
+};
+
+// Helper Kalender agar konsisten 21 hari (H-20 s/d Hari H) seperti Finishing
 const createCalendarArray = (deliveryDate, slots) => {
     const calendar = [];
-    for (let i = 14; i >= 0; i--) {
+    for (let i = 20; i >= 0; i--) {
         const d = new Date(deliveryDate);
         d.setDate(deliveryDate.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
         const found = slots.find(f => f.date === dateStr);
+        
         calendar.push({
             date: dateStr,
             shifts: found ? found.shifts : {
@@ -494,7 +458,7 @@ const createCalendarArray = (deliveryDate, slots) => {
             }
         });
     }
-    return calendar;
+    return calendar.sort((a, b) => a.date.localeCompare(b.date));
 };
 
 exports.getItemsByDemandId = async (req, res) => {
