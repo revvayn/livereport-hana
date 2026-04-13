@@ -5,9 +5,9 @@ import { Layers, Search, Edit2, Trash2, Loader2, PlusCircle, Database, FileUp, C
 
 export default function FinishingItems() {
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState({ 
-    finishing_code: "", 
-    description: "", 
+  const [form, setForm] = useState({
+    finishing_code: "",
+    description: "",
     warehouse: "FGOD",
     cycle_time: ""
   });
@@ -65,7 +65,29 @@ export default function FinishingItems() {
     });
     setEditId(item.id);
   };
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: "Hapus data ini?",
+      text: "Data master finishing akan terhapus permanen!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#0f172a",
+      confirmButtonText: "Ya, Hapus!"
+    });
 
+    if (result.isConfirmed) {
+      try {
+        setLoading(true);
+        await api.delete(`${API_PATH}/${id}`);
+        fetchItems();
+        Swal.fire("Terhapus!", "Data berhasil dihapus.", "success");
+      } catch (err) {
+        Swal.fire("Error", "Gagal menghapus data", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
   const handleReset = () => {
     setForm({ finishing_code: "", description: "", warehouse: "FGOD", cycle_time: "" });
     setEditId(null);
@@ -94,7 +116,7 @@ export default function FinishingItems() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
@@ -104,7 +126,7 @@ export default function FinishingItems() {
               <p className="text-sm text-slate-500">Standarisasi Kapasitas & Proses Finishing</p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <input type="file" id="import-fin" className="hidden" onChange={handleImportExcel} />
             <label htmlFor="import-fin" className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold cursor-pointer hover:bg-slate-50">
@@ -112,7 +134,7 @@ export default function FinishingItems() {
             </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
+              <input
                 type="text" placeholder="Cari finishing..."
                 className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-64"
                 value={search} onChange={(e) => setSearch(e.target.value)}
@@ -142,15 +164,20 @@ export default function FinishingItems() {
               value={form.cycle_time}
               onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
             />
-             <input
+            <input
               type="text" placeholder="Warehouse"
               className="px-4 py-2.5 border rounded-lg text-sm font-bold"
               value={form.warehouse}
               onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
             />
-            <button type="submit" disabled={loading} className="bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800">
-              {editId ? "UPDATE" : "SIMPAN"}
+            <button type="submit" disabled={loading} className="flex-1 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-all">
+              {loading ? <Loader2 className="animate-spin mx-auto" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
             </button>
+            {editId && (
+              <button type="button" onClick={handleReset} className="px-3 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200">
+                <PlusCircle size={18} />
+              </button>
+            )}
           </form>
         </div>
 
@@ -183,14 +210,14 @@ export default function FinishingItems() {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 text-slate-600"><Clock size={14} className="text-blue-500" /> <span className="text-sm">{i.cycle_time}s</span></div>
                       <div className="flex items-center gap-1.5 text-slate-600 border-l pl-4">
-                          <Target size={14} className="text-green-500" />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-green-700">
-                              {i.capacity_per_shift || 0}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">Pcs / 7h Shift</span>
-                          </div>
+                        <Target size={14} className="text-green-500" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-green-700">
+                            {i.capacity_per_shift || 0}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">Pcs / 7h Shift</span>
                         </div>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">

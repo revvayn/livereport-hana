@@ -10,34 +10,36 @@ const xlsx = require('xlsx');
 const getWorkCenterParams = async (wcName) => {
     try {
         const res = await pool.query(
-            "SELECT ewh, yield FROM work_centers WHERE work_center_name = $1 LIMIT 1",
+            "SELECT ewh_final, yield FROM work_centers WHERE work_center_name = $1 LIMIT 1",
             [wcName]
         );
         if (res.rows.length > 0) {
             return {
-                ewh: parseInt(res.rows[0].ewh) || 20160,
-                // Mengubah persen (98.00) menjadi faktor desimal (0.98)
+                // Properti ini bernama ewhFinal
+                ewhFinal: parseFloat(res.rows[0].ewh_final) || 25200,
                 yieldFactor: parseFloat(res.rows[0].yield) / 100 || 1.0
             };
         }
-        return { ewh: 20160, yieldFactor: 1.0 };
+        return { ewhFinal: 20160, yieldFactor: 1.0 };
     } catch (err) {
-        console.error(`Error fetching params for ${wcName}:`, err);
-        return { ewh: 20160, yieldFactor: 1.0 };
+        return { ewhFinal: 20160, yieldFactor: 1.0 };
     }
 };
-
 /**
  * Menghitung kapasitas per shift dengan mempertimbangkan Yield
  * Rumus: (EWH / CycleTime) * YieldFactor
  */
-const calculateCapacity = (cycleTime, ewhSeconds, yieldFactor) => {
-    const ct = parseInt(cycleTime);
-    if (!ct || ct <= 0) return 0;
-    
-    const baseCapacity = ewhSeconds / ct;
-    // Kapasitas yang dihasilkan adalah barang bagus saja (yield)
-    return Math.floor(baseCapacity * yieldFactor);
+const calculateCapacity = (cycleTime, ewhFinal, yieldFactor) => {
+    // Pastikan cycleTime dikonversi ke angka dan tidak undefined
+    const ct = parseInt(cycleTime) || 0;
+    const ef = parseFloat(ewhFinal) || 0;
+    const yf = parseFloat(yieldFactor) || 1.0;
+
+    // Validasi agar tidak terjadi pembagian dengan nol
+    if (ct <= 0 || ef <= 0) return 0;
+
+    const baseCapacity = ef / ct;
+    return Math.floor(baseCapacity * yf);
 };
 
 /* ==================== ASSEMBLY PANNEL CONTROLLERS ==================== */
@@ -61,11 +63,12 @@ exports.getAllPannel = async (req, res) => {
 
 exports.createPannel = async (req, res) => {
     const { assembly_code, description, warehouse, cycle_time } = req.body;
-    if (!assembly_code || !description) return res.status(400).json({ error: "Data tidak lengkap" });
-
     try {
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
-        const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+        // Ambil ewhFinal, bukan ewh biasa
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
+
+        // Hitung dengan parameter baru
+        const capacity = calculateCapacity(cycle_time, ewhFinal, yieldFactor);
 
         const result = await pool.query(
             `INSERT INTO item_assembly_pannel (assembly_code, description, warehouse, cycle_time, capacity_per_shift) 
@@ -82,8 +85,9 @@ exports.updatePannel = async (req, res) => {
     const { id } = req.params;
     const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
-        const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+        // PERBAIKAN: Gunakan ewhFinal sesuai return dari helper
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
+        const capacity = calculateCapacity(cycle_time, ewhFinal, yieldFactor);
 
         const result = await pool.query(
             `UPDATE item_assembly_pannel 
@@ -119,7 +123,7 @@ exports.importExcelPannel = async (req, res) => {
                   warehouse = EXCLUDED.warehouse,
                   cycle_time = EXCLUDED.cycle_time,
                   capacity_per_shift = EXCLUDED.capacity_per_shift`;
-            
+
             await pool.query(query, [
                 assembly_code.toString().toUpperCase(),
                 description || "",
@@ -168,18 +172,18 @@ exports.updateCore = async (req, res) => {
     const { id } = req.params;
     const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Core");
-        const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Core");
+        const capacity = calculateCapacity(cycle_time, ewhFinal, yieldFactor);
 
-        await pool.query(
+        const result = await pool.query(
             `UPDATE item_assembly_core 
              SET assembly_code=$1, description=$2, warehouse=$3, cycle_time=$4, capacity_per_shift=$5, updated_at=NOW() 
-             WHERE id=$6`,
+             WHERE id=$6 RETURNING *`, // Ganti tabel ke item_assembly_core
             [assembly_code.toUpperCase(), description, warehouse, cycle_time || 0, capacity, id]
         );
-        res.json({ message: "Updated core successfully with Yield compensation" });
+        res.json(result.rows[0]);
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        res.status(500).json({ error: "Gagal memperbarui data core" });
     }
 };
 
@@ -206,7 +210,7 @@ exports.importExcelCore = async (req, res) => {
                   cycle_time = EXCLUDED.cycle_time,
                   capacity_per_shift = EXCLUDED.capacity_per_shift,
                   updated_at = NOW()`;
-            
+
             await pool.query(query, [
                 assembly_code.toString().toUpperCase(),
                 description || "",
@@ -257,7 +261,7 @@ const calculateAssemblySchedule = (referenceSchedule, capacity, holidays = [], l
     // 1. Hitung TOTAL QTY yang dibutuhkan dari referensi
     let totalQtyNeeded = 0;
     const sortedRef = [...referenceSchedule].sort((a, b) => a.date.localeCompare(b.date));
-    
+
     // Cari titik awal (Shift paling pertama yang ada isinya di referensi)
     let refStartDay = "";
     let refStartShift = -1;
@@ -395,7 +399,7 @@ exports.generateAssembly = async (req, res) => {
         await client.query(`DELETE FROM demand_item_assembly WHERE demand_id = $1`, [demandId]);
 
         for (const row of result.rows) {
-            const finishingSchedule = typeof row.finishing_schedule === 'string' 
+            const finishingSchedule = typeof row.finishing_schedule === 'string'
                 ? JSON.parse(row.finishing_schedule) : (row.finishing_schedule || []);
 
             // --- PROSES PANNEL ---
@@ -403,7 +407,7 @@ exports.generateAssembly = async (req, res) => {
             if (row.assembly_code_pannel) {
                 const pannelSlots = calculateAssemblySchedule(finishingSchedule, row.pannel_cap, holidays, pannelLT);
                 pannelFinalSchedule = createCalendarArray(deliveryDate, pannelSlots);
-                
+
                 await insertToAssembly(client, row, row.assembly_code_pannel, `[PANNEL] ${row.pannel_desc || ''}`, pannelFinalSchedule);
             }
 
@@ -413,7 +417,7 @@ exports.generateAssembly = async (req, res) => {
                 const refForCore = pannelFinalSchedule.length > 0 ? pannelFinalSchedule : finishingSchedule;
                 const coreSlots = calculateAssemblySchedule(refForCore, row.core_cap, holidays, coreLT);
                 const coreFinalSchedule = createCalendarArray(deliveryDate, coreSlots);
-                
+
                 await insertToAssembly(client, row, row.assembly_code_core, `[CORE] ${row.core_desc || ''}`, coreFinalSchedule);
             }
         }
@@ -448,7 +452,7 @@ const createCalendarArray = (deliveryDate, slots) => {
         d.setDate(deliveryDate.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
         const found = slots.find(f => f.date === dateStr);
-        
+
         calendar.push({
             date: dateStr,
             shifts: found ? found.shifts : {

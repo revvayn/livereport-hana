@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { 
-  Layout, Search, Edit2, Trash2, Loader2, PlusCircle, 
-  Clock, Target, Percent, Database, Info 
+import {
+  Layout, Search, Edit2, Trash2, Loader2, PlusCircle,
+  Clock, Target, Percent, Calculator, Database
 } from "lucide-react";
 
 export default function WorkCenter() {
@@ -16,15 +16,19 @@ export default function WorkCenter() {
     work_center_name: "",
     line_name: "",
     lead_time: 1,
-    ewh_percent: 80,
+    ewh: 80,
+    percentage: 100,
+    total_lines: 1,
     yield: 100,
     description: ""
   });
 
+  const API_PATH = "/work-centers";
+
   const fetchItems = async (keyword = "") => {
     try {
       setLoading(true);
-      const res = await api.get(`/work-centers?search=${keyword}`);
+      const res = await api.get(`${API_PATH}?search=${keyword}`);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       Swal.fire("Error", "Gagal mengambil data", "error");
@@ -38,45 +42,44 @@ export default function WorkCenter() {
     return () => clearTimeout(delayDebounceFn);
   }, [search]);
 
-  const resetForm = () => {
+  const handleReset = () => {
     setEditId(null);
     setForm({
       work_center_name: "",
       line_name: "",
       lead_time: 1,
-      ewh_percent: 80,
+      ewh: 80,
+      percentage: 100,
+      total_lines: 1,
       yield: 100,
       description: ""
     });
   };
 
+  const calculateTotalEwh = (ewh_p, lines, cap_p) => {
+    const baseSeconds = 25200;
+    const res = (baseSeconds * (parseFloat(ewh_p) / 100)) * parseInt(lines) * (parseFloat(cap_p) / 100);
+    return isNaN(res) ? 0 : Math.round(res);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.work_center_name || !form.line_name) {
-      return Swal.fire("Peringatan", "Nama Work Center dan Line wajib diisi", "warning");
+    if (!form.work_center_name || !form.total_lines) {
+      return Swal.fire("Peringatan", "Data wajib diisi", "warning");
     }
-
-    const ewhInSeconds = Math.round(25200 * (form.ewh_percent / 100));
-    const payload = { 
-      ...form, 
-      ewh: ewhInSeconds,
-      lead_time: parseInt(form.lead_time) || 1,
-      yield: parseFloat(form.yield) || 100
-    };
 
     try {
       setLoading(true);
       if (editId) {
-        await api.put(`/work-centers/${editId}`, payload);
-        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data diperbarui', timer: 1500, showConfirmButton: false });
+        await api.put(`${API_PATH}/${editId}`, form);
       } else {
-        await api.post("/work-centers", payload);
-        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1500, showConfirmButton: false });
+        await api.post(API_PATH, form);
       }
-      resetForm();
+      handleReset();
       fetchItems();
+      Swal.fire({ icon: 'success', title: 'Berhasil', timer: 1000, showConfirmButton: false });
     } catch (err) {
-      Swal.fire("Error", "Gagal menyimpan data", "error");
+      Swal.fire("Error", "Gagal menyimpan", "error");
     } finally {
       setLoading(false);
     }
@@ -86,23 +89,22 @@ export default function WorkCenter() {
     setEditId(item.id);
     setForm({
       work_center_name: item.work_center_name,
-      line_name: item.line_name,
+      line_name: item.line_name || "",
       lead_time: item.lead_time,
-      ewh_percent: item.ewh_percent || Math.round((item.ewh / 25200) * 100),
+      ewh: item.ewh,
+      percentage: item.percentage,
+      total_lines: item.total_lines,
       yield: item.yield,
       description: item.description || ""
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Data yang dihapus tidak dapat dikembalikan!",
+      title: "Hapus data ini?",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#0f172a",
-      cancelButtonColor: "#ef4444",
       confirmButtonText: "Ya, Hapus!",
       cancelButtonText: "Batal"
     });
@@ -110,11 +112,11 @@ export default function WorkCenter() {
     if (result.isConfirmed) {
       try {
         setLoading(true);
-        await api.delete(`/work-centers/${id}`);
-        Swal.fire("Terhapus!", "Data berhasil dihapus.", "success");
+        await api.delete(`${API_PATH}/${id}`);
         fetchItems();
+        Swal.fire("Terhapus!", "Data berhasil dihapus.", "success");
       } catch (err) {
-        Swal.fire("Error", "Gagal menghapus data", "error");
+        Swal.fire("Error", "Gagal menghapus", "error");
       } finally {
         setLoading(false);
       }
@@ -124,211 +126,169 @@ export default function WorkCenter() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Header Section - Mengikuti Gaya Items */}
+
+        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
-              <Layout size={24} />
-            </div>
+            <div className="p-3 bg-slate-900 rounded-lg text-white"><Layout size={24} /></div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Work Centers</h1>
-              <p className="text-sm text-slate-500">Kelola area kerja dan kapasitas produksi harian</p>
+              <h1 className="text-2xl font-bold text-slate-900">Master Work Centers</h1>
+              <p className="text-sm text-slate-500">Manajemen Area & Kapasitas Produksi</p>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2">
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text"
-                placeholder="Cari work center..."
-                className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 transition-all w-full md:w-64"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text" placeholder="Cari work center..."
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-64"
+              value={search} onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Form Card - Layout sesuai gambar (2 Baris) */}
+        {/* Form Card (2 Baris agar lebih lega) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-2 mb-6">
-            {editId ? (
-              <Edit2 className="text-blue-600 w-5 h-5" />
-            ) : (
-              <PlusCircle className="text-green-600 w-5 h-5" />
-            )}
-            <h2 className="text-lg font-bold text-slate-800">
-              {editId ? "Edit Work Center" : "Tambah Work Center Baru"}
-            </h2>
-          </div>
-          
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Baris 1 */}
+            {/* Baris 1: Identitas Area */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700">Nama Work Center</label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  placeholder="Contoh: Assembly Line A"
-                  value={form.work_center_name}
-                  onChange={(e) => setForm({ ...form, work_center_name: e.target.value })}
-                />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Work Center</label>
+                <input type="text" placeholder="Contoh: ASSEMBLY"
+                  className="w-full px-4 py-2.5 border rounded-lg text-sm font-bold bg-slate-50/50"
+                  value={form.work_center_name} onChange={(e) => setForm({ ...form, work_center_name: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700">Line</label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  placeholder="Contoh: Line 1"
-                  value={form.line_name}
-                  onChange={(e) => setForm({ ...form, line_name: e.target.value })}
-                />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Line</label>
+                <input type="text" placeholder="Contoh: LINE A"
+                  className="w-full px-4 py-2.5 border rounded-lg text-sm bg-slate-50/50"
+                  value={form.line_name} onChange={(e) => setForm({ ...form, line_name: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                  <Clock size={14} /> Lead Time (Shift)
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  value={form.lead_time}
-                  onChange={(e) => setForm({ ...form, lead_time: e.target.value })}
-                />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Lead Time (Shift)</label>
+                <input type="number" placeholder="1"
+                  className="w-full px-4 py-2.5 border rounded-lg text-sm bg-slate-50/50"
+                  value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: e.target.value })} />
               </div>
             </div>
 
-            {/* Baris 2 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                  % EWH Capacity (%)
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  value={form.ewh_percent}
-                  onChange={(e) => setForm({ ...form, ewh_percent: e.target.value })}
-                />
+            {/* Baris 2: Parameter Angka & Kalkulasi */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Total Lines</label>
+                <input type="number"
+                  className="w-full px-4 py-2.5 border rounded-lg text-sm text-center font-bold"
+                  value={form.total_lines} onChange={(e) => setForm({ ...form, total_lines: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                  <Target size={14} /> Yield (%)
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  value={form.yield}
-                  onChange={(e) => setForm({ ...form, yield: e.target.value })}
-                />
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-blue-500 uppercase ml-1">Utility (%)</label>
+                <input type="number"
+                  className="w-full px-4 py-2.5 border border-blue-100 rounded-lg text-sm text-center text-blue-600 font-bold bg-blue-50/20"
+                  value={form.ewh} onChange={(e) => setForm({ ...form, ewh: e.target.value })} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700">Keterangan</label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                  placeholder="Catatan opsional"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-green-500 uppercase ml-1">Capacity (%)</label>
+                <input type="number"
+                  className="w-full px-4 py-2.5 border border-green-100 rounded-lg text-sm text-center text-green-600 font-bold bg-green-50/20"
+                  value={form.percentage} onChange={(e) => setForm({ ...form, percentage: e.target.value })} />
               </div>
-            </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-100"
-              >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "Update Data" : "Simpan Data"}
-              </button>
-              {editId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="bg-slate-100 text-slate-600 px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-200 transition-all"
-                >
-                  Batal
+              {/* INPUT BARU: YIELD */}
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-amber-500 uppercase ml-1">Yield (%)</label>
+                <input type="number"
+                  className="w-full px-4 py-2.5 border border-amber-100 rounded-lg text-sm text-center text-amber-600 font-bold bg-amber-50/20"
+                  placeholder="100"
+                  value={form.yield} onChange={(e) => setForm({ ...form, yield: e.target.value })} />
+              </div>
+
+              {/* Box Preview Hasil Tetap di col-span-2 atau sesuaikan agar muat */}
+              <div className="md:col-span-2 flex items-center justify-between bg-slate-900 text-white rounded-lg px-4 py-2.5 shadow-inner h-[42px]">
+                <div className="flex items-center gap-2">
+                  <Calculator size={14} className="text-slate-400" />
+                  <span className="text-[10px] font-bold text-slate-400">EWH</span>
+                </div>
+                <span className="text-sm font-black text-indigo-300">
+                  {calculateTotalEwh(form.ewh, form.total_lines, form.percentage).toLocaleString()}s
+                </span>
+              </div>
+
+              <div className="md:col-span-2 flex gap-2 h-[42px]">
+                <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white font-bold rounded-lg text-sm hover:bg-slate-800 transition-all flex items-center justify-center">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : editId ? "UPDATE" : "SIMPAN"}
                 </button>
-              )}
+              </div>
             </div>
           </form>
         </div>
 
-        {/* Table Card - Identik dengan gaya Items */}
+        {/* Table Section */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Work Center</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Lead Time & Line</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Performance Metrics</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.length > 0 ? (
-                  items.map((i) => (
-                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-tighter">WC-#{i.id}</span>
-                          <span className="text-sm font-semibold text-slate-700">{i.work_center_name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs font-medium text-slate-600 uppercase">Line: {i.line_name}</span>
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                            <Clock size={10} /> {i.lead_time} SHIFT
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Work Center & Line</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Configuration</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Kapasitas Produksi</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {items.length > 0 ? (
+                items.map((i) => (
+                  <tr key={i.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-700 uppercase">{i.work_center_name}</span>
+                        <span className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                          <Database size={12} /> {i.line_name || "Tanpa Nama Line"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="inline-flex flex-col items-center bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                        <span className="text-xs font-bold text-slate-600">{i.total_lines} Lines</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">LT: {i.lead_time} SHIFT</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-indigo-50 rounded-lg">
+                            <Target size={16} className="text-indigo-600" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-black text-slate-800">
+                              {Number(i.ewh_final).toLocaleString()} <span className="text-[10px] font-normal text-slate-400 uppercase">Detik</span>
+                            </span>
+                            <span className="text-[10px] text-slate-500 flex gap-1 items-center">
+                              <span className="text-blue-600 font-bold">U:{i.ewh}%</span> •
+                              <span className="text-green-600 font-bold">C:{i.percentage}%</span> •
+                              <span className="text-amber-600 font-bold">Y:{i.yield || 100}%</span> {/* Tampilkan Yield di sini */}
+                            </span>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <Percent size={14} className="text-blue-500" />
-                            <div className="flex flex-col">
-                              <span className={`text-sm font-bold ${i.ewh_percent > 90 ? 'text-red-600' : 'text-slate-700'}`}>
-                                {i.ewh_percent}%
-                              </span>
-                              <span className="text-[10px] text-slate-400">EWH Cap</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 border-l pl-4">
-                            <Target size={14} className="text-green-500" />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-700">{i.yield}%</span>
-                              <span className="text-[10px] text-slate-400 font-normal">Production Yield</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center gap-2">
-                          <button onClick={() => handleEdit(i)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => handleDelete(i.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4" className="px-6 py-8 text-center text-slate-400 text-sm italic">
-                      {loading ? "Memuat data..." : "Data tidak ditemukan."}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-3">
+                        <button onClick={() => handleEdit(i)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Edit">
+                          <Edit2 size={16} />
+                        </button>
+                        <button onClick={() => handleDelete(i.id)} className="text-slate-400 hover:text-red-600 transition-colors p-1" title="Hapus">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-6 py-10 text-center text-slate-400 italic font-medium">Belum ada data work center.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

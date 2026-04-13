@@ -137,7 +137,7 @@ export default function AssemblyCore() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-lg text-white">
+            <div className="p-3 bg-slate-900 rounded-lg text-white">
               <Cpu size={24} />
             </div>
             <div>
@@ -217,7 +217,7 @@ export default function AssemblyCore() {
                 type="submit"
                 disabled={loading}
                 className={`w-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
-                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700 shadow-md"
+                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
                 } disabled:opacity-50`}
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}

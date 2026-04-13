@@ -81,8 +81,16 @@ export default function ExcelSchedule() {
 
   // Helper untuk cek apakah tanggal tertentu adalah libur
   const getHolidayData = (date) => {
-    const dStr = date.toLocaleDateString('en-CA'); // format YYYY-MM-DD
-    return holidays.find(h => h.holiday_date.split('T')[0] === dStr);
+    // Format ke YYYY-MM-DD secara manual untuk menghindari timezone shift
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dStr = `${year}-${month}-${day}`;
+
+    return holidays.find(h => {
+      const hDate = h.holiday_date.substring(0, 10); // Ambil 10 karakter pertama (YYYY-MM-DD)
+      return hDate === dStr;
+    });
   };
 
   // --- LOGIKA TABEL ---
@@ -108,11 +116,22 @@ export default function ExcelSchedule() {
   };
 
   // Data yang sudah di-sort untuk di-render
-  const sortedHolidays = [...filteredHolidays].sort((a, b) => {
-    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const sortedHolidays = useMemo(() => {
+    return holidays
+      .filter(h => {
+        const date = new Date(h.holiday_date);
+        const matchesMonth = filterMonth === '' || (date.getMonth() + 1).toString() === filterMonth;
+        const matchesYear = filterYear === '' || date.getFullYear().toString() === filterYear;
+        return matchesMonth && matchesYear;
+      })
+      .sort((a, b) => {
+        const valA = a[sortConfig.key];
+        const valB = b[sortConfig.key];
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [holidays, filterMonth, filterYear, sortConfig]);
 
   const tableData = useMemo(() => {
     const currentCategoryData = rawData[activeTab];
@@ -134,9 +153,9 @@ export default function ExcelSchedule() {
       if (!grouped[so]) grouped[so] = {};
       if (!grouped[so][code]) grouped[so][code] = { dailyQty: {}, description: desc };
 
-      const s1 = Number(item.shifts?.shift1?.qty || item.shift1 || 0);
-      const s2 = Number(item.shifts?.shift2?.qty || item.shift2 || 0);
-      const s3 = Number(item.shifts?.shift3?.qty || item.shift3 || 0);
+      const s1 = Number(item.shift1 ?? item.shifts?.shift1?.qty ?? 0);
+      const s2 = Number(item.shift2 ?? item.shifts?.shift2?.qty ?? 0);
+      const s3 = Number(item.shift3 ?? item.shifts?.shift3?.qty ?? 0);
       grouped[so][code].dailyQty[dateKey] = { s1, s2, s3, total: s1 + s2 + s3 };
     });
 
@@ -416,18 +435,23 @@ export default function ExcelSchedule() {
                 <th className="sticky left-[160px] z-[60] bg-slate-50 p-4 text-left text-[11px] font-semibold text-slate-500 uppercase border-b border-r border-slate-200 min-w-[240px]">Item Description</th>
                 {daysInMonth.map((date, i) => {
                   const isToday = date.toDateString() === today.toDateString();
-                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                  const holiday = getHolidayData(date); // --- CEK LIBUR ---
+                  const holiday = getHolidayData(date);
+                  // const isWeekend = date.getDay() === 0 || date.getDay() === 6; // BARIS INI BISA DIHAPUS
 
                   return (
                     <th key={i} className={`p-2 border-b border-r border-slate-200 min-w-[100px] text-center transition-colors 
-                      ${isToday ? 'bg-indigo-50/50' : ''} ${holiday ? 'bg-rose-50/50' : ''}`}>
-                      <span className={`text-[10px] font-bold ${isWeekend || holiday ? 'text-rose-500' : 'text-slate-400'}`}>
+      ${isToday ? 'bg-indigo-50/50' : ''} 
+      ${holiday ? 'bg-rose-50/50' : ''}`}>
+
+                      {/* Warna teks hanya berubah merah jika ada di data holiday manual */}
+                      <span className={`text-[10px] font-bold ${holiday ? 'text-rose-500' : 'text-slate-400'}`}>
                         {["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"][date.getDay()]}
                       </span>
-                      <div className={`text-lg font-bold mt-0.5 ${isToday ? 'text-indigo-600' : (isWeekend || holiday ? 'text-rose-600' : 'text-slate-700')}`}>
+
+                      <div className={`text-lg font-bold mt-0.5 ${isToday ? 'text-indigo-600' : (holiday ? 'text-rose-600' : 'text-slate-700')}`}>
                         {date.getDate()}
                       </div>
+
                       {holiday && (
                         <div className="text-[8px] text-rose-400 truncate px-1 uppercase font-bold" title={holiday.description}>
                           {holiday.description}
@@ -463,17 +487,28 @@ export default function ExcelSchedule() {
 
                       return (
                         <td key={i} className={`border-r border-b border-slate-50 p-1.5 transition-all 
-                          ${hasData ? activeCat.light : ''} ${holiday ? 'bg-rose-50/20' : ''}`}>
+      ${hasData ? activeCat.light : ''} 
+      ${holiday ? 'bg-rose-50/20' : ''}`}> {/* Latar belakang merah tipis hanya jika di-input manual */}
+
                           {hasData ? (
                             <div className="flex flex-col gap-1">
+
                               <div className="flex justify-between items-center px-1 text-[10px] font-mono font-medium text-slate-400">
+
                                 <span className={data.s1 > 0 ? "text-slate-700 font-bold" : ""}>{data.s1}</span>
+
                                 <span className={data.s2 > 0 ? "text-slate-700 font-bold" : ""}>{data.s2}</span>
+
                                 <span className={data.s3 > 0 ? "text-slate-700 font-bold" : ""}>{data.s3}</span>
+
                               </div>
+
                               <div className={`text-[10px] font-bold text-center py-0.5 rounded-md ${activeCat.activeClass.split(' shadow')[0]}`}>
+
                                 {data.total}
+
                               </div>
+
                             </div>
                           ) : (
                             <div className="h-full w-full flex items-center justify-center opacity-[0.03] group-hover:opacity-[0.08]">
@@ -492,7 +527,9 @@ export default function ExcelSchedule() {
                       <div className="p-4 bg-slate-50 rounded-full mb-3">
                         <Search size={32} className="text-slate-300" />
                       </div>
-                      <p className="text-slate-400 font-medium italic">No schedule data found for this selection</p>
+                      <p className="mt-4 text-[10px] text-center text-slate-400">
+                        * Semua hari kerja dan libur dikelola secara manual melalui form di atas.
+                      </p>
                     </div>
                   </td>
                 </tr>

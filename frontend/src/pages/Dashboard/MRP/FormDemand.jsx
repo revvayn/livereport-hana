@@ -325,7 +325,7 @@ export default function FormDemand() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Tanggal Kirim (Delivery)</label>
+            <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Estimasi Kirim</label>
             <input type="date" className="border border-blue-200 p-2 rounded text-sm" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
           </div>
           <div className="flex flex-col">
@@ -373,7 +373,7 @@ export default function FormDemand() {
                   <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isHoliday || isSunday ? 'bg-red-50 border-red-200' : isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
                     <div className={`text-center font-bold mb-1 border-b pb-1 ${isHoliday || isSunday ? 'text-red-600' : isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
-                      {isShip && <span className="block text-[9px] font-black uppercase">📦 Delivery</span>}
+                      {isShip && <span className="block text-[9px] font-black uppercase">📦 Barang Siap Kirim</span>}
                       {(isHoliday || isSunday) && <span className="block text-[8px] uppercase">❌ LIBUR</span>}
                     </div>
 

@@ -9,39 +9,29 @@ const xlsx = require('xlsx');
 const getPackingParams = async () => {
   try {
     const res = await pool.query(
-      "SELECT ewh, yield FROM work_centers WHERE work_center_name = $1 LIMIT 1",
-      ['Packing']
+      // Gunakan ewh_final agar sinkron dengan hasil kalkulasi di Master Work Center
+      "SELECT ewh_final, yield FROM work_centers WHERE UPPER(work_center_name) = 'PACKING' LIMIT 1"
     );
     
     if (res.rows.length > 0) {
       return {
-        ewh: parseInt(res.rows[0].ewh) || 20160,
-        // Konversi yield (contoh: 90.00 menjadi 0.9)
+        // Fallback ke 20160 jika kolom di database kosong
+        ewh: parseFloat(res.rows[0].ewh_final) || 20160, 
         yieldFactor: parseFloat(res.rows[0].yield) / 100 || 1.0
       };
     }
     return { ewh: 20160, yieldFactor: 1.0 };
   } catch (err) {
-    console.error("Error fetching Packing params:", err);
     return { ewh: 20160, yieldFactor: 1.0 };
   }
 };
 
-/**
- * Menghitung kapasitas per shift dengan mempertimbangkan Yield (Pekerjaan berulang)
- * Rumus: (EWH / CycleTime) * Yield
- */
 const calculateCapacity = (cycleTime, ewhFromDb, yieldFactor) => {
-  const ct = parseInt(cycleTime);
+  const ct = parseFloat(cycleTime);
   if (!ct || ct <= 0) return 0;
   
-  const ewhSeconds = ewhFromDb || 20160;
-  
-  // Hitung kapasitas dasar berdasarkan waktu tersedia
-  const baseCapacity = ewhSeconds / ct;
-  
-  // Karena yield < 1 berarti ada waktu yang terbuang untuk reject,
-  // maka kapasitas barang jadi (good parts) per shift akan berkurang.
+  // Rumus Kapasitas: (EWH / CT) * Yield
+  const baseCapacity = ewhFromDb / ct;
   return Math.floor(baseCapacity * yieldFactor);
 };
 

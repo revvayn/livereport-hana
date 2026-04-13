@@ -9,38 +9,33 @@ const xlsx = require('xlsx');
 const getFinishingParams = async () => {
   try {
     const res = await pool.query(
-      "SELECT ewh, yield FROM work_centers WHERE work_center_name = $1 LIMIT 1",
-      ['Finishing']
+      // Gunakan ewh_final (hasil kalkulasi line x utility x capacity)
+      "SELECT ewh_final, yield FROM work_centers WHERE UPPER(work_center_name) = 'FINISHING' LIMIT 1"
     );
     
     if (res.rows.length > 0) {
       return {
-        ewh: parseInt(res.rows[0].ewh) || 20160,
-        // Konversi yield numerik (95.00) menjadi desimal (0.95)
+        // Jika ewh_final null, pakai fallback 20160
+        ewh: parseFloat(res.rows[0].ewh_final) || 20160,
+        // Pastikan yield dibagi 100 untuk desimal
         yieldFactor: parseFloat(res.rows[0].yield) / 100 || 1.0
       };
     }
     return { ewh: 20160, yieldFactor: 1.0 };
   } catch (err) {
-    console.error("Error fetching Finishing params:", err);
     return { ewh: 20160, yieldFactor: 1.0 };
   }
 };
 
-/**
- * Menghitung kapasitas Finishing per shift
- * Kapasitas berkurang jika yield < 1 (karena waktu terbuang memproses reject)
- */
 const calculateCapacity = (ct, ewhSeconds, yieldFactor) => {
-  const cycleTime = parseInt(ct);
+  const cycleTime = parseFloat(ct);
   if (!cycleTime || cycleTime <= 0) return 0;
   
-  // Kapasitas Dasar (Total pukulan mesin per shift)
-  const totalCycles = ewhSeconds / cycleTime;
-  
-  // Kapasitas Efektif (Hanya barang bagus/yield)
-  return Math.floor(totalCycles * yieldFactor);
+  // Rumus: (Total Detik / Cycle Time) * Yield
+  const res = (ewhSeconds / cycleTime) * yieldFactor;
+  return Math.floor(res); // Gunakan Floor agar tidak over-estimate
 };
+
 
 /* ==================== MASTER DATA CONTROLLERS ==================== */
 
