@@ -191,7 +191,7 @@ export default function SalesOrders() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Estimasi Kirim</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Estimasi Finish</label>
               <input
                 type="date"
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all text-sm"
@@ -269,7 +269,7 @@ export default function SalesOrders() {
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-bold">
                           <Calendar size={12} />
-                          Kirim: {so.delivery_date ? new Date(so.delivery_date).toLocaleDateString("id-ID") : "-"}
+                          Estimasi Finish: {so.delivery_date ? new Date(so.delivery_date).toLocaleDateString("id-ID") : "-"}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">

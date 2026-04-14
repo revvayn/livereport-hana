@@ -89,10 +89,9 @@ const autoPlotGlobalBackward = (items, deliveryDate, holidays = []) => {
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
       const dateString = item.calendar[currentDayIdx].date;
       const dateObj = new Date(dateString);
-      const isSunday = dateObj.getDay() === 0;
       const isHoliday = (holidays || []).includes(dateString);
 
-      if (isHoliday || isSunday) {
+      if (isHoliday) {
         currentDayIdx--;
         currentShift = 3;
         continue;
@@ -366,21 +365,20 @@ export default function FormDemand() {
             <div className="flex gap-2">
               {item.calendar.map((d, idx) => {
                 const isHoliday = (holidays || []).includes(d.date);
-                const isSunday = new Date(d.date).getDay() === 0;
                 const isShip = header.deliveryDate && d.date === header.deliveryDate;
 
                 return (
-                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isHoliday || isSunday ? 'bg-red-50 border-red-200' : isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
-                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isHoliday || isSunday ? 'text-red-600' : isShip ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isHoliday ? 'bg-red-50 border-red-200' : isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
+                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isHoliday ? 'text-red-600' : isShip ? 'text-blue-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
                       {isShip && <span className="block text-[9px] font-black uppercase">📦 Barang Siap Kirim</span>}
-                      {(isHoliday || isSunday) && <span className="block text-[8px] uppercase">❌ LIBUR</span>}
+                      {(isHoliday) && <span className="block text-[8px] uppercase">❌ LIBUR</span>}
                     </div>
 
                     <div className="grid grid-cols-3 gap-1 pt-1">
                       {["shift1", "shift2", "shift3"].map((s) => (
-                        <div key={s} className={`relative h-7 border rounded flex items-center justify-center ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white` : "bg-gray-50 text-gray-300"} ${isShip || isHoliday || isSunday ? "opacity-20 pointer-events-none" : ""}`}>
-                          {(!isShip && !isHoliday && !isSunday) && (
+                        <div key={s} className={`relative h-7 border rounded flex items-center justify-center ${d.shifts[s].active ? `${ITEM_COLORS[i % ITEM_COLORS.length]} text-white` : "bg-gray-50 text-gray-300"} ${isShip || isHoliday ? "opacity-20 pointer-events-none" : ""}`}>
+                          {(!isShip && !isHoliday) && (
                             <>
                               <div className="absolute inset-0 z-0 cursor-pointer"
                                 onMouseDown={(e) => {

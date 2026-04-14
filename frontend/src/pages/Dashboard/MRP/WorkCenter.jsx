@@ -148,74 +148,114 @@ export default function WorkCenter() {
         </div>
 
         {/* Form Card (2 Baris agar lebih lega) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Baris 1: Identitas Area */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Work Center</label>
-                <input type="text" placeholder="Contoh: ASSEMBLY"
-                  className="w-full px-4 py-2.5 border rounded-lg text-sm font-bold bg-slate-50/50"
-                  value={form.work_center_name} onChange={(e) => setForm({ ...form, work_center_name: e.target.value })} />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Section 1: Identitas Utama */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                  <Database size={12} className="text-slate-400" /> Nama Work Center
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: ASSEMBLY"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:font-normal placeholder:text-slate-300"
+                  value={form.work_center_name}
+                  onChange={(e) => setForm({ ...form, work_center_name: e.target.value.toUpperCase() })}
+                />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nama Line</label>
-                <input type="text" placeholder="Contoh: LINE A"
-                  className="w-full px-4 py-2.5 border rounded-lg text-sm bg-slate-50/50"
-                  value={form.line_name} onChange={(e) => setForm({ ...form, line_name: e.target.value })} />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                  <Layout size={12} className="text-slate-400" /> Nama Line
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: LINE A"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  value={form.line_name}
+                  onChange={(e) => setForm({ ...form, line_name: e.target.value.toUpperCase() })}
+                />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Lead Time (Shift)</label>
-                <input type="number" placeholder="1"
-                  className="w-full px-4 py-2.5 border rounded-lg text-sm bg-slate-50/50"
-                  value={form.lead_time} onChange={(e) => setForm({ ...form, lead_time: e.target.value })} />
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                  <Clock size={12} className="text-slate-400" /> Lead Time (Shift)
+                </label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                  value={form.lead_time}
+                  onChange={(e) => setForm({ ...form, lead_time: e.target.value })}
+                />
               </div>
             </div>
 
-            {/* Baris 2: Parameter Angka & Kalkulasi */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Total Lines</label>
-                <input type="number"
-                  className="w-full px-4 py-2.5 border rounded-lg text-sm text-center font-bold"
-                  value={form.total_lines} onChange={(e) => setForm({ ...form, total_lines: e.target.value })} />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-blue-500 uppercase ml-1">Utility (%)</label>
-                <input type="number"
-                  className="w-full px-4 py-2.5 border border-blue-100 rounded-lg text-sm text-center text-blue-600 font-bold bg-blue-50/20"
-                  value={form.ewh} onChange={(e) => setForm({ ...form, ewh: e.target.value })} />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-green-500 uppercase ml-1">Capacity (%)</label>
-                <input type="number"
-                  className="w-full px-4 py-2.5 border border-green-100 rounded-lg text-sm text-center text-green-600 font-bold bg-green-50/20"
-                  value={form.percentage} onChange={(e) => setForm({ ...form, percentage: e.target.value })} />
+            {/* Section 2: Parameter Teknis */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-slate-50 items-end">
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase text-center block">Total Lines</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-center font-black text-slate-700 shadow-sm"
+                  value={form.total_lines}
+                  onChange={(e) => setForm({ ...form, total_lines: e.target.value })}
+                />
               </div>
 
-              {/* INPUT BARU: YIELD */}
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-amber-500 uppercase ml-1">Yield (%)</label>
-                <input type="number"
-                  className="w-full px-4 py-2.5 border border-amber-100 rounded-lg text-sm text-center text-amber-600 font-bold bg-amber-50/20"
-                  placeholder="100"
-                  value={form.yield} onChange={(e) => setForm({ ...form, yield: e.target.value })} />
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-blue-600 uppercase text-center block tracking-tight">Utility (%)</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2.5 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-center text-blue-700 font-black focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  value={form.ewh}
+                  onChange={(e) => setForm({ ...form, ewh: e.target.value })}
+                />
               </div>
 
-              {/* Box Preview Hasil Tetap di col-span-2 atau sesuaikan agar muat */}
-              <div className="md:col-span-2 flex items-center justify-between bg-slate-900 text-white rounded-lg px-4 py-2.5 shadow-inner h-[42px]">
-                <div className="flex items-center gap-2">
-                  <Calculator size={14} className="text-slate-400" />
-                  <span className="text-[10px] font-bold text-slate-400">EWH</span>
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-emerald-600 uppercase text-center block tracking-tight">Capacity (%)</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2.5 bg-emerald-50/50 border border-emerald-100 rounded-xl text-sm text-center text-emerald-700 font-black focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                  value={form.percentage}
+                  onChange={(e) => setForm({ ...form, percentage: e.target.value })}
+                />
+              </div>
+
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-amber-600 uppercase text-center block tracking-tight">Yield (%)</label>
+                <input
+                  type="number"
+                  className="w-full px-4 py-2.5 bg-amber-50/50 border border-amber-100 rounded-xl text-sm text-center text-amber-700 font-black focus:ring-2 focus:ring-amber-500/20 outline-none"
+                  value={form.yield}
+                  onChange={(e) => setForm({ ...form, yield: e.target.value })}
+                />
+              </div>
+
+              {/* Result Preview Box */}
+              <div className="md:col-span-2 space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase text-center block tracking-tight">EWH Result</label>
+                <div className="flex items-center justify-between bg-slate-900 text-white rounded-xl px-4 py-2.5 shadow-lg shadow-indigo-200/20 h-[42px] border border-slate-800">
+                  <Calculator size={14} className="text-indigo-400" />
+                  <span className="text-sm font-black tabular-nums tracking-tighter text-indigo-100">
+                    {calculateTotalEwh(form.ewh, form.total_lines, form.percentage).toLocaleString()}s
+                  </span>
                 </div>
-                <span className="text-sm font-black text-indigo-300">
-                  {calculateTotalEwh(form.ewh, form.total_lines, form.percentage).toLocaleString()}s
-                </span>
               </div>
 
-              <div className="md:col-span-2 flex gap-2 h-[42px]">
-                <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white font-bold rounded-lg text-sm hover:bg-slate-800 transition-all flex items-center justify-center">
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : editId ? "UPDATE" : "SIMPAN"}
+              {/* Action Button */}
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-100 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : editId ? (
+                    <>Update Data</>
+                  ) : (
+                    <>Simpan Data</>
+                  )}
                 </button>
               </div>
             </div>

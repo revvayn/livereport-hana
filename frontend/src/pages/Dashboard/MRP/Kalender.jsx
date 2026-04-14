@@ -81,14 +81,15 @@ export default function ExcelSchedule() {
 
   // Helper untuk cek apakah tanggal tertentu adalah libur
   const getHolidayData = (date) => {
-    // Format ke YYYY-MM-DD secara manual untuk menghindari timezone shift
+    // Buat string YYYY-MM-DD dari kalender UI (lokal)
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dStr = `${year}-${month}-${day}`;
 
     return holidays.find(h => {
-      const hDate = h.holiday_date.substring(0, 10); // Ambil 10 karakter pertama (YYYY-MM-DD)
+      // Ambil 10 karakter pertama (YYYY-MM-DD) dari holiday_date database
+      const hDate = h.holiday_date.substring(0, 10);
       return hDate === dStr;
     });
   };
@@ -138,12 +139,18 @@ export default function ExcelSchedule() {
     const grouped = {};
     const activeMonthFilter = `${year}-${String(month + 1).padStart(2, '0')}`;
 
+    // BAGIAN BARU
     currentCategoryData.forEach(item => {
       const rawDate = item.date || item.tanggal;
       if (!rawDate) return;
-      const d = new Date(rawDate);
-      const itemMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const dateKey = `${itemMonthKey}-${String(d.getDate()).padStart(2, '0')}`;
+
+      // Langsung ambil string tanggalnya tanpa membuat objek Date baru
+      // Jika formatnya "2026-04-10T00:00:00Z", ambil 10 karakter pertama
+      const dateKey = rawDate.substring(0, 10);
+
+      // Ambil tahun dan bulan untuk filter bulan yang sedang aktif
+      const itemMonthKey = dateKey.substring(0, 7); // Hasil: "2026-04"
+
       if (itemMonthKey !== activeMonthFilter) return;
 
       const so = item.so_number || "N/A";
@@ -156,6 +163,8 @@ export default function ExcelSchedule() {
       const s1 = Number(item.shift1 ?? item.shifts?.shift1?.qty ?? 0);
       const s2 = Number(item.shift2 ?? item.shifts?.shift2?.qty ?? 0);
       const s3 = Number(item.shift3 ?? item.shifts?.shift3?.qty ?? 0);
+
+      // Gunakan dateKey yang sudah berupa string murni "YYYY-MM-DD"
       grouped[so][code].dailyQty[dateKey] = { s1, s2, s3, total: s1 + s2 + s3 };
     });
 
@@ -324,11 +333,16 @@ export default function ExcelSchedule() {
                         sortedHolidays.map((h) => (
                           <tr key={h.id} className="hover:bg-rose-50/30 transition-colors group">
                             <td className="px-4 py-3 text-xs font-semibold text-slate-700">
-                              {new Date(h.holiday_date).toLocaleDateString('id-ID', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                              })}
+                              {(() => {
+                                // Pecah string secara manual untuk menghindari pergeseran jam
+                                const [y, m, d] = h.holiday_date.substring(0, 10).split("-");
+                                const localDate = new Date(y, m - 1, d);
+                                return localDate.toLocaleDateString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                });
+                              })()}
                             </td>
                             <td className="px-4 py-3 text-xs text-slate-600 font-medium italic">
                               {h.description}

@@ -1,5 +1,9 @@
 // production.controller.js
 const pool = require("../db");
+const pg = require('pg');
+// Tipe OID 1082 adalah tipe 'DATE' di PostgreSQL
+// Kita paksa agar selalu dikembalikan sebagai string mentah "YYYY-MM-DD"
+pg.types.setTypeParser(1082, (val) => val);
 
 // --- HELPER: Parsing JSON yang Aman ---
 const robustParse = (data) => {
@@ -24,16 +28,21 @@ const getDemands = async (req, res) => {
 // --- CONTROLLER HARI LIBUR ---
 const getHolidays = async (req, res) => {
     try {
-        const result = await pool.query("SELECT id, holiday_date, description FROM public_holidays ORDER BY holiday_date ASC");
+        // Menggunakan TO_CHAR untuk format seragam YYYY-MM-DD
+        const result = await pool.query(
+            "SELECT id, TO_CHAR(holiday_date, 'YYYY-MM-DD') as holiday_date, description FROM public_holidays ORDER BY holiday_date ASC"
+        );
         res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 };
 
 const addHoliday = async (req, res) => {
-    const { date, description } = req.body;
+    const { date, description } = req.body; // date harus "YYYY-MM-DD"
     try {
         const result = await pool.query(
-            "INSERT INTO public_holidays (holiday_date, description) VALUES ($1, $2) RETURNING *",
+            "INSERT INTO public_holidays (holiday_date, description) VALUES ($1, $2) RETURNING id, TO_CHAR(holiday_date, 'YYYY-MM-DD') as holiday_date, description",
             [date, description]
         );
         res.json(result.rows[0]);
@@ -73,12 +82,12 @@ function parseSchedule(raw) {
 const mapSchedule = (rows, scheduleKey, resKey) => {
     let finalFlatData = [];
     rows.forEach(row => {
-        // Gunakan robustParse untuk menangani JSON string yang bermasalah
         const schedule = robustParse(row[scheduleKey]); 
         
         if (Array.isArray(schedule)) {
             const enhanced = schedule.map(s => ({
                 ...s,
+                // Pastikan s.date atau s.tanggal di sini tetap string "YYYY-MM-DD"
                 so_number: row.so_number,
                 item_code: row.item_code,
                 item_description: row.description || row.item_description || "-"
