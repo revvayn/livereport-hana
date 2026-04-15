@@ -192,7 +192,7 @@ export default function WorkCenter() {
             {/* Section 2: Parameter Teknis */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-slate-50 items-end">
               <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase text-center block">Total Lines</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase text-center block">Total Mechine</label>
                 <input
                   type="number"
                   className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-center font-black text-slate-700 shadow-sm"
@@ -202,7 +202,7 @@ export default function WorkCenter() {
               </div>
 
               <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-blue-600 uppercase text-center block tracking-tight">Utility (%)</label>
+                <label className="text-[11px] font-bold text-blue-600 uppercase text-center block tracking-tight">EWH Percentage (%)</label>
                 <input
                   type="number"
                   className="w-full px-4 py-2.5 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-center text-blue-700 font-black focus:ring-2 focus:ring-blue-500/20 outline-none"
@@ -222,7 +222,7 @@ export default function WorkCenter() {
               </div>
 
               <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-amber-600 uppercase text-center block tracking-tight">Yield (%)</label>
+                <label className="text-[11px] font-bold text-amber-600 uppercase text-center block tracking-tight">Good Product (%)</label>
                 <input
                   type="number"
                   className="w-full px-4 py-2.5 bg-amber-50/50 border border-amber-100 rounded-xl text-sm text-center text-amber-700 font-black focus:ring-2 focus:ring-amber-500/20 outline-none"
@@ -302,9 +302,9 @@ export default function WorkCenter() {
                               {Number(i.ewh_final).toLocaleString()} <span className="text-[10px] font-normal text-slate-400 uppercase">Detik</span>
                             </span>
                             <span className="text-[10px] text-slate-500 flex gap-1 items-center">
-                              <span className="text-blue-600 font-bold">U:{i.ewh}%</span> •
+                              <span className="text-blue-600 font-bold">E:{i.ewh}%</span> •
                               <span className="text-green-600 font-bold">C:{i.percentage}%</span> •
-                              <span className="text-amber-600 font-bold">Y:{i.yield || 100}%</span> {/* Tampilkan Yield di sini */}
+                              <span className="text-amber-600 font-bold">G:{i.yield || 100}%</span> {/* Tampilkan Yield di sini */}
                             </span>
                           </div>
                         </div>

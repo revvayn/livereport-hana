@@ -254,7 +254,7 @@ const calculateAssemblySchedule = (referenceSchedule, capacity, holidays = [], l
     const capPerShift = Number(capacity) || 100;
     const isHoliday = (dateStr) => {
         const d = new Date(dateStr);
-        if (d.getDay() === 0) return true; // Minggu libur
+        //if (d.getDay() === 0) return true; // Minggu libur
         return holidays.includes(dateStr);
     };
 
