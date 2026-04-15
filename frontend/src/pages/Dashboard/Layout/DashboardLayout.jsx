@@ -265,7 +265,7 @@ function SalesDropdown({ collapsed, currentPath }) {
   return (
     <DropdownWrapper icon={ShoppingCart} label="Sales Marketing" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/sales/sales-orders" icon={FileText} label="Sales Orders" />
-      <SubMenuLink to="/dashboard/sales/sales-order-items" icon={ClipboardList} label="Order Items" />
+      {/*<SubMenuLink to="/dashboard/sales/sales-order-items" icon={ClipboardList} label="Order Items" />*/}
     </DropdownWrapper>
   );
 }

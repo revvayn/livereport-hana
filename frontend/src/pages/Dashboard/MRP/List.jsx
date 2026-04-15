@@ -245,18 +245,20 @@ export default function List() {
                                         <th className="border-r border-slate-700 p-2 sticky left-[180px] bg-slate-800 z-40 min-w-[180px]">Description</th>
                                         <th className="border-r border-slate-700 p-2 w-16 text-center bg-slate-900 sticky left-[360px] z-40">Target PCS</th>
 
-                                        {items[0]?.calendar?.map((day, i) => (
-                                            <th key={i} colSpan="3" className="border-r border-slate-700 p-1 text-center min-w-[90px] bg-slate-700">
-                                                {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
-                                            </th>
-                                        ))}
-
-                                        <th className="p-2 text-center min-w-[80px] bg-red-600 text-white border-l-4 border-white">
-                                            {selectedSO?.delivery_date
-                                                ? new Date(selectedSO.delivery_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })
-                                                : "DELIVERY"}
-                                        </th>
+                                        {/* LOOP KALENDER */}
+                                        {items[0]?.calendar?.map((day, i) => {
+                                            const isLastDay = i === items[0].calendar.length - 1;
+                                            return (
+                                                <th key={i} colSpan="3" className={`border-r border-slate-700 p-1 text-center min-w-[90px] ${isLastDay ? 'bg-red-600' : 'bg-slate-700'}`}>
+                                                    {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
+                                                    {/* Label Delivery muncul otomatis di bawah tanggal terakhir */}
+                                                    {isLastDay && <span className="block text-[8px] opacity-90">DELIVERY</span>}
+                                                </th>
+                                            );
+                                        })}
+                                        {/* KOLOM DELIVERY MANUAL DI SINI SUDAH DIHAPUS AGAR TIDAK DOUBLE */}
                                     </tr>
+
                                     <tr className="bg-slate-600 text-[8px] text-slate-300 uppercase">
                                         <th className="sticky left-0 bg-slate-600 border-r border-slate-500 z-40"></th>
                                         <th className="sticky left-[80px] bg-slate-600 border-r border-slate-500 z-40"></th>
@@ -265,53 +267,52 @@ export default function List() {
 
                                         {items[0]?.calendar?.map((_, i) => (
                                             <React.Fragment key={i}>
-                                                <th className="border-r border-slate-500">S3</th>
+                                                {/* Urutan Shift tetap sesuai request */}
                                                 <th className="border-r border-slate-500">S1</th>
                                                 <th className="border-r border-slate-500">S2</th>
+                                                <th className="border-r border-slate-500">S3</th>
                                             </React.Fragment>
                                         ))}
-                                        <th className="bg-red-700 text-white border-l-4 border-white uppercase py-1">Delivery</th>
                                     </tr>
                                 </thead>
+
                                 <tbody>
-                                    {items.map((item, index) => {
-                                        return (
-                                            <tr key={index} className="hover:bg-gray-50 border-b border-gray-100">
-                                                <td className={`border-r p-2 sticky left-0 z-20 font-black text-center ${item.category === 'Packing' ? 'bg-blue-50 text-blue-700' :
+                                    {items.map((item, index) => (
+                                        <tr key={index} className="hover:bg-gray-50 border-b border-gray-100">
+                                            <td className={`border-r p-2 sticky left-0 z-20 font-black text-center ${item.category === 'Packing' ? 'bg-blue-50 text-blue-700' :
                                                     item.category === 'Finishing' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'
-                                                    }`}>
-                                                    {item.category}
-                                                </td>
+                                                }`}>
+                                                {item.category}
+                                            </td>
 
-                                                <td className="border-r p-2 sticky left-[80px] bg-white z-20 font-bold text-slate-700 uppercase">
-                                                    {item.itemCode || item.item_code}
-                                                </td>
+                                            <td className="border-r p-2 sticky left-[80px] bg-white z-20 font-bold text-slate-700 uppercase">
+                                                {item.itemCode || item.item_code}
+                                            </td>
 
-                                                <td className="border-r p-2 sticky left-[180px] bg-white z-20 shadow-sm text-gray-500 truncate max-w-[180px]">
-                                                    {item.description}
-                                                </td>
+                                            <td className="border-r p-2 sticky left-[180px] bg-white z-20 shadow-sm text-gray-500 truncate max-w-[180px]">
+                                                {item.description}
+                                            </td>
 
-                                                <td className="border-r text-center font-bold bg-gray-50 sticky left-[360px] z-20 shadow-sm">
-                                                    {item.pcs}
-                                                </td>
+                                            <td className="border-r text-center font-bold bg-gray-50 sticky left-[360px] z-20 shadow-sm">
+                                                {item.pcs}
+                                            </td>
 
-                                                {item.calendar?.map((day, dIdx) =>
-                                                    ["shift1", "shift2", "shift3"].map((s) => (
-                                                        <td key={`${dIdx}-${s}`} className={`border-r p-0 text-center transition-colors ${day.shifts[s].qty > 0 ? "bg-emerald-500" : ""}`}>
-                                                            {/* PERBAIKAN: Menggunakan div statis (Read Only) bukan input */}
-                                                            <div className={`w-full h-8 flex items-center justify-center text-[10px] font-bold ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-400"}`}>
-                                                                {day.shifts[s].qty || 0}
-                                                            </div>
-                                                        </td>
-                                                    ))
-                                                )}
-
-                                                <td className="text-center font-black border-l-4 border-red-500 bg-red-50/30">
-                                                    {/* Kosong */}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                            {/* LOOP DATA SHIFT */}
+                                            {item.calendar?.map((day, dIdx) => {
+                                                const isLastDay = dIdx === item.calendar.length - 1;
+                                                return ["shift1", "shift2", "shift3"].map((s) => (
+                                                    <td key={`${dIdx}-${s}`} className={`border-r p-0 text-center transition-colors 
+                            ${day.shifts[s].qty > 0 ? "bg-emerald-500" : ""} 
+                            ${isLastDay ? "bg-red-50/20" : ""}`}>
+                                                        <div className={`w-full h-8 flex items-center justify-center text-[10px] font-bold 
+                                ${day.shifts[s].qty > 0 ? "text-white" : "text-gray-400"}`}>
+                                                            {day.shifts[s].qty || 0}
+                                                        </div>
+                                                    </td>
+                                                ));
+                                            })}
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

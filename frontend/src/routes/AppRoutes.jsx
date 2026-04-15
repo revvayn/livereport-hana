@@ -92,7 +92,7 @@ function AppRoutes() {
           {/*<Route path="master/operations" element={<Operations />} />*/}
           <Route path="master/item-routings" element={<ItemRoutings />} />
           <Route path="sales/sales-orders" element={<SalesOrders />} />
-          <Route path="sales/sales-order-items" element={<SalesOrderItems />} />
+          {/*<Route path="sales/sales-order-items" element={<SalesOrderItems />} />*/}
           <Route path="demand/form" element={<FormDemand />} />
           <Route path="production/kalender" element={<Kalender />} />
           <Route path="production/kalender/:itemId" element={<Kalender />} />
