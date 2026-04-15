@@ -6,12 +6,12 @@ import { GitBranch, Search, Edit2, Trash2, Loader2, PlusCircle, Link } from "luc
 
 export default function ItemRoutings() {
   const [routings, setRoutings] = useState([]);
-  const [masters, setMasters] = useState({ 
-    items: [], finishing: [], pannels: [], cores: [] 
+  const [masters, setMasters] = useState({
+    items: [], finishing: [], pannels: [], cores: []
   });
   const [form, setForm] = useState({
-    item_code: "", 
-    finishing_code: "", 
+    item_code: "",
+    finishing_code: "",
     assembly_code_pannel: "",
     assembly_code_core: ""
   });
@@ -31,22 +31,22 @@ export default function ItemRoutings() {
       ]);
       setRoutings(resR.data || []);
       setMasters({
-        items: resI.data || [], 
+        items: resI.data || [],
         finishing: resF.data || [],
-        pannels: resP.data || [], 
+        pannels: resP.data || [],
         cores: resC.data || []
       });
-    } catch (err) { 
+    } catch (err) {
       console.error(err);
       Swal.fire("Error", "Gagal mengambil data master", "error");
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  const formatOptions = (data, codeKey, descKey) => 
+  const formatOptions = (data, codeKey, descKey) =>
     data.map(item => ({
       value: item[codeKey],
       label: `${item[codeKey]} - ${item[descKey] || ''}`
@@ -55,7 +55,7 @@ export default function ItemRoutings() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.item_code) return Swal.fire("Peringatan", "Item Code wajib diisi", "warning");
-    
+
     try {
       setLoading(true);
       if (editId) {
@@ -69,8 +69,8 @@ export default function ItemRoutings() {
       fetchData();
     } catch (err) {
       Swal.fire("Gagal", err.response?.data?.error || "Kesalahan sistem", "error");
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -125,36 +125,92 @@ export default function ItemRoutings() {
   };
 
   // Filter routings berdasarkan search input
-  const filteredRoutings = routings.filter(r => 
+  const filteredRoutings = routings.filter(r =>
     r.item_code?.toLowerCase().includes(search.toLowerCase()) ||
     r.item_desc?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file); // Nama "file" harus sesuai dengan upload.single("file") di route
+
+    try {
+      setLoading(true);
+      const res = await api.post("/item-routings/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      Swal.fire("Berhasil", res.data.message, "success");
+      fetchData();
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal impor file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = null;
+    }
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      { item_code: "CONTOH-01", finishing_code: "FIN-01", assembly_code_pannel: "PAN-01", assembly_code_core: "COR-01" }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Template_Routing.xlsx");
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        
+
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          {/* Sisi Kiri: Judul dan Icon */}
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
+            <div className="p-3 bg-slate-900 rounded-lg text-white shadow-md shadow-slate-200">
               <GitBranch size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Item Routing Mapping</h1>
-              <p className="text-sm text-slate-500">Hubungkan Item dengan alur proses produksi</p>
+              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+                Item Routing Mapping
+              </h1>
+              <p className="text-sm text-slate-500">
+                Hubungkan Item dengan alur proses produksi
+              </p>
             </div>
           </div>
-          
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input 
-              type="text"
-              placeholder="Cari item code..."
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+
+          {/* Sisi Kanan: Aksi (Upload & Search) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Tombol Upload */}
+            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm active:scale-95">
+              <PlusCircle size={18} />
+              <span>Upload Excel</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </label>
+
+            {/* Search Input */}
+            <div className="relative group">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Cari item code..."
+                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100 transition-all w-full lg:w-64"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
@@ -171,7 +227,7 @@ export default function ItemRoutings() {
                 placeholder="Pilih Item..."
                 options={formatOptions(masters.items, 'item_code', 'description')}
                 value={formatOptions(masters.items, 'item_code', 'description').find(o => o.value === form.item_code)}
-                onChange={(opt) => setForm({...form, item_code: opt ? opt.value : ""})}
+                onChange={(opt) => setForm({ ...form, item_code: opt ? opt.value : "" })}
                 styles={customStyles}
                 isClearable
               />
@@ -183,7 +239,7 @@ export default function ItemRoutings() {
                 placeholder="Pilih Finishing..."
                 options={formatOptions(masters.finishing, 'finishing_code', 'description')}
                 value={formatOptions(masters.finishing, 'finishing_code', 'description').find(o => o.value === form.finishing_code)}
-                onChange={(opt) => setForm({...form, finishing_code: opt ? opt.value : ""})}
+                onChange={(opt) => setForm({ ...form, finishing_code: opt ? opt.value : "" })}
                 styles={customStyles}
                 isClearable
               />
@@ -195,7 +251,7 @@ export default function ItemRoutings() {
                 placeholder="Pilih Pannel..."
                 options={formatOptions(masters.pannels, 'assembly_code', 'description')}
                 value={formatOptions(masters.pannels, 'assembly_code', 'description').find(o => o.value === form.assembly_code_pannel)}
-                onChange={(opt) => setForm({...form, assembly_code_pannel: opt ? opt.value : ""})}
+                onChange={(opt) => setForm({ ...form, assembly_code_pannel: opt ? opt.value : "" })}
                 styles={customStyles}
                 isClearable
               />
@@ -207,7 +263,7 @@ export default function ItemRoutings() {
                 placeholder="Pilih Core..."
                 options={formatOptions(masters.cores, 'assembly_code', 'description')}
                 value={formatOptions(masters.cores, 'assembly_code', 'description').find(o => o.value === form.assembly_code_core)}
-                onChange={(opt) => setForm({...form, assembly_code_core: opt ? opt.value : ""})}
+                onChange={(opt) => setForm({ ...form, assembly_code_core: opt ? opt.value : "" })}
                 styles={customStyles}
                 isClearable
               />
@@ -226,9 +282,8 @@ export default function ItemRoutings() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`px-10 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${
-                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
-                } disabled:opacity-50`}
+                className={`px-10 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
+                  } disabled:opacity-50`}
               >
                 {loading ? <Loader2 className="animate-spin mx-auto" size={18} /> : editId ? "UPDATE MAPPING" : "SIMPAN ROUTING"}
               </button>

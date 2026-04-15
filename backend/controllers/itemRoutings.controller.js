@@ -1,4 +1,5 @@
 const pool = require("../db");
+const XLSX = require("xlsx");
 
 // GET all item routings - Hanya mengambil kolom yang ada di database
 exports.getItemRoutings = async (req, res) => {
@@ -85,5 +86,42 @@ exports.deleteItemRouting = async (req, res) => {
   } catch (err) {
     console.error("Delete Error:", err.message);
     res.status(500).json({ error: "Gagal hapus routing" });
+  }
+};
+
+exports.uploadExcel = async (req, res) => {
+  try {
+    // Multer meletakkan file di req.file
+    if (!req.file) {
+      return res.status(400).json({ error: "Mohon pilih file Excel terlebih dahulu" });
+    }
+
+    // Membaca buffer dari Multer (req.file.buffer)
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    if (data.length === 0) {
+      return res.status(400).json({ error: "File Excel kosong" });
+    }
+
+    const results = [];
+    for (const row of data) {
+      const { item_code, finishing_code, assembly_code_pannel, assembly_code_core } = row;
+
+      if (item_code) {
+        const resQuery = await pool.query(
+          `INSERT INTO item_routings (item_code, finishing_code, assembly_code_pannel, assembly_code_core)
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+          [item_code, finishing_code, assembly_code_pannel, assembly_code_core]
+        );
+        results.push(resQuery.rows[0]);
+      }
+    }
+
+    res.json({ message: `${results.length} data routing berhasil diimpor` });
+  } catch (err) {
+    console.error("Upload Error:", err);
+    res.status(500).json({ error: "Gagal memproses file: " + err.message });
   }
 };

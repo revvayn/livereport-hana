@@ -107,14 +107,14 @@ exports.importExcelPannel = async (req, res) => {
         const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Pannel");
 
         await pool.query("BEGIN");
         for (const row of data) {
             const { assembly_code, description, warehouse, cycle_time } = row;
             if (!assembly_code) continue;
 
-            const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+            const capacity = calculateCapacity(cycle_time, ewhFinal, yieldFactor);
             const query = `
                 INSERT INTO item_assembly_pannel (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
                 VALUES ($1, $2, $3, $4, $5)
@@ -154,8 +154,8 @@ exports.getAllCore = async (req, res) => {
 exports.createCore = async (req, res) => {
     const { assembly_code, description, warehouse, cycle_time } = req.body;
     try {
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Core");
-        const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Core");
+        const capacity = calculateCapacity(cycle_time, ewhFinal, yieldFactor);
 
         const result = await pool.query(
             `INSERT INTO item_assembly_core (assembly_code, description, warehouse, cycle_time, capacity_per_shift) 
@@ -193,14 +193,14 @@ exports.importExcelCore = async (req, res) => {
         const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
         const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        const { ewh, yieldFactor } = await getWorkCenterParams("Assembly Core");
+        const { ewhFinal, yieldFactor } = await getWorkCenterParams("Assembly Core");
 
         await pool.query("BEGIN");
         for (const row of data) {
             const { assembly_code, description, warehouse, cycle_time } = row;
             if (!assembly_code) continue;
 
-            const capacity = calculateCapacity(cycle_time, ewh, yieldFactor);
+            const capacity = calculateCapacity(cycle_time,ewhFinal, yieldFactor);
             const query = `
                 INSERT INTO item_assembly_core (assembly_code, description, warehouse, cycle_time, capacity_per_shift)
                 VALUES ($1, $2, $3, $4, $5)

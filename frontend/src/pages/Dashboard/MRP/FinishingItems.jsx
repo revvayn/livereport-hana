@@ -102,7 +102,7 @@ export default function FinishingItems() {
 
     try {
       setLoading(true);
-      await api.post(`${API_PATH}/import`, formData);
+      await api.post(`${API_PATH}/import-excel`, formData);
       Swal.fire("Berhasil", "Data berhasil diimport", "success");
       fetchItems();
     } catch (err) {
@@ -118,26 +118,48 @@ export default function FinishingItems() {
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          {/* Sisi Kiri: Icon & Judul */}
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white"><Layers size={24} /></div>
+            <div className="p-3 bg-slate-900 rounded-lg text-white shadow-lg shadow-slate-200">
+              <Layers size={24} />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Master Finishing</h1>
-              <p className="text-sm text-slate-500">Standarisasi Kapasitas & Proses Finishing</p>
+              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+                Master Finishing
+              </h1>
+              <p className="text-sm text-slate-500">
+                Standarisasi Kapasitas & Proses Finishing
+              </p>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <input type="file" id="import-fin" className="hidden" onChange={handleImportExcel} />
-            <label htmlFor="import-fin" className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold cursor-pointer hover:bg-slate-50">
-              <FileUp size={16} /> IMPORT EXCEL
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          {/* Sisi Kanan: Kontrol Aksi */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Tombol Upload Excel Gaya Emerald */}
+            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap">
+              <PlusCircle size={18} />
+              <span>Upload Excel</span>
               <input
-                type="text" placeholder="Cari finishing..."
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-64"
-                value={search} onChange={(e) => setSearch(e.target.value)}
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={handleImportExcel} // Pastikan fungsi ini sesuai dengan di Master Finishing Anda
+              />
+            </label>
+
+            {/* Search Input */}
+            <div className="relative group flex-1 sm:flex-none">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Cari finishing..."
+                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100 transition-all w-full md:w-64"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
           </div>
