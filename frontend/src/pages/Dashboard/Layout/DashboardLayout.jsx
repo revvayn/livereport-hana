@@ -250,10 +250,10 @@ function MasterDropdown({ collapsed, currentPath }) {
       <SubMenuLink to="/dashboard/master/finishing-items" icon={Layers} label="Finishing Items" />
       <SubMenuLink to="/dashboard/master/assembly/pannel" icon={LayoutGrid} label="Assembly Pannel" />
       <SubMenuLink to="/dashboard/master/assembly/core" icon={Cpu} label="Assembly Core" />
-      <SubMenuLink to="/dashboard/master/work-center" icon={GridIcon} label="Work Center" />
       {/*<SubMenuLink to="/dashboard/master/machines" icon={Settings} label="Machines" />*/}
       {/*<SubMenuLink to="/dashboard/master/operations" icon={Activity} label="Operations" />*/}
       <SubMenuLink to="/dashboard/master/item-routings" icon={Route} label="Item Routing" />
+      <SubMenuLink to="/dashboard/master/work-center" icon={GridIcon} label="Work Center" />
     </DropdownWrapper>
   );
 }
