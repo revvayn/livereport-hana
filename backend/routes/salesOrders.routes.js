@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const upload = multer(); // Menggunakan memory storage
 const controller = require("../controllers/salesOrders.controller");
 
 // --- GRUP SALES ORDER (HEADER) ---
@@ -16,5 +18,7 @@ router.get("/detail/:id/items", controller.getItemsBySalesOrder);
 router.post("/detail/item", controller.createItem);
 router.put("/detail/item/:id", controller.updateItem);
 router.delete("/detail/item/:id", controller.deleteItem);
+
+router.post("/import-excel", upload.single("file"), controller.importExcel);
 
 module.exports = router;

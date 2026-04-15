@@ -184,30 +184,62 @@ export default function SalesOrders() {
     so.customer_name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setLoading(true);
+      await api.post("/sales-orders/import-excel", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      Swal.fire("Berhasil", "Data SO berhasil diimport", "success");
+      fetchData(); // Refresh data tabel
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal import file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = ""; // Reset input file
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* TOP BAR */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
-              <ShoppingCart size={24} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sales Order Manager</h1>
-              <p className="text-sm text-slate-500 font-medium">Sistem Terintegrasi Header & Detail Item</p>
-            </div>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text" placeholder="Cari Nomor SO atau Customer..."
-              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-80 outline-none focus:border-slate-900 transition-all"
-              value={search} onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
+  <div className="flex items-center gap-4">
+    <div className="p-3 bg-slate-900 rounded-lg text-white">
+      <ShoppingCart size={24} />
+    </div>
+    <div>
+      <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sales Order Manager</h1>
+      <p className="text-sm text-slate-500 font-medium">Sistem Terintegrasi Header & Detail Item</p>
+    </div>
+  </div>
+  
+  <div className="flex items-center gap-3">
+    {/* TOMBOL UPLOAD EXCEL BARU */}
+    <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm active:scale-95">
+      {loading ? <Loader2 className="animate-spin" size={16} /> : <PlusCircle size={16} />}
+      <span>Upload SO</span>
+      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+    </label>
+
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+      <input
+        type="text" placeholder="Cari Nomor SO..."
+        className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full md:w-64 outline-none focus:border-slate-900 transition-all"
+        value={search} onChange={(e) => setSearch(e.target.value)}
+      />
+    </div>
+  </div>
+</div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
