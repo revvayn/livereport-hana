@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { Package, Search, Edit2, Trash2, Loader2, PlusCircle, Database, FileUp, Clock, Target } from "lucide-react";
+import { 
+  Package, Search, Edit2, Trash2, Loader2, PlusCircle, 
+  Database, Clock, Target, ChevronLeft, ChevronRight, X 
+} from "lucide-react";
 
 export default function Items() {
   const [items, setItems] = useState([]);
@@ -16,24 +19,46 @@ export default function Items() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
-  const fetchItems = async (keyword = "") => {
+  // --- State Paginasi Frontend ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 10; // Anda bisa ubah ke 25 jika mau
+
+  // Mengambil SEMUA data sekaligus dari API
+  const fetchItems = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/items?search=${keyword}`);
-      setItems(Array.isArray(res.data) ? res.data : []);
+      const res = await api.get("/items");
+      // Menangani berbagai format response API
+      const data = Array.isArray(res.data) ? res.data : (res.data.data || []);
+      setItems(data);
     } catch (err) {
-      Swal.fire("Error", "Gagal mengambil data items", "error");
-      setItems([]);
+      console.error(err);
+      Swal.fire("Error", "Gagal mengambil data dari server", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchItems(search);
-    }, 500);
-    return () => clearTimeout(delayDebounceFn);
+    fetchItems();
+  }, []);
+
+  // --- LOGIKA FILTER & PAGINATION (FRONTEND) ---
+  const filteredItems = items.filter(i =>
+    i.description?.toLowerCase().includes(search.toLowerCase()) ||
+    i.item_code?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Hitung total halaman berdasarkan data yang sudah difilter
+  const totalPages = Math.ceil(filteredItems.length / limit) || 1;
+
+  // Potong data untuk ditampilkan di tabel (Inilah yang membuat page 10 data)
+  const startIndex = (currentPage - 1) * limit;
+  const currentTableData = filteredItems.slice(startIndex, startIndex + limit);
+
+  // Reset ke halaman 1 jika user sedang mencari sesuatu
+  useEffect(() => {
+    setCurrentPage(1);
   }, [search]);
 
   const handleSubmit = async (e) => {
@@ -44,19 +69,17 @@ export default function Items() {
 
     try {
       setLoading(true);
-      const payload = { ...form, cycle_time: parseInt(form.cycle_time) || 0 };
+      const payload = { ...form, cycle_time: parseFloat(form.cycle_time) || 0 };
 
       if (editId) {
         await api.put(`/items/${editId}`, payload);
-        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data diperbarui', timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data diperbarui', timer: 1000, showConfirmButton: false });
       } else {
         await api.post("/items", payload);
-        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1000, showConfirmButton: false });
       }
-
-      setForm({ item_code: "", description: "", uom: "", warehouse: "GPAK", cycle_time: "" });
-      setEditId(null);
-      fetchItems();
+      handleReset();
+      fetchItems(); 
     } catch (err) {
       Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
@@ -75,43 +98,30 @@ export default function Items() {
     setEditId(item.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
   const handleReset = () => {
-    setForm({
-      item_code: "",
-      description: "",
-      uom: "",
-      warehouse: "GPAK",
-      cycle_time: ""
-    });
+    setForm({ item_code: "", description: "", uom: "", warehouse: "GPAK", cycle_time: "" });
     setEditId(null);
   };
+
   const handleDelete = async (id) => {
-    // 1. Konfirmasi menggunakan SweetAlert2
-    const result = await Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Data yang dihapus tidak dapat dikembalikan!",
+    const confirm = await Swal.fire({
+      title: "Hapus Item?",
+      text: "Data tidak bisa dikembalikan!",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Ya, Hapus!",
-      cancelButtonText: "Batal"
+      confirmButtonColor: "#0f172a",
+      confirmButtonText: "Ya, Hapus",
     });
 
-    if (result.isConfirmed) {
+    if (confirm.isConfirmed) {
       try {
         setLoading(true);
-        // 2. Panggil API delete
         await api.delete(`/items/${id}`);
-
-        // 3. Notifikasi Berhasil
-        Swal.fire("Terhapus!", "Item telah berhasil dihapus.", "success");
-
-        // 4. Refresh data tabel
         fetchItems();
+        Swal.fire("Terhapus", "Data berhasil dihapus", "success");
       } catch (err) {
-        console.error(err);
-        Swal.fire("Gagal", err.response?.data?.error || "Gagal menghapus data", "error");
+        Swal.fire("Gagal", "Gagal menghapus data", "error");
       } finally {
         setLoading(false);
       }
@@ -121,163 +131,113 @@ export default function Items() {
   const handleImportExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // Validasi format file
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-    if (fileExtension !== 'xlsx' && fileExtension !== 'xls') {
-      return Swal.fire("Gagal", "Hanya diperbolehkan file Excel (.xlsx atau .xls)", "error");
-    }
-
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       setLoading(true);
-      // Sesuaikan endpoint dengan router backend Anda (misal: /items/import-excel)
-      const res = await api.post("/items/import-excel", formData, {
+      await api.post("/items/import-excel", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      Swal.fire({
-        icon: "success",
-        title: "Berhasil",
-        text: res.data.message || "Data Excel berhasil di-import",
-        timer: 2000,
-        showConfirmButton: false
-      });
-
-      fetchItems(); // Refresh tabel setelah import
+      Swal.fire("Berhasil", "Data Excel berhasil di-import", "success");
+      fetchItems();
     } catch (err) {
-      console.error(err);
-      Swal.fire("Gagal", err.response?.data?.error || "Gagal mengunggah file", "error");
+      Swal.fire("Gagal", "Gagal import file", "error");
     } finally {
       setLoading(false);
-      e.target.value = ""; // Reset input file agar bisa pilih file yang sama lagi
+      e.target.value = "";
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        {/* --- HEADER --- */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
+            <div className="p-3 bg-slate-900 rounded-lg text-white shadow-lg">
               <Package size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Items</h1>
-              <p className="text-sm text-slate-500">Kelola inventaris dan spesifikasi cycle time</p>
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">Master Data Items</h1>
+              <p className="text-sm text-slate-500 font-medium">Kelola inventaris dan cycle time</p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Tombol Upload Excel Gaya Emerald */}
-            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap">
+            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold cursor-pointer transition-all active:scale-95 shadow-sm">
               <PlusCircle size={18} />
-              <span>Upload Excel</span>
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleImportExcel} // Pastikan fungsi ini sesuai dengan di Master Finishing Anda
-              />
+              <span>Import Excel</span>
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
             </label>
 
-            {/* Search Input */}
             <div className="relative group flex-1 sm:flex-none">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
-                size={18}
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" size={18} />
               <input
                 type="text"
-                placeholder="Cari finishing..."
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100 transition-all w-full md:w-64"
+                placeholder="Cari item atau kode..."
+                className="pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 transition-all w-full md:w-64 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                  <X size={16} />
+                </button>
+              )}
             </div>
           </div>
         </div>
-        {/* Form Card */}
+
+        {/* --- FORM INPUT --- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-            <PlusCircle size={16} />
-            {editId ? "Update Informasi Item" : "Tambah Item Baru"}
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            {editId ? <Edit2 size={16} className="text-amber-500" /> : <PlusCircle size={16} />}
+            {editId ? "Mode Edit Data" : "Tambah Item Baru"}
           </h2>
-
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-2">
-              <input
-                type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm font-bold uppercase"
-                placeholder="Kode Item"
-                value={form.item_code}
-                onChange={(e) => setForm({ ...form, item_code: e.target.value.toUpperCase() })}
-              />
-            </div>
-            <div className="md:col-span-4">
-              <input
-                type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
-                placeholder="Deskripsi Barang"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <input
-                type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
-                placeholder="UOM"
-                value={form.uom}
-                onChange={(e) => setForm({ ...form, uom: e.target.value })}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <input
-                type="number"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
-                placeholder="CT (Detik)"
-                value={form.cycle_time}
-                onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
-              />
-            </div>
-
-            {/* Bagian Action Button yang Diperbaiki */}
+            <input
+              type="text"
+              className="md:col-span-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm font-bold uppercase"
+              placeholder="Kode"
+              value={form.item_code}
+              onChange={(e) => setForm({ ...form, item_code: e.target.value.toUpperCase() })}
+            />
+            <input
+              type="text"
+              className="md:col-span-4 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
+              placeholder="Deskripsi Barang"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <input
+              type="text"
+              className="md:col-span-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm uppercase"
+              placeholder="UOM"
+              value={form.uom}
+              onChange={(e) => setForm({ ...form, uom: e.target.value })}
+            />
+            <input
+              type="number"
+              className="md:col-span-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm font-mono"
+              placeholder="CT (Detik)"
+              value={form.cycle_time}
+              onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
+            />
             <div className="md:col-span-2 flex gap-2">
               <button
                 type="submit"
                 disabled={loading}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-sm ${editId
-                  ? "bg-amber-600 hover:bg-amber-700 active:scale-95"
-                  : "bg-slate-900 hover:bg-slate-800 active:scale-95"
-                  } disabled:opacity-50 disabled:active:scale-100`}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"} disabled:opacity-50`}
               >
-                {loading ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  editId ? "UPDATE" : "SIMPAN"
-                )}
+                {loading ? <Loader2 className="animate-spin" size={18} /> : (editId ? "UPDATE" : "SIMPAN")}
               </button>
-
-              {editId && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  title="Batal Edit / Tambah Baru"
-                  className="px-3 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 hover:text-slate-700 transition-all active:scale-95 border border-slate-200"
-                >
-                  <PlusCircle size={20} />
-                </button>
-              )}
             </div>
           </form>
         </div>
 
-        {/* Table Card */}
+        {/* --- TABEL DATA --- */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -285,59 +245,83 @@ export default function Items() {
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Item</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">UOM & WH</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Performance (80% EWH)</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Performance</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((i) => (
-                  <tr key={i.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-mono font-bold text-slate-500">{i.item_code}</span>
-                        <span className="text-sm font-semibold text-slate-700">{i.description}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium text-slate-600">UOM: {i.uom || '-'}</span>
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                          <Database size={10} /> {i.warehouse}
+                {currentTableData.length > 0 ? (
+                  currentTableData.map((i) => (
+                    <tr key={i.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-mono font-bold text-slate-400">{i.item_code}</span>
+                          <span className="text-sm font-semibold text-slate-700 uppercase tracking-tight">{i.description}</span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-slate-600">
-                          <Clock size={14} className="text-blue-500" />
-                          <span className="text-sm font-semibold">{i.cycle_time || 0}s</span>
-                        </div>
-                        {/* Menampilkan capacity_per_shift langsung dari database */}
-                        <div className="flex items-center gap-1.5 text-slate-600 border-l pl-4">
-                          <Target size={14} className="text-green-500" />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-green-700">
-                              {i.capacity_per_shift || 0}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">Pcs / 7h Shift</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-slate-600">UOM: {i.uom || '-'}</span>
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">
+                            <Database size={10} /> {i.warehouse}
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => handleEdit(i)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                          <Edit2 size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(i.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5 text-slate-600">
+                            <Clock size={14} className="text-blue-500" />
+                            <span className="text-sm font-bold font-mono">{i.cycle_time || 0}s</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-600 border-l pl-4">
+                            <Target size={14} className="text-green-500" />
+                            <span className="text-sm font-bold font-mono text-green-700">{i.capacity_per_shift || 0} <span className="text-[10px] font-normal text-slate-400">pcs</span></span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center gap-1">
+                          <button onClick={() => handleEdit(i)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDelete(i.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                      {loading ? "Memproses..." : "Data tidak tersedia."}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* --- PAGINASI --- */}
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="text-xs font-medium text-slate-500">
+              Halaman <span className="text-slate-900 font-bold">{currentPage}</span> dari <span className="text-slate-900 font-bold">{totalPages}</span>
+              <span className="ml-2">({filteredItems.length} Total Data)</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </div>

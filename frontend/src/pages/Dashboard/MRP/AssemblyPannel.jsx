@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { Layout, Search, Edit2, Trash2, Loader2, PlusCircle, Database, FileUp, Clock, Target } from "lucide-react";
+import { 
+  Layout, Search, Edit2, Trash2, Loader2, PlusCircle, 
+  Database, Clock, Target, ChevronLeft, ChevronRight, X 
+} from "lucide-react";
 
 export default function AssemblyPannel() {
   const [items, setItems] = useState([]);
@@ -14,27 +17,45 @@ export default function AssemblyPannel() {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const fileInputRef = useRef(null);
 
+  // --- STATE PAGINASI FRONTEND ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 10; // Jumlah data per halaman
   const API_PATH = "/assembly/pannel";
 
-  const fetchItems = async (keyword = "") => {
+  // Ambil SEMUA data sekali saja saat komponen dimuat
+  const fetchItems = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`${API_PATH}?search=${keyword}`);
-      setItems(Array.isArray(res.data) ? res.data : []);
+      const res = await api.get(API_PATH);
+      // Mendukung response array langsung atau object dengan properti data
+      const data = Array.isArray(res.data) ? res.data : (res.data.data || []);
+      setItems(data);
     } catch (err) {
-      setItems([]);
+      console.error(err);
+      Swal.fire("Error", "Gagal mengambil data master assembly", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchItems(search);
-    }, 500);
-    return () => clearTimeout(delayDebounceFn);
+    fetchItems();
+  }, []);
+
+  // --- LOGIKA FILTER & PAGINATION (DI SISI CLIENT) ---
+  const filteredItems = items.filter(i =>
+    i.assembly_code?.toLowerCase().includes(search.toLowerCase()) ||
+    i.description?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredItems.length / limit) || 1;
+  const startIndex = (currentPage - 1) * limit;
+  const currentTableData = filteredItems.slice(startIndex, startIndex + limit);
+
+  // Reset ke halaman 1 jika user sedang mengetik pencarian
+  useEffect(() => {
+    setCurrentPage(1);
   }, [search]);
 
   const handleSubmit = async (e) => {
@@ -45,11 +66,7 @@ export default function AssemblyPannel() {
 
     try {
       setLoading(true);
-      // Payload memastikan cycle_time adalah angka
-      const payload = {
-        ...form,
-        cycle_time: parseInt(form.cycle_time) || 0
-      };
+      const payload = { ...form, cycle_time: parseInt(form.cycle_time) || 0 };
 
       if (editId) {
         await api.put(`${API_PATH}/${editId}`, payload);
@@ -60,7 +77,7 @@ export default function AssemblyPannel() {
       }
 
       handleReset();
-      fetchItems();
+      fetchItems(); 
     } catch (err) {
       Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
@@ -91,7 +108,6 @@ export default function AssemblyPannel() {
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#0f172a",
-      cancelButtonColor: "#94a3b8",
       confirmButtonText: "Ya, Hapus"
     });
 
@@ -112,15 +128,12 @@ export default function AssemblyPannel() {
   const handleImportExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       setLoading(true);
-      await api.post(`${API_PATH}/import-excel`, formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      await api.post(`${API_PATH}/import-excel`, formData);
       Swal.fire("Berhasil", "Data berhasil diimport", "success");
       fetchItems();
     } catch (err) {
@@ -132,82 +145,75 @@ export default function AssemblyPannel() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Header Section */}
+        {/* --- HEADER --- */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg text-white">
+            <div className="p-3 bg-slate-900 rounded-lg text-white shadow-lg shadow-slate-200">
               <Layout size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Assembly Pannel</h1>
-              <p className="text-sm text-slate-500">Manajemen Cycle Time & Kapasitas Produksi</p>
+              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">Master Assembly Pannel</h1>
+              <p className="text-sm text-slate-500 font-medium">Manajemen Cycle Time & Kapasitas Produksi</p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Tombol Upload Excel Gaya Emerald */}
-            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap">
+            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold cursor-pointer transition-all active:scale-95 shadow-sm">
               <PlusCircle size={18} />
               <span>Upload Excel</span>
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleImportExcel} // Pastikan fungsi ini sesuai dengan di Master Finishing Anda
-              />
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
             </label>
 
-            {/* Search Input */}
             <div className="relative group flex-1 sm:flex-none">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
-                size={18}
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" size={18} />
               <input
                 type="text"
-                placeholder="Cari finishing..."
-                className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100 transition-all w-full md:w-64"
+                placeholder="Cari panel atau kode..."
+                className="pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-slate-900 transition-all w-full md:w-64"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                  <X size={16} />
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Form Card */}
+        {/* --- FORM CARD --- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-            <PlusCircle size={16} />
-            {editId ? "Edit Informasi Panel" : "Tambah Panel Baru"}
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            {editId ? <Edit2 size={16} className="text-amber-500" /> : <PlusCircle size={16} />}
+            {editId ? "Mode Edit Data" : "Input Data Baru"}
           </h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-2">
               <input
                 type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm font-bold uppercase"
-                placeholder="Kode Panel"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm font-bold uppercase outline-none"
+                placeholder="Kode"
                 value={form.assembly_code}
                 onChange={(e) => setForm({ ...form, assembly_code: e.target.value.toUpperCase() })}
-                required
               />
             </div>
             <div className="md:col-span-4">
               <input
                 type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
-                placeholder="Deskripsi"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm outline-none"
+                placeholder="Deskripsi Panel"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                required
               />
             </div>
             <div className="md:col-span-2">
               <input
                 type="text"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm uppercase"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm uppercase outline-none"
                 placeholder="Warehouse"
                 value={form.warehouse}
                 onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
@@ -216,18 +222,19 @@ export default function AssemblyPannel() {
             <div className="md:col-span-2">
               <input
                 type="number"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-slate-900 text-sm"
-                placeholder="Cycle Time (s)"
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-slate-900 text-sm outline-none font-mono"
+                placeholder="CT (s)"
                 value={form.cycle_time}
                 onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
               />
             </div>
-            <div className="md:col-span-2 flex gap-2">
+            <div className="md:col-span-2">
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
-                  } disabled:opacity-50`}
+                className={`w-full h-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 ${
+                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
+                } disabled:opacity-50`}
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
               </button>
@@ -235,65 +242,91 @@ export default function AssemblyPannel() {
           </form>
         </div>
 
-        {/* Table Card */}
+        {/* --- TABLE CARD --- */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="px-6 py-4">Assembly Item</th>
-                  <th className="px-6 py-4 text-center">Warehouse</th>
-                  <th className="px-6 py-4">Performance (80% EWH)</th>
-                  <th className="px-6 py-4 text-center">Aksi</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Assembly Item</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Performance</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.length > 0 ? (
-                  items.map((i) => (
+                {currentTableData.length > 0 ? (
+                  currentTableData.map((i) => (
                     <tr key={i.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className="text-xs font-mono font-bold text-slate-500 uppercase">{i.assembly_code}</span>
-                          <span className="text-sm font-semibold text-slate-700">{i.description}</span>
+                          <span className="text-xs font-mono font-bold text-slate-400 uppercase">{i.assembly_code}</span>
+                          <span className="text-sm font-semibold text-slate-700 uppercase tracking-tight">{i.description}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">
-                          <Database size={12} /> {i.warehouse}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">
+                          <Database size={12} className="text-slate-400" /> {i.warehouse}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1.5 text-slate-600">
                             <Clock size={14} className="text-blue-500" />
-                            <span className="text-sm font-semibold">{i.cycle_time || 0}s</span>
+                            <span className="text-sm font-bold font-mono">{i.cycle_time || 0}s</span>
                           </div>
-                          <div className="flex items-center gap-1.5 border-l pl-4">
+                          <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4 font-mono">
                             <Target size={14} className="text-green-500" />
                             <div className="flex flex-col">
-                              <span className="text-sm font-bold text-green-700">{i.capacity_per_shift || 0}</span>
-                              <span className="text-[10px] text-slate-400">Pcs / 7h Shift</span>
+                              <span className="text-sm font-bold text-green-700 leading-none">{i.capacity_per_shift || 0}</span>
+                              <span className="text-[9px] text-slate-400 font-normal uppercase">Pcs / 7h</span>
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex gap-2 justify-center">
-                          <button onClick={() => handleEdit(i)} className="p-2 text-slate-400 hover:text-blue-600"><Edit2 size={16} /></button>
-                          <button onClick={() => handleDelete(i.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>
+                        <div className="flex gap-1 justify-center">
+                          <button onClick={() => handleEdit(i)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDelete(i.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic">
-                      {loading ? "Memuat data..." : "Data tidak tersedia"}
+                    <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic text-sm font-medium">
+                      {loading ? "Menyinkronkan data..." : "Data tidak ditemukan."}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* --- PAGINATION FOOTER --- */}
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="text-xs font-medium text-slate-500">
+              Halaman <span className="text-slate-900 font-bold">{currentPage}</span> dari <span className="text-slate-900 font-bold">{totalPages}</span>
+              <span className="ml-3 italic">({filteredItems.length} total data)</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
