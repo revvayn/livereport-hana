@@ -150,32 +150,35 @@ export default function WorkCenter() {
         {/* Form Card (2 Baris agar lebih lega) */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Section 1: Identitas Utama */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            {/* BARIS 1: Identitas Utama (4 Kolom) */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
                   <Database size={12} className="text-slate-400" /> Nama Work Center
                 </label>
                 <input
                   type="text"
-                  placeholder="Contoh: ASSEMBLY"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:font-normal placeholder:text-slate-300"
+                  placeholder="ASSEMBLY"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                   value={form.work_center_name}
                   onChange={(e) => setForm({ ...form, work_center_name: e.target.value.toUpperCase() })}
                 />
               </div>
+
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
                   <Layout size={12} className="text-slate-400" /> Nama Line
                 </label>
                 <input
                   type="text"
-                  placeholder="Contoh: LINE A"
+                  placeholder="LINE A"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                   value={form.line_name}
                   onChange={(e) => setForm({ ...form, line_name: e.target.value.toUpperCase() })}
                 />
               </div>
+
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
                   <Clock size={12} className="text-slate-400" /> Lead Time (Shift)
@@ -187,22 +190,24 @@ export default function WorkCenter() {
                   onChange={(e) => setForm({ ...form, lead_time: e.target.value })}
                 />
               </div>
-            </div>
 
-            {/* Section 2: Parameter Teknis */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-slate-50 items-end">
-              <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase text-center block">Total Mechine</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                  <Database size={12} className="text-slate-400" /> Total Machine
+                </label>
                 <input
                   type="number"
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-center font-black text-slate-700 shadow-sm"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                   value={form.total_lines}
                   onChange={(e) => setForm({ ...form, total_lines: e.target.value })}
                 />
               </div>
+            </div>
 
-              <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-blue-600 uppercase text-center block tracking-tight">EWH Percentage (%)</label>
+            {/* BARIS 2: Parameter Teknis (4 Kolom) */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-slate-50">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-blue-600 uppercase text-center block tracking-tight">EWH Persentage(%)</label>
                 <input
                   type="number"
                   className="w-full px-4 py-2.5 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-center text-blue-700 font-black focus:ring-2 focus:ring-blue-500/20 outline-none"
@@ -211,8 +216,8 @@ export default function WorkCenter() {
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-emerald-600 uppercase text-center block tracking-tight">Capacity (%)</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-emerald-600 uppercase text-center block tracking-tight">Capacity Production(%)</label>
                 <input
                   type="number"
                   className="w-full px-4 py-2.5 bg-emerald-50/50 border border-emerald-100 rounded-xl text-sm text-center text-emerald-700 font-black focus:ring-2 focus:ring-emerald-500/20 outline-none"
@@ -221,7 +226,7 @@ export default function WorkCenter() {
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-amber-600 uppercase text-center block tracking-tight">Good Product (%)</label>
                 <input
                   type="number"
@@ -231,8 +236,7 @@ export default function WorkCenter() {
                 />
               </div>
 
-              {/* Result Preview Box */}
-              <div className="md:col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-400 uppercase text-center block tracking-tight">EWH Result</label>
                 <div className="flex items-center justify-between bg-slate-900 text-white rounded-xl px-4 py-2.5 shadow-lg shadow-indigo-200/20 h-[42px] border border-slate-800">
                   <Calculator size={14} className="text-indigo-400" />
@@ -241,24 +245,25 @@ export default function WorkCenter() {
                   </span>
                 </div>
               </div>
-
-              {/* Action Button */}
-              <div className="md:col-span-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-100 active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : editId ? (
-                    <>Update Data</>
-                  ) : (
-                    <>Simpan Data</>
-                  )}
-                </button>
-              </div>
             </div>
+
+            {/* BARIS 3: Tombol Submit (Full Width) */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-[48px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-100 active:scale-[0.98] flex items-center justify-center gap-2 disabled:bg-slate-300"
+              >
+                {loading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : editId ? (
+                  <>Update Operational Data</>
+                ) : (
+                  <>Simpan Operational Data</>
+                )}
+              </button>
+            </div>
+
           </form>
         </div>
 
