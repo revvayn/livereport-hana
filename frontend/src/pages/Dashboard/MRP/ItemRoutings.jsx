@@ -2,7 +2,17 @@ import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
 import Select from "react-select";
-import { GitBranch, Search, Edit2, Trash2, Loader2, PlusCircle, Link } from "lucide-react";
+import { 
+  GitBranch, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  Loader2, 
+  PlusCircle, 
+  ChevronLeft, 
+  ChevronRight 
+} from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function ItemRoutings() {
   const [routings, setRoutings] = useState([]);
@@ -18,6 +28,10 @@ export default function ItemRoutings() {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+
+  // --- 1. STATE PAGINATION ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchData = async () => {
     try {
@@ -45,6 +59,23 @@ export default function ItemRoutings() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // --- 2. LOGIKA FILTER & PAGINATION ---
+  const filteredRoutings = routings.filter(r =>
+    r.item_code?.toLowerCase().includes(search.toLowerCase()) ||
+    r.item_desc?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredRoutings.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  
+  // Variabel data yang akan ditampilkan di tabel
+  const currentTableData = filteredRoutings.slice(indexOfFirstItem, indexOfLastItem);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const formatOptions = (data, codeKey, descKey) =>
     data.map(item => ({
@@ -105,6 +136,26 @@ export default function ItemRoutings() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      setLoading(true);
+      const res = await api.post("/item-routings/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      Swal.fire("Berhasil", res.data.message, "success");
+      fetchData();
+    } catch (err) {
+      Swal.fire("Gagal", err.response?.data?.error || "Gagal impor file", "error");
+    } finally {
+      setLoading(false);
+      e.target.value = null;
+    }
+  };
+
   const customStyles = {
     control: (base, state) => ({
       ...base,
@@ -124,51 +175,12 @@ export default function ItemRoutings() {
     }),
   };
 
-  // Filter routings berdasarkan search input
-  const filteredRoutings = routings.filter(r =>
-    r.item_code?.toLowerCase().includes(search.toLowerCase()) ||
-    r.item_desc?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file); // Nama "file" harus sesuai dengan upload.single("file") di route
-
-    try {
-      setLoading(true);
-      const res = await api.post("/item-routings/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      Swal.fire("Berhasil", res.data.message, "success");
-      fetchData();
-    } catch (err) {
-      Swal.fire("Gagal", err.response?.data?.error || "Gagal impor file", "error");
-    } finally {
-      setLoading(false);
-      e.target.value = null;
-    }
-  };
-
-  const downloadTemplate = () => {
-    const template = [
-      { item_code: "CONTOH-01", finishing_code: "FIN-01", assembly_code_pannel: "PAN-01", assembly_code_core: "COR-01" }
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "Template_Routing.xlsx");
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          {/* Sisi Kiri: Judul dan Icon */}
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg text-white shadow-md shadow-slate-200">
               <GitBranch size={24} />
@@ -183,26 +195,15 @@ export default function ItemRoutings() {
             </div>
           </div>
 
-          {/* Sisi Kanan: Aksi (Upload & Search) */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            {/* Tombol Upload */}
             <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold cursor-pointer transition-all shadow-sm active:scale-95">
               <PlusCircle size={18} />
               <span>Upload Excel</span>
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
             </label>
 
-            {/* Search Input */}
             <div className="relative group">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors"
-                size={18}
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" size={18} />
               <input
                 type="text"
                 placeholder="Cari item code..."
@@ -232,7 +233,6 @@ export default function ItemRoutings() {
                 isClearable
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">2. Finishing</label>
               <Select
@@ -244,7 +244,6 @@ export default function ItemRoutings() {
                 isClearable
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">3. Assy Pannel</label>
               <Select
@@ -256,7 +255,6 @@ export default function ItemRoutings() {
                 isClearable
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">4. Assy Core</label>
               <Select
@@ -271,19 +269,14 @@ export default function ItemRoutings() {
 
             <div className="md:col-span-4 flex justify-end gap-2 pt-2">
               {editId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-6 py-2 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition-all"
-                >
+                <button type="button" onClick={resetForm} className="px-6 py-2 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition-all">
                   BATAL
                 </button>
               )}
               <button
                 type="submit"
                 disabled={loading}
-                className={`px-10 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"
-                  } disabled:opacity-50`}
+                className={`px-10 py-2.5 rounded-lg text-sm font-bold text-white transition-all ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-200"} disabled:opacity-50`}
               >
                 {loading ? <Loader2 className="animate-spin mx-auto" size={18} /> : editId ? "UPDATE MAPPING" : "SIMPAN ROUTING"}
               </button>
@@ -306,8 +299,8 @@ export default function ItemRoutings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRoutings.length > 0 ? (
-                  filteredRoutings.map((r) => (
+                {currentTableData.length > 0 ? (
+                  currentTableData.map((r) => (
                     <tr key={r.id} className="hover:bg-slate-50/50 transition-colors group text-xs">
                       <td className="px-4 py-4 text-center text-slate-400 font-mono">#{r.id}</td>
                       <td className="px-4 py-4">
@@ -332,7 +325,7 @@ export default function ItemRoutings() {
                           <span className="text-[10px] text-slate-400">{r.core_desc || '-'}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 text-center">
                         <div className="flex gap-2 justify-center">
                           <button
                             onClick={() => {
@@ -349,10 +342,7 @@ export default function ItemRoutings() {
                           >
                             <Edit2 size={14} />
                           </button>
-                          <button
-                            onClick={() => handleDelete(r.id)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          >
+                          <button onClick={() => handleDelete(r.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -369,6 +359,37 @@ export default function ItemRoutings() {
               </tbody>
             </table>
           </div>
+
+          {/* --- FOOTER PAGINATION (Sudah Disinkronkan) --- */}
+          {filteredRoutings.length > 0 && (
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="text-xs font-medium text-slate-500">
+                Menampilkan <span className="text-slate-900 font-bold">{currentTableData.length}</span> dari <span className="text-slate-900 font-bold">{filteredRoutings.length}</span> total data
+                <span className="mx-2">|</span>
+                Hal <span className="text-slate-900 font-bold">{currentPage}</span> / {totalPages || 1}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-100 transition-all text-slate-600"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-100 transition-all text-slate-600"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
