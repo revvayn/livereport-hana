@@ -5,7 +5,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const finishingCtrl = require("../controllers/finishing.controller");
 
 router.post("/import-excel", upload.single("file"), finishingCtrl.importExcel);
-
+router.delete("/clear-all", finishingCtrl.clearFinishing);
 // 1. Route Statis & Global
 router.get("/", finishingCtrl.getAllFinishing); // Ambil semua data
 router.post("/", finishingCtrl.createFinishing);

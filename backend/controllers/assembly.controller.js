@@ -100,6 +100,17 @@ exports.updatePannel = async (req, res) => {
         res.status(500).json({ error: "Gagal memperbarui data pannel" });
     }
 };
+exports.clearPannel = async (req, res) => {
+    try {
+      // RESTART IDENTITY akan mereset sequence ID kembali ke 1
+      // CASCADE jika ada tabel lain yang bergantung pada data customer
+      await pool.query("TRUNCATE TABLE item_assembly_pannel RESTART IDENTITY CASCADE");
+      res.json({ message: "Semua data pannel berhasil dibersihkan" });
+    } catch (err) {
+      console.error("Clear Data Error:", err);
+      res.status(500).json({ error: "Gagal membersihkan data pannel" });
+    }
+  };
 
 exports.importExcelPannel = async (req, res) => {
     try {
@@ -226,6 +237,17 @@ exports.importExcelCore = async (req, res) => {
         res.status(500).json({ error: "Gagal import excel core: " + err.message });
     }
 };
+exports.clearCore = async (req, res) => {
+    try {
+      // RESTART IDENTITY akan mereset sequence ID kembali ke 1
+      // CASCADE jika ada tabel lain yang bergantung pada data customer
+      await pool.query("TRUNCATE TABLE item_assembly_core RESTART IDENTITY CASCADE");
+      res.json({ message: "Semua data pannel berhasil dibersihkan" });
+    } catch (err) {
+      console.error("Clear Data Error:", err);
+      res.status(500).json({ error: "Gagal membersihkan data pannel" });
+    }
+  };
 
 // Generic delete functions
 exports.deletePannel = async (req, res) => {

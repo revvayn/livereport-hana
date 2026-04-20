@@ -5,7 +5,7 @@ const router = express.Router();
 const controller = require("../controllers/items.controller");
 
 router.post("/import-excel", upload.single("file"), controller.importExcel);
-
+router.delete("/clear-all", controller.clearItems);
 router.get("/", controller.getItems);
 router.get("/:id", controller.getItemById);
 router.post("/", controller.createItem);

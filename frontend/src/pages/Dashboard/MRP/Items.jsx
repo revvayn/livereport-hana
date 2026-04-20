@@ -149,6 +149,32 @@ export default function Items() {
     }
   };
 
+  const handleClearData = async () => {
+    const confirm = await Swal.fire({
+      title: "Kosongkan Semua Data?",
+      text: "Tindakan ini akan menghapus SELURUH data packing dan tidak dapat dibatalkan!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33", // Warna merah untuk bahaya
+      cancelButtonColor: "#0f172a",
+      confirmButtonText: "Ya, Hapus Semua!",
+      cancelButtonText: "Batal"
+    });
+
+    if (confirm.isConfirmed) {
+      try {
+        setLoading(true);
+        await api.delete("/items/clear-all");
+        fetchItems(); // Refresh list
+        Swal.fire("Berhasil", "Semua data packing telah dihapus", "success");
+      } catch (err) {
+        Swal.fire("Gagal", "Tidak dapat membersihkan data", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -166,6 +192,14 @@ export default function Items() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button
+              onClick={handleClearData}
+              disabled={loading || items.length === 0}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg text-sm font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 size={18} />
+              <span>Clear Data</span>
+            </button>
             <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold cursor-pointer transition-all active:scale-95 shadow-sm">
               <PlusCircle size={18} />
               <span>Import Excel</span>

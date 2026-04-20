@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { 
-  UserPlus, Search, Edit2, Trash2, Users, Loader2, 
-  PlusCircle, X, ChevronLeft, ChevronRight 
+import {
+  UserPlus, Search, Edit2, Trash2, Users, Loader2,
+  PlusCircle, X, ChevronLeft, ChevronRight
 } from "lucide-react";
 
 export default function Customers() {
@@ -12,11 +12,11 @@ export default function Customers() {
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  
+
   // --- State Paginasi ---
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 10; 
+  const limit = 10;
 
   // Fungsi ambil data (Ambil semua data sekaligus)
   const fetchCustomers = async () => {
@@ -34,8 +34,8 @@ export default function Customers() {
     }
   };
 
-  useEffect(() => { 
-    fetchCustomers(); 
+  useEffect(() => {
+    fetchCustomers();
   }, []);
 
   // --- Logika Filter & Paginasi Frontend ---
@@ -131,7 +131,31 @@ export default function Customers() {
       e.target.value = "";
     }
   };
+  const handleClearData = async () => {
+    const confirm = await Swal.fire({
+      title: "Kosongkan Semua Data?",
+      text: "Tindakan ini akan menghapus SELURUH data customer dan tidak dapat dibatalkan!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33", // Warna merah untuk bahaya
+      cancelButtonColor: "#0f172a",
+      confirmButtonText: "Ya, Hapus Semua!",
+      cancelButtonText: "Batal"
+    });
 
+    if (confirm.isConfirmed) {
+      try {
+        setLoading(true);
+        await api.delete("/customers/clear-all");
+        fetchCustomers(); // Refresh list
+        Swal.fire("Berhasil", "Semua data customer telah dihapus", "success");
+      } catch (err) {
+        Swal.fire("Gagal", "Tidak dapat membersihkan data", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -149,6 +173,14 @@ export default function Customers() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button
+              onClick={handleClearData}
+              disabled={loading || customers.length === 0}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg text-sm font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 size={18} />
+              <span>Clear Data</span>
+            </button>
             <label className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold cursor-pointer transition-all shadow-sm active:scale-95 whitespace-nowrap">
               {loading ? <Loader2 className="animate-spin" size={18} /> : <PlusCircle size={18} />}
               <span>Upload Excel</span>
@@ -203,9 +235,9 @@ export default function Customers() {
                 {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE DATA" : "SIMPAN"}
               </button>
               {editId && (
-                <button 
-                  type="button" 
-                  onClick={() => { setEditId(null); setForm({customer_code:"", customer_name:""}); }}
+                <button
+                  type="button"
+                  onClick={() => { setEditId(null); setForm({ customer_code: "", customer_name: "" }); }}
                   className="px-4 py-2.5 bg-slate-100 text-slate-500 rounded-lg text-sm font-bold hover:bg-slate-200"
                 >
                   BATAL
@@ -259,7 +291,7 @@ export default function Customers() {
               Halaman <span className="text-slate-900 font-bold">{currentPage}</span> dari <span className="text-slate-900 font-bold">{totalPages}</span>
               <span className="ml-2">({filteredCustomers.length} Total Data)</span>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -268,7 +300,7 @@ export default function Customers() {
               >
                 <ChevronLeft size={18} />
               </button>
-              
+
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages || loading}

@@ -148,6 +148,18 @@ exports.deleteFinishing = async (req, res) => {
   }
 };
 
+exports.clearFinishing = async (req, res) => {
+  try {
+    // RESTART IDENTITY akan mereset sequence ID kembali ke 1
+    // CASCADE jika ada tabel lain yang bergantung pada data customer
+    await pool.query("TRUNCATE TABLE item_finishing RESTART IDENTITY CASCADE");
+    res.json({ message: "Semua data finishing berhasil dibersihkan" });
+  } catch (err) {
+    console.error("Clear Data Error:", err);
+    res.status(500).json({ error: "Gagal membersihkan data finishing" });
+  }
+};
+
 
 /* ==================== GENERATE LOGIC (STRICT BY ITEM_CODE RELATION) ==================== */
 

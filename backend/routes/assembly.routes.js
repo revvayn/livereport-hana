@@ -8,14 +8,15 @@ const assemblyController = require('../controllers/assembly.controller'); // Pas
 router.get('/pannel', assemblyController.getAllPannel); 
 router.post('/pannel', assemblyController.createPannel);
 router.put('/pannel/:id', assemblyController.updatePannel);
+router.delete("/pannel/clear-all", assemblyController.clearPannel);
 router.delete('/pannel/:id', assemblyController.deletePannel);
-
 router.post('/pannel/import-excel', upload.single("file"), assemblyController.importExcelPannel);
 
 // === GROUP 2: ASSEMBLY CORE
 router.get('/core', assemblyController.getAllCore); 
 router.post('/core', assemblyController.createCore);
 router.put('/core/:id', assemblyController.updateCore);
+router.delete("/core/clear-all", assemblyController.clearCore);
 router.delete('/core/:id', assemblyController.deleteCore);
 
 router.post('/core/import-excel', upload.single("file"), assemblyController.importExcelCore);

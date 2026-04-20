@@ -143,3 +143,16 @@ exports.importExcelCustomers = async (req, res) => {
     res.status(500).json({ error: "Gagal import data customer" });
   }
 };
+
+// DELETE all customers (Clear Data)
+exports.clearCustomers = async (req, res) => {
+  try {
+    // RESTART IDENTITY akan mereset sequence ID kembali ke 1
+    // CASCADE jika ada tabel lain yang bergantung pada data customer
+    await pool.query("TRUNCATE TABLE customers RESTART IDENTITY CASCADE");
+    res.json({ message: "Semua data customer berhasil dibersihkan" });
+  } catch (err) {
+    console.error("Clear Data Error:", err);
+    res.status(500).json({ error: "Gagal membersihkan data customer" });
+  }
+};

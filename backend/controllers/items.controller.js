@@ -159,3 +159,16 @@ exports.importExcel = async (req, res) => {
     res.status(500).json({ error: "Gagal memproses import Excel" });
   }
 };
+
+// DELETE all customers (Clear Data)
+exports.clearItems = async (req, res) => {
+  try {
+    // RESTART IDENTITY akan mereset sequence ID kembali ke 1
+    // CASCADE jika ada tabel lain yang bergantung pada data customer
+    await pool.query("TRUNCATE TABLE items RESTART IDENTITY CASCADE");
+    res.json({ message: "Semua data packing berhasil dibersihkan" });
+  } catch (err) {
+    console.error("Clear Data Error:", err);
+    res.status(500).json({ error: "Gagal membersihkan data packing" });
+  }
+};

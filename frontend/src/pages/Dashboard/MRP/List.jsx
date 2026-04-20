@@ -41,7 +41,7 @@ export default function List() {
         return n;
     };
 
-    const buildCalendar = (startDate, days = 14) => {
+    const buildCalendar = (startDate, days = 30) => {
         return Array.from({ length: days }, (_, i) => {
             const currentDate = addDays(startDate, i);
             return {
@@ -83,8 +83,8 @@ export default function List() {
 
             // Rentang 14 hari: H-13 sampai Hari H Delivery
             const deliveryDate = new Date(header.delivery_date);
-            const startDate = addDays(deliveryDate, -13);
-            const calendarTemplate = buildCalendar(startDate, 14);
+            const startDate = addDays(deliveryDate, -29);
+            const calendarTemplate = buildCalendar(startDate, 30);
 
             const mappedItems = allItems.map((it) => {
                 const dbSchedule = robustParse(it.production_schedule);
