@@ -220,7 +220,7 @@ exports.importExcel = async (req, res) => {
 
     const workbook = XLSX.read(req.file.buffer, { 
       type: "buffer",
-      cellDates: false, // UBAH KE FALSE: Ambil angka serial mentah Excel
+      cellDates: false, 
       cellNF: false,
       cellText: false
     });
@@ -234,7 +234,7 @@ exports.importExcel = async (req, res) => {
 
     const clearedSalesOrders = new Set();
     let successCount = 0;
-    let skipCount = 0;
+    let itemNotFoundCount = 0;
 
     for (const row of data) {
       const { 
@@ -247,46 +247,23 @@ exports.importExcel = async (req, res) => {
         pcs 
       } = row;
 
-      if (!so_number || !item_code || !customer_code) {
-        skipCount++;
-        continue;
-      }
+      // Tetap skip jika data identitas utama (SO Number / Customer) kosong sama sekali
+      if (!so_number || !customer_code) continue;
 
-      // Gunakan fungsi parse yang sudah diupdate ke UTC/Serial logic
       const formattedSoDate = parseExcelDate(so_date);
       const formattedDelivDate = parseExcelDate(delivery_date);
-
       const finalSoDate = formattedSoDate || new Date().toISOString().split('T')[0];
 
-      // --- LOGIKA DATABASE TETAP SAMA ---
+      // 1. Cari Customer ID
       const custRes = await client.query("SELECT id FROM customers WHERE customer_code = $1", [customer_code]);
       const customer_id = custRes.rows[0]?.id;
 
       if (!customer_id) {
-        skipCount++;
+        console.warn(`Customer ${customer_code} tidak ditemukan, SO ${so_number} dilewati.`);
         continue;
       }
 
-      const itemRes = await client.query(`
-        SELECT i.id, 
-               MAX(COALESCE(b.quantity, 0) / NULLIF(COALESCE(b.qtypcs_item, 0), 0)) as ratio
-        FROM items i
-        LEFT JOIN bill_of_materials b ON i.item_code = b.product_item
-        WHERE i.item_code = $1
-        GROUP BY i.id`, 
-        [item_code]
-      );
-
-      if (itemRes.rows.length === 0) {
-        skipCount++;
-        continue; 
-      }
-
-      const item_id = itemRes.rows[0].id;
-      const ratio = parseFloat(itemRes.rows[0].ratio) || 0;
-      const inputPcs = parseInt(pcs) || 0;
-      const quantity_m3 = parseFloat((inputPcs * ratio).toFixed(6));
-
+      // 2. Upsert Header SO (Selalu jalankan ini agar Header tetap terbuat/update)
       const soRes = await client.query(
         `INSERT INTO sales_orders (so_number, so_date, customer_id, delivery_date, status)
          VALUES ($1, $2, $3, $4, $5)
@@ -301,15 +278,40 @@ exports.importExcel = async (req, res) => {
       );
       const sales_order_id = soRes.rows[0].id;
 
+      // 3. Bersihkan detail lama (hanya sekali per nomor SO)
       if (!clearedSalesOrders.has(sales_order_id)) {
         await client.query("DELETE FROM sales_order_items WHERE sales_order_id = $1", [sales_order_id]);
         clearedSalesOrders.add(sales_order_id);
       }
 
+      // 4. Cari Item ID
+      const itemRes = await client.query(`
+        SELECT i.id, 
+               MAX(COALESCE(b.quantity, 0) / NULLIF(COALESCE(b.qtypcs_item, 0), 0)) as ratio
+        FROM items i
+        LEFT JOIN bill_of_materials b ON i.item_code = b.product_item
+        WHERE i.item_code = $1
+        GROUP BY i.id`, 
+        [item_code]
+      );
+
+      let item_id = itemRes.rows[0]?.id;
+      let ratio = parseFloat(itemRes.rows[0]?.ratio) || 0;
+      let inputPcs = parseInt(pcs) || 0;
+      let quantity_m3 = parseFloat((inputPcs * ratio).toFixed(6));
+
+      if (!item_id) {
+        console.warn(`Item ${item_code} tidak ditemukan. Mengunggah tanpa relasi item (NULL).`);
+        itemNotFoundCount++;
+        // Jika kolom item_id di database bersifat NOT NULL, 
+        // baris ini akan menyebabkan error dan masuk ke catch (Rollback).
+      }
+
+      // 5. Insert Detail Item (Tetap insert, item_id bisa null jika DB mengizinkan)
       await client.query(
         `INSERT INTO sales_order_items (sales_order_id, item_id, pcs, quantity)
          VALUES ($1, $2, $3, $4)`,
-        [sales_order_id, item_id, inputPcs, quantity_m3]
+        [sales_order_id, item_id || null, inputPcs, quantity_m3]
       );
       
       successCount++;
@@ -318,11 +320,13 @@ exports.importExcel = async (req, res) => {
     await client.query("COMMIT");
     res.json({ 
       success: true, 
-      message: `Import selesai. ${successCount} baris berhasil, ${skipCount} baris dilewati.` 
+      message: `Import selesai. ${successCount} baris diproses.`,
+      info: itemNotFoundCount > 0 ? `${itemNotFoundCount} item tidak ditemukan di master tapi tetap diunggah.` : "Semua item ditemukan."
     });
 
   } catch (err) {
     if (client) await client.query("ROLLBACK");
+    console.error("Import Error:", err);
     res.status(500).json({ error: "Gagal import: " + err.message });
   } finally {
     client.release();
