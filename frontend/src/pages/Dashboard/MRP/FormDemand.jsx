@@ -356,7 +356,7 @@ export default function FormDemand() {
             <input type="date" className="border border-blue-200 p-2 rounded text-sm" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
           </div>
           <div className="flex flex-col">
-            <label className="text-xs font-bold text-orange-600 mb-1 uppercase">Tanggal Produksi</label>
+            <label className="text-xs font-bold text-orange-600 mb-1 uppercase">Selesai Produksi</label>
             <input type="date" className="border border-orange-200 p-2 rounded text-sm" value={header.productionDate} onChange={(e) => updateHeader("productionDate", e.target.value)} />
           </div>
         </div>
