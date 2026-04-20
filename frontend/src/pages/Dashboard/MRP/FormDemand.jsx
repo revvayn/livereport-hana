@@ -67,15 +67,31 @@ const getTotalPlottedQty = (calendar) => {
 };
 
 /* ================= LOGIC: CUMULATIVE BACKWARD PLOTTING ================= */
-const autoPlotGlobalBackward = (items, deliveryDate, holidays = []) => {
-  if (!deliveryDate || items.length === 0) return items;
+const autoPlotGlobalBackward = (items, deliveryDate, productionDate, holidays = []) => {
+  if (!deliveryDate || !productionDate || items.length === 0) return items;
 
+  // 1. Bangun kalender standar (14 hari ke belakang dari deliveryDate)
   let updatedItems = items.map((it) => ({
     ...it,
     calendar: buildCalendar(new Date(deliveryDate + "T00:00:00"), 14),
   }));
 
-  let currentDayIdx = 12; // Mulai dari H-1 Delivery
+  // 2. Tentukan indeks "Start" untuk plotting berdasarkan productionDate
+  // Kita cari tanggal di kalender yang sama dengan productionDate
+  const prodDateStr = productionDate;
+
+  // Asumsi: productionDate biasanya lebih awal atau sama dengan deliveryDate
+  // Kita cari index di calendar yang match dengan productionDate
+  let startDayIdx = updatedItems[0].calendar.findIndex(d => d.date === prodDateStr);
+
+  // Jika productionDate di luar jangkauan 14 hari, default ke hari terakhir (delivery date) 
+  // atau beri proteksi agar tidak error
+  if (startDayIdx === -1) {
+    // Jika tidak ketemu, kita mulai dari index 12 (H-1 Delivery) seperti sebelumnya
+    startDayIdx = 12;
+  }
+
+  let currentDayIdx = startDayIdx;
   let currentShift = 3;
 
   updatedItems.forEach((item) => {
@@ -86,9 +102,9 @@ const autoPlotGlobalBackward = (items, deliveryDate, holidays = []) => {
 
     let currentPlotted = 0;
 
+    // Plotting mundur mulai dari currentDayIdx (Production Date)
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
       const dateString = item.calendar[currentDayIdx].date;
-      const dateObj = new Date(dateString);
       const isHoliday = (holidays || []).includes(dateString);
 
       if (isHoliday) {
@@ -174,8 +190,10 @@ export default function FormDemand() {
         capacity_per_shift: Number(it.capacity_per_shift || 0),
       }));
 
+      const targetStartPoint = newHeader.productionDate || newHeader.deliveryDate;
+
       if (newHeader.deliveryDate && initialItems.length > 0) {
-        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate, holidays));
+        setItems(autoPlotGlobalBackward(initialItems, newHeader.deliveryDate, targetStartPoint, holidays));
       } else {
         setItems(initialItems);
       }
@@ -190,8 +208,15 @@ export default function FormDemand() {
     setItems(prev => {
       const newList = [...prev];
       newList[idx] = { ...newList[idx], [field]: value };
+      
+      // PERBAIKAN: Sertakan header.productionDate agar plotting tetap dari tgl produksi
       if (field === "pcs" || field === "capacity_per_shift") {
-        return autoPlotGlobalBackward(newList, header.deliveryDate, holidays);
+        return autoPlotGlobalBackward(
+          newList, 
+          header.deliveryDate, 
+          header.productionDate, // Parameter ini yang sebelumnya kurang
+          holidays
+        );
       }
       return newList;
     });
@@ -200,8 +225,11 @@ export default function FormDemand() {
   const updateHeader = (k, v) => {
     setHeader(prev => {
       const nextHeader = { ...prev, [k]: v };
-      if (k === "deliveryDate") {
-        setItems(oldItems => autoPlotGlobalBackward(oldItems, v, holidays));
+      // Jika deliveryDate ATAU productionDate berubah, hitung ulang
+      if (k === "deliveryDate" || k === "productionDate") {
+        setItems(oldItems => 
+          autoPlotGlobalBackward(oldItems, nextHeader.deliveryDate, nextHeader.productionDate, holidays)
+        );
       }
       return nextHeader;
     });
@@ -243,7 +271,7 @@ export default function FormDemand() {
     setItems(prev => {
       const newList = [...prev];
       const item = newList[itemIdx];
-      
+
       const currentTotal = getTotalPlottedQty(item.calendar);
       const currentVal = item.calendar[dayIdx].shifts[shift].qty;
       const newTotal = currentTotal - currentVal + valNum;
@@ -324,7 +352,7 @@ export default function FormDemand() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Estimasi Kirim</label>
+            <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Estimasi Finish</label>
             <input type="date" className="border border-blue-200 p-2 rounded text-sm" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
           </div>
           <div className="flex flex-col">
@@ -366,12 +394,20 @@ export default function FormDemand() {
               {item.calendar.map((d, idx) => {
                 const isHoliday = (holidays || []).includes(d.date);
                 const isShip = header.deliveryDate && d.date === header.deliveryDate;
-
+                const isProdStart = header.productionDate && d.date === header.productionDate; // Tambahkan ini
+                
                 return (
-                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] ${isHoliday ? 'bg-red-50 border-red-200' : isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-gray-200 bg-white'}`}>
-                    <div className={`text-center font-bold mb-1 border-b pb-1 ${isHoliday ? 'text-red-600' : isShip ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] 
+                    ${isHoliday ? 'bg-red-50 border-red-200' : 
+                      isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 
+                      isProdStart ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500' : // Warna Orange untuk Prod Date
+                      'border-gray-200 bg-white'}`}>
+                    
+                    <div className={`text-center font-bold mb-1 border-b pb-1 
+                      ${isHoliday ? 'text-red-600' : isShip ? 'text-blue-700' : isProdStart ? 'text-orange-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
-                      {isShip && <span className="block text-[9px] font-black uppercase">📦 Barang Siap Kirim</span>}
+                      {isShip && <span className="block text-[9px] font-black uppercase">📦 Finish</span>}
+                      {isProdStart && <span className="block text-[9px] font-black uppercase">🚀 Finish Prod</span>}
                       {(isHoliday) && <span className="block text-[8px] uppercase">❌ LIBUR</span>}
                     </div>
 

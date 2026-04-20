@@ -305,7 +305,7 @@ export default function List() {
                                             return (
                                                 <th key={i} colSpan="3" className={`border-r border-slate-700 p-2 text-center min-w-[120px] ${isLastDay ? 'bg-red-600' : 'bg-slate-700'}`}>
                                                     <div className="text-[10px]">{new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</div>
-                                                    {isLastDay && <span className="text-[8px] block mt-1 bg-white/20 rounded">ESTIMASI SELESAI</span>}
+                                                    {isLastDay && <span className="text-[8px] block mt-1 bg-white/20 rounded">DELIVERY</span>}
                                                 </th>
                                             );
                                         })}
