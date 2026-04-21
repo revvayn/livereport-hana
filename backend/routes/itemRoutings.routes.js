@@ -6,6 +6,7 @@ const controller = require("../controllers/itemRoutings.controller");
 
 router.get("/", controller.getItemRoutings); // Baris ini biasanya penyebabnya jika getItemRoutings undefined
 router.post("/", controller.createItemRouting);
+router.delete("/clear-all", controller.clearItemRouting);
 router.put("/:id", controller.updateItemRouting);
 router.delete("/:id", controller.deleteItemRouting);
 

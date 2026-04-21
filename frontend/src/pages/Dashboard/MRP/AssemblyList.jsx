@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
-import { Search, Calendar, FilterX, Trash2 } from "lucide-react"; // Tambahkan icon pendukung
+import { Search, Calendar, FilterX, Trash2, ChevronLeft, ChevronRight } from "lucide-react"; 
 
 export default function AssemblyList() {
   /* ================= STATE ================= */
@@ -13,9 +13,12 @@ export default function AssemblyList() {
   const [activeTab, setActiveTab] = useState('schedule');
   const [bomData, setBomData] = useState({});
 
-  // Tambahan state untuk filter (konsisten dengan FinishingList)
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  /* --- STATE PAGINATION --- */
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   /* ================= HELPERS ================= */
   const toInputDate = (date) => {
@@ -45,7 +48,7 @@ export default function AssemblyList() {
     fetchDemands();
   }, []);
 
-  /* ================= FILTER LOGIC ================= */
+  /* ================= FILTER & PAGINATION LOGIC ================= */
   const filteredDemands = demands.filter((so) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch =
@@ -59,10 +62,22 @@ export default function AssemblyList() {
     return matchesSearch && matchesStart && matchesEnd;
   });
 
+  // Hitung Data Slice untuk Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentDemands = filteredDemands.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredDemands.length / itemsPerPage);
+
   const resetFilter = () => {
     setSearchTerm("");
     setDateRange({ start: "", end: "" });
+    setCurrentPage(1);
   };
+
+  // Reset ke halaman 1 saat pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateRange]);
 
   /* ================= ACTIONS ================= */
   const handleDelete = async (demandId) => {
@@ -118,13 +133,12 @@ export default function AssemblyList() {
   };
 
   const handleGenerateAssembly = async (so) => {
-    // LOGIKA VALIDASI: Cek apakah finishing sudah di-generate
     if (!so.is_finishing_generated) {
       Swal.fire({
         title: "Akses Ditolak",
         text: "Anda harus melakukan Generate Finishing terlebih dahulu sebelum Assembly.",
         icon: "error",
-        confirmButtonColor: "#3b82f6" // Blue-500
+        confirmButtonColor: "#3b82f6"
       });
       return;
     }
@@ -225,7 +239,7 @@ export default function AssemblyList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredDemands.map((so) => (
+                {currentDemands.length > 0 ? currentDemands.map((so) => (
                   <tr key={so.id} className="hover:bg-orange-50/30 transition-colors">
                     <td className="py-4 px-4 font-bold text-orange-600">{so.so_number}</td>
                     <td className="py-4 px-4">{so.customer_name}</td>
@@ -247,9 +261,53 @@ export default function AssemblyList() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="5" className="py-10 text-center text-gray-400 text-xs italic">Data tidak ditemukan</td>
+                  </tr>
+                )}
               </tbody>
             </table>
+
+            {/* --- PAGINATION CONTROLS --- */}
+            {filteredDemands.length > 0 && (
+              <div className="mt-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredDemands.length)} of {filteredDemands.length} Entries
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronLeft size={16} className="text-orange-600" />
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[24px] h-6 text-[10px] font-bold rounded transition-all ${
+                        currentPage === page
+                          ? "bg-orange-600 text-white shadow-sm"
+                          : "text-orange-600 hover:bg-white hover:border-orange-200 border border-transparent"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronRight size={16} className="text-orange-600" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

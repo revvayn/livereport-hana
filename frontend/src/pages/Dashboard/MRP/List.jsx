@@ -15,7 +15,13 @@ export default function List() {
     const [searchTerm, setSearchTerm] = useState("");
     const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
-    // Helper: Membersihkan JSON string yang double-quoted atau bermasalah
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10; 
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, dateRange]);
+
     const robustParse = (data) => {
         if (!data) return [];
         let parsed = data;
@@ -81,7 +87,6 @@ export default function List() {
 
             setSelectedSO(header);
 
-            // Rentang 14 hari: H-13 sampai Hari H Delivery
             const deliveryDate = new Date(header.delivery_date);
             const startDate = addDays(deliveryDate, -29);
             const calendarTemplate = buildCalendar(startDate, 30);
@@ -89,7 +94,6 @@ export default function List() {
             const mappedItems = allItems.map((it) => {
                 const dbSchedule = robustParse(it.production_schedule);
 
-                // Sinkronisasi data DB dengan Template Kalender 14 Hari
                 const synchronizedCalendar = calendarTemplate.map((slot) => {
                     const found = dbSchedule.find(d => d.date === slot.date);
                     return {
@@ -121,24 +125,17 @@ export default function List() {
 
     const exportToExcel = () => {
         if (items.length === 0) return;
-    
-        // 1. Membuat Header Baris Pertama (Nama Kolom Utama & Tanggal)
-        // Kita buat array kosong untuk baris pertama dan kedua (sub-header shift)
+
         const headerRow1 = ["Stage", "Item Code", "Description", "Target PCS"];
-        const headerRow2 = ["", "", "", ""]; // Kosong di bawah info item
-    
+        const headerRow2 = ["", "", "", ""]; 
+
         items[0].calendar.forEach(day => {
             const d = new Date(day.date);
             const dateLabel = `${d.getDate()}/${d.getMonth() + 1}`;
-            
-            // Tambahkan label tanggal di kolom pertama setiap group shift
-            headerRow1.push(dateLabel, "", ""); 
-            
-            // Tambahkan sub-header S3, S1, S2
+            headerRow1.push(dateLabel, "", "");
             headerRow2.push("S3", "S1", "S2");
         });
-    
-        // 2. Mapping Data Baris
+
         const excelData = items.map(item => {
             const rowData = [
                 item.category || "-",
@@ -146,8 +143,7 @@ export default function List() {
                 item.description || "-",
                 item.pcs || 0
             ];
-    
-            // Masukkan data per shift sesuai urutan S3, S1, S2
+
             item.calendar.forEach(day => {
                 rowData.push(
                     Number(day.shifts.shift1?.qty) || 0,
@@ -155,33 +151,30 @@ export default function List() {
                     Number(day.shifts.shift3?.qty) || 0
                 );
             });
-    
+
             return rowData;
         });
-    
-        // 3. Menyusun Sheet
+
         const worksheet = XLSX.utils.aoa_to_sheet([
             [`SALES ORDER: ${selectedSO?.so_number}`],
             [`Customer: ${selectedSO?.customer_name} | Delivery: ${new Date(selectedSO?.delivery_date).toLocaleDateString()}`],
             [],
-            headerRow1, // Baris Tanggal
-            headerRow2, // Baris S3, S1, S2
+            headerRow1,
+            headerRow2,
             ...excelData
         ]);
-    
-        // 4. (Opsional) Menggabungkan Cell Tanggal agar rapi (Merge)
-        // Mulai dari kolom E (index 4), gabungkan setiap 3 kolom
+
         const merges = [];
-        let currentCol = 4; 
+        let currentCol = 4;
         items[0].calendar.forEach(() => {
             merges.push({
-                s: { r: 3, c: currentCol }, // baris ke-4 (index 3)
-                e: { r: 3, c: currentCol + 2 } // gabung 3 kolom ke kanan
+                s: { r: 3, c: currentCol }, 
+                e: { r: 3, c: currentCol + 2 } 
             });
             currentCol += 3;
         });
         worksheet["!merges"] = merges;
-    
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Production_Schedule");
         XLSX.writeFile(workbook, `Matrix_${selectedSO?.so_number}_Detailed.xlsx`);
@@ -196,6 +189,12 @@ export default function List() {
         return matchesSearch && matchesStart && matchesEnd;
     });
 
+    // LOGIKA PAGINATION YANG DIPERBAIKI
+    const totalPages = Math.ceil(filteredDemands.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentDemands = filteredDemands.slice(indexOfFirstItem, indexOfLastItem);
+
     return (
         <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
             {loading && (
@@ -208,7 +207,6 @@ export default function List() {
             )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {/* HEADER SECTION */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-2">
                         <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
@@ -261,28 +259,79 @@ export default function List() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {filteredDemands.map((so) => (
-                                    <tr key={so.id} className="hover:bg-emerald-50/40 transition-colors group">
-                                        <td className="py-4 px-6 font-bold text-emerald-700">{so.so_number}</td>
-                                        <td className="py-4 px-6 text-gray-600 font-medium">{so.customer_name}</td>
-                                        <td className="py-4 px-6 text-center">
-                                            <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full font-mono font-bold text-[11px]">
-                                                {new Date(so.delivery_date).toLocaleDateString("id-ID")}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 px-6 text-right">
-                                            <button onClick={() => handleShowDetail(so)} className="bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm">
-                                                Buka Jadwal
-                                            </button>
-                                        </td>
+                                {currentDemands.length > 0 ? (
+                                    currentDemands.map((so) => (
+                                        <tr key={so.id} className="hover:bg-emerald-50/40 transition-colors group">
+                                            <td className="py-4 px-6 font-bold text-emerald-700">{so.so_number}</td>
+                                            <td className="py-4 px-6 text-gray-600 font-medium">{so.customer_name}</td>
+                                            <td className="py-4 px-6 text-center">
+                                                <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full font-mono font-bold text-[11px]">
+                                                    {new Date(so.delivery_date).toLocaleDateString("id-ID")}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-6 text-right">
+                                                <button onClick={() => handleShowDetail(so)} className="bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-600 hover:text-white px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm">
+                                                    Buka Jadwal
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="4" className="py-10 text-center text-gray-400">Data tidak ditemukan</td>
                                     </tr>
-                                ))}
+                                )}
                             </tbody>
                         </table>
+
+                        {/* PAGINATION CONTROLS DI DALAM VIEW SO */}
+                        {filteredDemands.length > itemsPerPage && (
+                            <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-gray-50">
+                                <div className="text-[11px] text-gray-500 font-medium">
+                                    Menampilkan <span className="text-emerald-600">{indexOfFirstItem + 1}</span> - <span className="text-emerald-600">{Math.min(indexOfLastItem, filteredDemands.length)}</span> dari <span className="text-emerald-600">{filteredDemands.length}</span> SO
+                                </div>
+                                <div className="flex gap-1">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 text-[11px] font-bold border rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                    >
+                                        Prev
+                                    </button>
+
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const pageNum = i + 1;
+                                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 1 && pageNum !== 1 && pageNum !== totalPages) {
+                                            if (pageNum === 2 || pageNum === totalPages - 1) return <span key={pageNum} className="px-2 text-gray-400">...</span>;
+                                            return null;
+                                        }
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={`px-3 py-1 text-[11px] font-bold rounded-lg transition-all ${currentPage === pageNum
+                                                    ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
+                                                    : "border hover:bg-emerald-50 text-gray-600"
+                                                    }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1 text-[11px] font-bold border rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-6 animate-in fade-in duration-500">
-                        {/* Detail SO Header Card */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
                             <div><label className="block text-[9px] font-black text-emerald-600 uppercase mb-1">Customer</label><p className="text-sm font-bold text-slate-800">{selectedSO?.customer_name}</p></div>
                             <div><label className="block text-[9px] font-black text-emerald-600 uppercase mb-1">SO Number</label><p className="text-sm font-bold text-slate-800">{selectedSO?.so_number}</p></div>
@@ -290,7 +339,6 @@ export default function List() {
                             <div className="flex items-center justify-end"><span className="px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black border border-emerald-200">READ ONLY MODE</span></div>
                         </div>
 
-                        {/* Production Matrix Table */}
                         <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-inner bg-white max-h-[65vh]">
                             <table className="w-full text-[10px] border-separate border-spacing-0">
                                 <thead className="sticky top-0 z-50">
@@ -330,7 +378,7 @@ export default function List() {
                                         <tr key={index} className="hover:bg-blue-50/30 transition-colors">
                                             <td className={`border-r p-3 sticky left-0 z-40 font-black text-center text-[9px]
                                                 ${item.category === 'Packing' ? 'bg-blue-50 text-blue-700' :
-                                                  item.category === 'Finishing' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
+                                                    item.category === 'Finishing' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
                                                 {item.category}
                                             </td>
                                             <td className="border-r p-3 sticky left-[100px] bg-white z-40 font-bold text-slate-700 uppercase">{item.itemCode}</td>

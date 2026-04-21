@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
-import { Search, Calendar, FilterX } from "lucide-react"; // Import icon untuk estetika modern
+import { Search, Calendar, FilterX, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function PackingList() {
   const navigate = useNavigate();
@@ -14,9 +14,13 @@ export default function PackingList() {
   const [selectedSO, setSelectedSO] = useState(null);
   const [items, setItems] = useState([]);
   
-  // State baru untuk Filter
+  // State Filter
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  // --- STATE PAGINATION ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // Jumlah baris per halaman
 
   const [header, setHeader] = useState({
     soNo: "",
@@ -73,7 +77,7 @@ export default function PackingList() {
     fetchDemands();
   }, []);
 
-  /* ================= FILTER LOGIC ================= */
+  /* ================= FILTER & PAGINATION LOGIC ================= */
   const filteredDemands = demands.filter((so) => {
     const matchesSearch = 
       so.so_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,10 +90,22 @@ export default function PackingList() {
     return matchesSearch && matchesStart && matchesEnd;
   });
 
+  // Logika Slicing Data untuk Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentDemands = filteredDemands.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredDemands.length / itemsPerPage);
+
   const resetFilter = () => {
     setSearchTerm("");
     setDateRange({ start: "", end: "" });
+    setCurrentPage(1);
   };
+
+  // Reset ke halaman 1 saat user mengetik di pencarian
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateRange]);
 
   /* ================= EVENT HANDLERS ================= */
   const handleShowDetail = async (so) => {
@@ -182,10 +198,8 @@ export default function PackingList() {
             </button>
           )}
 
-          {/* ── FILTER CONTROLS (Hanya muncul di List View) ── */}
           {view === "so" && (
             <div className="flex flex-wrap items-center gap-2">
-              {/* Search Input */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input 
@@ -197,7 +211,6 @@ export default function PackingList() {
                 />
               </div>
 
-              {/* Date Filter */}
               <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
                 <Calendar size={14} className="text-gray-400 mx-1" />
                 <input 
@@ -215,7 +228,6 @@ export default function PackingList() {
                 />
               </div>
 
-              {/* Reset Button */}
               {(searchTerm || dateRange.start || dateRange.end) && (
                 <button 
                   onClick={resetFilter}
@@ -243,8 +255,8 @@ export default function PackingList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredDemands.length > 0 ? (
-                  filteredDemands.map((so) => (
+                {currentDemands.length > 0 ? (
+                  currentDemands.map((so) => (
                     <tr key={so.demand_id} className="hover:bg-emerald-50/30 transition-colors">
                       <td className="py-4 px-4 font-bold text-emerald-700">{so.so_number}</td>
                       <td className="py-4 px-4">{so.customer_name}</td>
@@ -273,30 +285,69 @@ export default function PackingList() {
                 )}
               </tbody>
             </table>
+
+            {/* --- KOMPONEN PAGINATION --- */}
+            {filteredDemands.length > 0 && (
+              <div className="mt-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredDemands.length)} of {filteredDemands.length} entries
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronLeft size={16} className="text-emerald-700" />
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[24px] h-6 text-[10px] font-bold rounded transition-all ${
+                        currentPage === page
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "text-emerald-600 hover:bg-white"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronRight size={16} className="text-emerald-700" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── MATRIX DETAIL VIEW ── (Tetap sama sesuai permintaan) */}
+        {/* ── MATRIX DETAIL VIEW ── */}
         {view === "detail" && (
           <>
-            {/* SUB-HEADER INFO */}
             <div className="grid grid-cols-4 gap-4 mb-6 bg-emerald-50/50 p-4 rounded-lg border border-emerald-100">
-               <div>
+                <div>
                   <label className="block text-[8px] uppercase text-emerald-600 font-bold">SO Date</label>
                   <p className="text-sm font-bold">{new Date(selectedSO?.so_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-[8px] uppercase text-emerald-600 font-bold">Customer</label>
                   <p className="text-sm font-bold">{selectedSO?.customer_name}</p>
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-[8px] uppercase text-emerald-600 font-bold">Delivery Date</label>
                   <p className="text-sm font-bold text-orange-600">{new Date(selectedSO?.delivery_date).toLocaleDateString("id-ID")}</p>
-               </div>
-               <div>
+                </div>
+                <div>
                   <label className="block text-[8px] uppercase text-emerald-600 font-bold">Status</label>
                   <p className="text-sm font-bold text-emerald-700">ACTIVE</p>
-               </div>
+                </div>
             </div>
 
             <div className="overflow-x-auto border rounded-lg shadow-inner bg-gray-50 max-h-[75vh]">
@@ -306,18 +357,10 @@ export default function PackingList() {
                     <th className="border-r border-emerald-500 p-2 sticky left-0 bg-emerald-600 z-40 min-w-[180px] text-left">
                       Item Info
                     </th>
-                    <th className="border-r border-emerald-500 p-2 w-12 text-center bg-emerald-700">
-                      UOM
-                    </th>
-                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-700">
-                      QTY
-                    </th>
-                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-800">
-                      PCS
-                    </th>
-                    <th className="border-r border-emerald-500 p-2 w-20 text-center bg-emerald-900">
-                      Action
-                    </th>
+                    <th className="border-r border-emerald-500 p-2 w-12 text-center bg-emerald-700">UOM</th>
+                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-700">QTY</th>
+                    <th className="border-r border-emerald-500 p-2 w-16 text-center bg-emerald-800">PCS</th>
+                    <th className="border-r border-emerald-500 p-2 w-20 text-center bg-emerald-900">Action</th>
                     {items[0]?.calendar?.map((day, i) => (
                       <th key={i} colSpan="3" className="border-r border-emerald-500 p-1 text-center min-w-[100px]">
                         {new Date(day.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
@@ -326,15 +369,12 @@ export default function PackingList() {
                   </tr>
                   <tr className="bg-emerald-50 text-[8px] text-emerald-800 font-bold">
                     <th className="border p-1 sticky left-0 bg-emerald-50 z-40"></th>
-                    <th className="border"></th>
-                    <th className="border"></th>
-                    <th className="border"></th>
-                    <th className="border"></th>
+                    <th className="border"></th><th className="border"></th><th className="border"></th><th className="border"></th>
                     {items[0]?.calendar?.map((_, i) => (
                       <React.Fragment key={i}>
-                        <th className="border py-1">S3</th>
-                        <th className="border py-1">S1</th>
-                        <th className="border py-1">S2</th>
+                        <th className="border py-1 text-center">S3</th>
+                        <th className="border py-1 text-center">S1</th>
+                        <th className="border py-1 text-center">S2</th>
                       </React.Fragment>
                     ))}
                   </tr>
@@ -342,14 +382,8 @@ export default function PackingList() {
                 <tbody>
                   {items.map((item, index) => {
                     const totalInput = item.calendar?.reduce(
-                      (sum, day) =>
-                        sum +
-                        (Number(day.shifts.shift1.qty) || 0) +
-                        (Number(day.shifts.shift2.qty) || 0) +
-                        (Number(day.shifts.shift3.qty) || 0),
-                      0
+                      (sum, day) => sum + (Number(day.shifts.shift1.qty) || 0) + (Number(day.shifts.shift2.qty) || 0) + (Number(day.shifts.shift3.qty) || 0), 0
                     ) || 0;
-
                     const sisa = Number(item.pcs) - totalInput;
 
                     return (
@@ -362,12 +396,8 @@ export default function PackingList() {
                           </div>
                         </td>
                         <td className="border text-center text-gray-500">{item.uom}</td>
-                        <td className="border text-center font-mono text-emerald-600 bg-gray-50/50">
-                          {item.qty}
-                        </td>
-                        <td className="border text-center font-bold bg-emerald-50/30 text-emerald-800">
-                          {item.pcs}
-                        </td>
+                        <td className="border text-center font-mono text-emerald-600 bg-gray-50/50">{item.qty}</td>
+                        <td className="border text-center font-bold bg-emerald-50/30 text-emerald-800">{item.pcs}</td>
                         <td className="border text-center">
                           <button
                             onClick={() => navigate(`/dashboard/production/kalender/${item.itemId}`)}
@@ -380,15 +410,12 @@ export default function PackingList() {
                           ["shift1", "shift2", "shift3"].map((s) => {
                             const qty = day.shifts[s].qty || 0;
                             return (
-                              <td
-                                key={`${dIdx}-${s}`}
-                                className={`border p-0 text-center transition-all ${qty > 0 ? "bg-emerald-600 text-white" : "bg-white"}`}
-                              >
+                              <td key={`${dIdx}-${s}`} className={`border p-0 text-center ${qty > 0 ? "bg-emerald-600 text-white" : "bg-white"}`}>
                                 <input
                                   type="number"
                                   value={qty || ""}
                                   onChange={(e) => handleQtyChange(index, dIdx, s, e.target.value)}
-                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${qty > 0 ? "placeholder-emerald-200" : "placeholder-gray-300"}`}
+                                  className={`w-full h-8 text-center bg-transparent outline-none text-[10px] font-bold ${qty > 0 ? "placeholder-emerald-200 text-white" : "text-gray-700 placeholder-gray-300"}`}
                                   placeholder="0"
                                 />
                               </td>

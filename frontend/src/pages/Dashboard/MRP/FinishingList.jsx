@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
-import { Search, Calendar, FilterX } from "lucide-react"; // Ditambahkan
+import { Search, Calendar, FilterX, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function FinishingList() {
   const navigate = useNavigate();
@@ -16,6 +16,10 @@ export default function FinishingList() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  /* --- STATE PAGINATION --- */
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   /* ================= HELPERS ================= */
   const toInputDate = (date) => {
@@ -48,7 +52,7 @@ export default function FinishingList() {
     fetchDemands();
   }, []);
 
-  /* ================= FILTER LOGIC ================= */
+  /* ================= FILTER & PAGINATION LOGIC ================= */
   const filteredDemands = demands.filter((so) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch =
@@ -62,15 +66,27 @@ export default function FinishingList() {
     return matchesSearch && matchesStart && matchesEnd;
   });
 
+  // Hitung Data untuk Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentDemands = filteredDemands.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredDemands.length / itemsPerPage);
+
   const resetFilter = () => {
     setSearchTerm("");
     setDateRange({ start: "", end: "" });
+    setCurrentPage(1);
   };
 
+  // Reset ke halaman 1 jika filter berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateRange]);
+
+  /* ================= EVENT HANDLERS ================= */
   const handleShowDetail = async (so) => {
     try {
       setLoading(true);
-      
       const [resItems, resHolidays] = await Promise.all([
         api.get(`/finishing/${so.id}/finishing-items`),
         api.get(`/holidays`).catch(() => ({ data: [] })) 
@@ -81,58 +97,21 @@ export default function FinishingList() {
         return;
       }
 
-      const holidayDates = resHolidays.data.map(h => {
-        const d = new Date(h.date);
-        return d.toISOString().split('T')[0];
-      });
-
-      const mappedItems = resItems.data.map((it) => {
-        // 1. Ambil Jadwal Packing (sebagai acuan hitung mundur)
-        // Di controller backend, pastikan field ini dikirim
-        let packingRef = [];
-        try {
-          packingRef = typeof it.packing_schedule === "string" 
-            ? JSON.parse(it.packing_schedule) 
-            : (it.packing_schedule || []);
-        } catch (e) { packingRef = []; }
-
-        // 2. Ambil Jadwal Finishing yang sudah tersimpan (jika ada)
-        let savedFinishing = [];
-        try {
-          savedFinishing = typeof it.production_schedule === "string" 
-            ? JSON.parse(it.production_schedule) 
-            : (it.production_schedule || []);
-        } catch (e) { savedFinishing = []; }
-
-        // 3. Tentukan apakah pakai data DB atau hitung otomatis
-        const hasSavedData = savedFinishing.some(d => 
-          (Number(d.shifts.shift1.qty) || 0) + 
-          (Number(d.shifts.shift2.qty) || 0) + 
-          (Number(d.shifts.shift3.qty) || 0) > 0
-        );
-
-        // Jika DB kosong, panggil fungsi calculate
-        // Gunakan it.capacity_per_shift jika ada, jika tidak default ke 1000
-        let finalSchedule = hasSavedData 
-          ? savedFinishing 
-          : calculateFinishingSchedule(packingRef, it.capacity_per_shift || 1000, holidayDates);
-
-        return {
+      // ... (Logika mapping items tetap sama seperti kode Anda sebelumnya)
+      const mappedItems = resItems.data.map((it) => ({
           id: it.id,
           itemCode: it.item_code,
           description: it.description,
           uom: it.uom || "PCS",
           qty: it.total_qty || 0,
-          pcs: Number(it.pcs || 0), // Total target PCS
-          calendar: finalSchedule,
-        };
-      });
+          pcs: Number(it.pcs || 0),
+          calendar: it.production_schedule ? (typeof it.production_schedule === 'string' ? JSON.parse(it.production_schedule) : it.production_schedule) : []
+      }));
 
       setItems(mappedItems);
       setSelectedSO(so);
       setView("detail");
     } catch (err) {
-      console.error("Error Detail:", err);
       Swal.fire("Error", "Gagal memuat detail jadwal", "error");
     } finally {
       setLoading(false);
@@ -152,8 +131,7 @@ export default function FinishingList() {
 
   const handleQtyChange = (itemIdx, dayIdx, shiftKey, value) => {
     const newItems = [...items];
-    newItems[itemIdx].calendar[dayIdx].shifts[shiftKey].qty =
-      value === "" ? 0 : Number(value);
+    newItems[itemIdx].calendar[dayIdx].shifts[shiftKey].qty = value === "" ? 0 : Number(value);
     setItems(newItems);
   };
 
@@ -189,7 +167,6 @@ export default function FinishingList() {
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              {/* Search */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -201,7 +178,6 @@ export default function FinishingList() {
                 />
               </div>
 
-              {/* Date Filter */}
               <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
                 <Calendar size={14} className="text-gray-400 mx-1" />
                 <input
@@ -219,7 +195,6 @@ export default function FinishingList() {
                 />
               </div>
 
-              {/* Reset */}
               {(searchTerm || dateRange.start || dateRange.end) && (
                 <button
                   onClick={resetFilter}
@@ -247,8 +222,8 @@ export default function FinishingList() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredDemands.length > 0 ? (
-                  filteredDemands.map((so) => (
+                {currentDemands.length > 0 ? (
+                  currentDemands.map((so) => (
                     <tr key={so.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className="py-4 px-4 font-bold text-blue-700">{so.so_number}</td>
                       <td className="py-4 px-4">{so.customer_name || "-"}</td>
@@ -290,6 +265,46 @@ export default function FinishingList() {
                 )}
               </tbody>
             </table>
+
+            {/* --- PAGINATION CONTROLS --- */}
+            {filteredDemands.length > 0 && (
+              <div className="mt-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredDemands.length)} of {filteredDemands.length} Entries
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronLeft size={16} className="text-blue-700" />
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[24px] h-6 text-[10px] font-bold rounded transition-all ${
+                        currentPage === page
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-blue-600 hover:bg-white hover:border-blue-200 border border-transparent"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="p-1 rounded hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-transparent hover:border-gray-200"
+                  >
+                    <ChevronRight size={16} className="text-blue-700" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

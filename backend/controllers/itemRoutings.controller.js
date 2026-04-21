@@ -125,3 +125,25 @@ exports.uploadExcel = async (req, res) => {
     res.status(500).json({ error: "Gagal memproses file: " + err.message });
   }
 };
+
+exports.clearItemRouting = async (req, res) => {
+  try {
+    // TRUNCATE aman digunakan di sini karena tabel ini adalah tabel anak
+    // RESTART IDENTITY akan mereset sequence 'item_routings_id_seq'
+    await pool.query("TRUNCATE TABLE item_routings RESTART IDENTITY");
+
+    res.json({ 
+      success: true,
+      message: "Semua data item routing berhasil dibersihkan dan ID telah direset." 
+    });
+  } catch (err) {
+    // Log error spesifik di server untuk kebutuhan debugging
+    console.error("Error pada clearItemRouting:", err.message);
+
+    res.status(500).json({ 
+      success: false,
+      error: "Gagal membersihkan data item routing.",
+      message: err.message 
+    });
+  }
+};
