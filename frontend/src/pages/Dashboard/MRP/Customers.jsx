@@ -292,7 +292,8 @@ export default function Customers() {
               <span className="ml-2">({filteredCustomers.length} Total Data)</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {/* Button Previous */}
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1 || loading}
@@ -301,6 +302,36 @@ export default function Customers() {
                 <ChevronLeft size={18} />
               </button>
 
+              {/* Nomor Halaman */}
+              <div className="flex items-center gap-1 mx-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Logika untuk menyembunyikan halaman jika terlalu banyak (opsional, tapi bagus untuk UX)
+                  if (
+                    totalPages > 5 &&
+                    page !== 1 &&
+                    page !== totalPages &&
+                    Math.abs(page - currentPage) > 1
+                  ) {
+                    if (Math.abs(page - currentPage) === 2) return <span key={page} className="text-slate-400 px-1 text-xs">...</span>;
+                    return null;
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
+                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm"
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Button Next */}
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages || loading}

@@ -3,7 +3,7 @@ import api from "../../../api/api";
 import Swal from "sweetalert2";
 import {
   ShoppingCart, Search, Edit2, Trash2, Loader2, PlusCircle,
-  Package, ClipboardList, Calculator, ArrowRightCircle, 
+  Package, ClipboardList, Calculator, ArrowRightCircle,
   XCircle, ChevronRight
 } from "lucide-react";
 
@@ -14,7 +14,7 @@ export default function SalesOrders() {
   const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  
+
   // --- STATE PAGINATION ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -86,7 +86,7 @@ export default function SalesOrders() {
       } else {
         await api.post("/sales-orders", soForm);
       }
-      
+
       resetSoForm();
       await fetchData();
       Swal.fire({ icon: 'success', title: 'Berhasil disimpan', timer: 1000, showConfirmButton: false });
@@ -152,12 +152,12 @@ export default function SalesOrders() {
 
   const handleItemFormChange = (name, value) => {
     let nextForm = { ...itemForm, [name]: value };
-    
+
     if (name === "item_id") {
       const master = allItems.find(i => Number(i.id) === Number(value));
       nextForm.ratio = master ? parseFloat(master.ratio_bom) : 0;
     }
-    
+
     if (nextForm.pcs && nextForm.ratio) {
       nextForm.quantity = (parseFloat(nextForm.pcs) * nextForm.ratio).toFixed(6);
     } else if (name === "pcs" && !value) {
@@ -262,7 +262,7 @@ export default function SalesOrders() {
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                   {editSoId ? "Mode Edit Header" : "Buat Pesanan Baru"}
+                  {editSoId ? "Mode Edit Header" : "Buat Pesanan Baru"}
                 </h2>
                 {editSoId && (
                   <button onClick={resetSoForm} className="text-[10px] font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded">BATAL EDIT</button>
@@ -278,7 +278,7 @@ export default function SalesOrders() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Customer</label>
-                  <select className="w-full p-2 bg-slate-50 border rounded-lg text-sm outline-none focus:border-slate-900 font-medium" 
+                  <select className="w-full p-2 bg-slate-50 border rounded-lg text-sm outline-none focus:border-slate-900 font-medium"
                     value={soForm.customer_id} onChange={e => setSoForm({ ...soForm, customer_id: e.target.value })} required>
                     <option value="">-- Pilih --</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.customer_name}</option>)}
@@ -287,7 +287,7 @@ export default function SalesOrders() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Status</label>
-                  <select className="w-full p-2 bg-slate-50 border rounded-lg text-sm font-bold outline-none focus:border-slate-900" 
+                  <select className="w-full p-2 bg-slate-50 border rounded-lg text-sm font-bold outline-none focus:border-slate-900"
                     value={soForm.status} onChange={e => setSoForm({ ...soForm, status: e.target.value })}>
                     <option value="OPEN">OPEN</option>
                     <option value="CLOSED">CLOSED</option>
@@ -358,14 +358,55 @@ export default function SalesOrders() {
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase">Halaman {currentPage} dari {totalPages}</span>
-                  <div className="flex gap-1">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-2 py-1 bg-white border rounded text-[10px] font-bold disabled:opacity-50">PREV</button>
-                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-2 py-1 bg-white border rounded text-[10px] font-bold disabled:opacity-50">NEXT</button>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">
+                    Halaman {currentPage} dari {totalPages}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {/* Tombol PREV */}
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => p - 1)}
+                      className="px-2 py-1 bg-white border rounded text-[10px] font-bold disabled:opacity-50 hover:bg-slate-50 transition-colors"
+                    >
+                      PREV
+                    </button>
+
+                    {/* Daftar Nomor Halaman */}
+                    <div className="flex gap-1 mx-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        // Logika sederhana untuk menyembunyikan angka jika terlalu banyak
+                        if (totalPages > 5 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                          if (Math.abs(page - currentPage) === 2) return <span key={page} className="text-[10px] text-slate-400">...</span>;
+                          return null;
+                        }
+
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`w-6 h-6 flex items-center justify-center rounded border text-[10px] font-bold transition-all ${currentPage === page
+                                ? "bg-slate-900 text-white border-slate-900"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                              }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Tombol NEXT */}
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(p => p + 1)}
+                      className="px-2 py-1 bg-white border rounded text-[10px] font-bold disabled:opacity-50 hover:bg-slate-50 transition-colors"
+                    >
+                      NEXT
+                    </button>
                   </div>
                 </div>
               )}
-              
+
               {filteredSO.length === 0 && <div className="p-10 text-center text-slate-400 text-xs italic font-medium">Tidak ada data untuk ditampilkan...</div>}
             </div>
           </div>
@@ -434,7 +475,7 @@ export default function SalesOrders() {
                             const m = allItems.find(x => Number(x.id) === Number(i.item_id));
                             setItemForm({ item_id: i.item_id, pcs: i.pcs, quantity: i.quantity, ratio: m?.ratio_bom || 0 });
                           }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={12} /></button>
-                          
+
                           <button onClick={async () => {
                             const res = await Swal.fire({ title: 'Hapus Item?', text: "Hapus rincian ini?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#0f172a' });
                             if (res.isConfirmed) {
@@ -458,7 +499,7 @@ export default function SalesOrders() {
               <div className="h-full min-h-[400px] flex flex-col items-center justify-center p-12 bg-white rounded-xl border-4 border-dashed border-slate-100 text-slate-300">
                 <ArrowRightCircle size={48} className="opacity-10 mb-4" />
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center leading-relaxed">
-                  Pilih salah satu order<br/>untuk melihat detail item
+                  Pilih salah satu order<br />untuk melihat detail item
                 </p>
               </div>
             )}

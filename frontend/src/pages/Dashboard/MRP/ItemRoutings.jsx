@@ -2,15 +2,15 @@ import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
 import Select from "react-select";
-import { 
-  GitBranch, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Loader2, 
-  PlusCircle, 
-  ChevronLeft, 
-  ChevronRight 
+import {
+  GitBranch,
+  Search,
+  Edit2,
+  Trash2,
+  Loader2,
+  PlusCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -69,7 +69,7 @@ export default function ItemRoutings() {
   const totalPages = Math.ceil(filteredRoutings.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  
+
   // Variabel data yang akan ditampilkan di tabel
   const currentTableData = filteredRoutings.slice(indexOfFirstItem, indexOfLastItem);
 
@@ -222,7 +222,7 @@ export default function ItemRoutings() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button
+            <button
               onClick={handleClearData}
               disabled={loading || routings.length === 0}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg text-sm font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -402,8 +402,9 @@ export default function ItemRoutings() {
                 <span className="mx-2">|</span>
                 Hal <span className="text-slate-900 font-bold">{currentPage}</span> / {totalPages || 1}
               </div>
-              
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-1.5">
+                {/* Tombol Sebelumnya */}
                 <button
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -412,7 +413,40 @@ export default function ItemRoutings() {
                 >
                   <ChevronLeft size={18} />
                 </button>
-                
+
+                {/* Daftar Nomor Halaman */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Logika Ellipsis: Tampilkan hanya jika halaman sedikit atau di sekitar halaman aktif
+                    if (
+                      totalPages > 5 &&
+                      page !== 1 &&
+                      page !== totalPages &&
+                      Math.abs(page - currentPage) > 1
+                    ) {
+                      if (Math.abs(page - currentPage) === 2) {
+                        return <span key={page} className="text-slate-400 px-1 text-xs">...</span>;
+                      }
+                      return null;
+                    }
+
+                    return (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
+                            ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tombol Selanjutnya */}
                 <button
                   type="button"
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}

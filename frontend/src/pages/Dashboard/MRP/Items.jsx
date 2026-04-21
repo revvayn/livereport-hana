@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { 
-  Package, Search, Edit2, Trash2, Loader2, PlusCircle, 
-  Database, Clock, Target, ChevronLeft, ChevronRight, X 
+import {
+  Package, Search, Edit2, Trash2, Loader2, PlusCircle,
+  Database, Clock, Target, ChevronLeft, ChevronRight, X
 } from "lucide-react";
 
 export default function Items() {
@@ -79,7 +79,7 @@ export default function Items() {
         Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ditambahkan', timer: 1000, showConfirmButton: false });
       }
       handleReset();
-      fetchItems(); 
+      fetchItems();
     } catch (err) {
       Swal.fire("Gagal", err.response?.data?.error || "Gagal menyimpan data", "error");
     } finally {
@@ -192,7 +192,7 @@ export default function Items() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button
+            <button
               onClick={handleClearData}
               disabled={loading || items.length === 0}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg text-sm font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -338,20 +338,46 @@ export default function Items() {
               Halaman <span className="text-slate-900 font-bold">{currentPage}</span> dari <span className="text-slate-900 font-bold">{totalPages}</span>
               <span className="ml-2">({filteredItems.length} Total Data)</span>
             </div>
-            
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-1.5">
+              {/* Button Previous */}
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all"
+                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all text-slate-600"
               >
                 <ChevronLeft size={18} />
               </button>
-              
+
+              {/* Nomor Halaman */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Logika sederhana untuk menyembunyikan angka jika terlalu banyak (opsional)
+                  if (totalPages > 7 && Math.abs(page - currentPage) > 2 && page !== 1 && page !== totalPages) {
+                    if (Math.abs(page - currentPage) === 3) return <span key={page} className="text-slate-400 px-0.5">...</span>;
+                    return null;
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
+                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm"
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Button Next */}
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all"
+                className="p-2 rounded-lg border bg-white disabled:opacity-30 shadow-sm hover:bg-slate-50 transition-all text-slate-600"
               >
                 <ChevronRight size={18} />
               </button>

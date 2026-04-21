@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import api from "../../../api/api";
 import Swal from "sweetalert2";
-import { 
-  Cpu, Search, Edit2, Trash2, Loader2, PlusCircle, 
-  Database, Clock, Target, ChevronLeft, ChevronRight, X 
+import {
+  Cpu, Search, Edit2, Trash2, Loader2, PlusCircle,
+  Database, Clock, Target, ChevronLeft, ChevronRight, X
 } from "lucide-react";
 
 export default function AssemblyCore() {
@@ -186,7 +186,7 @@ export default function AssemblyCore() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button
+            <button
               onClick={handleClearData}
               disabled={loading || items.length === 0}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg text-sm font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -261,9 +261,8 @@ export default function AssemblyCore() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full h-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 ${
-                  editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
-                } disabled:opacity-50`}
+                className={`w-full h-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
+                  } disabled:opacity-50`}
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
               </button>
@@ -339,7 +338,8 @@ export default function AssemblyCore() {
               <span className="ml-2 opacity-60">({filteredItems.length} total item)</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {/* Tombol Sebelumnya */}
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
@@ -348,6 +348,38 @@ export default function AssemblyCore() {
                 <ChevronLeft size={18} />
               </button>
 
+              {/* Deretan Nomor Halaman */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Logika sederhana untuk membatasi tampilan nomor jika halaman terlalu banyak
+                  if (
+                    totalPages > 5 &&
+                    page !== 1 &&
+                    page !== totalPages &&
+                    Math.abs(page - currentPage) > 1
+                  ) {
+                    if (Math.abs(page - currentPage) === 2) {
+                      return <span key={page} className="text-slate-400 px-1 text-[10px]">...</span>;
+                    }
+                    return null;
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
+                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tombol Selanjutnya */}
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
