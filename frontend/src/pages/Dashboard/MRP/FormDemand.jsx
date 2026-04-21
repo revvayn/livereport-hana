@@ -208,12 +208,12 @@ export default function FormDemand() {
     setItems(prev => {
       const newList = [...prev];
       newList[idx] = { ...newList[idx], [field]: value };
-      
+
       // PERBAIKAN: Sertakan header.productionDate agar plotting tetap dari tgl produksi
       if (field === "pcs" || field === "capacity_per_shift") {
         return autoPlotGlobalBackward(
-          newList, 
-          header.deliveryDate, 
+          newList,
+          header.deliveryDate,
           header.productionDate, // Parameter ini yang sebelumnya kurang
           holidays
         );
@@ -227,7 +227,7 @@ export default function FormDemand() {
       const nextHeader = { ...prev, [k]: v };
       // Jika deliveryDate ATAU productionDate berubah, hitung ulang
       if (k === "deliveryDate" || k === "productionDate") {
-        setItems(oldItems => 
+        setItems(oldItems =>
           autoPlotGlobalBackward(oldItems, nextHeader.deliveryDate, nextHeader.productionDate, holidays)
         );
       }
@@ -329,35 +329,65 @@ export default function FormDemand() {
     <div className="min-h-screen p-6 bg-white rounded-lg border border-gray-300 w-full overflow-y-auto" onMouseUp={() => setDrag(null)}>
       <h1 className="text-xl font-bold mb-5 pb-2 border-b border-gray-200 text-gray-800">PRODUCTION DEMAND FORM</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="md:col-span-3">
+      {/* SEARCH SECTION - Dibuat memenuhi lebar grid agar sejajar dengan kolom di bawah */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="md:col-span-3"> {/* Menggunakan col-span-3 agar lebarnya sama dengan total 3 kolom di bawahnya */}
           <label className="text-xs font-bold text-gray-600 mb-1 block uppercase">Pilih Sales Order</label>
           <Select
             options={options}
             value={options.find((opt) => opt.value === selectedSO) || null}
             onChange={(selected) => handleSelectSO({ target: { value: selected ? selected.value : "" } })}
-            isSearchable isClearable placeholder="-- Cari SO Number --" className="text-sm"
+            isSearchable
+            isClearable
+            placeholder="-- Cari SO Number --"
+            className="text-sm"
+            styles={{
+              control: (base) => ({
+                ...base,
+                borderColor: '#e5e7eb', // Menyesuaikan dengan border gray-200 agar seragam
+                borderRadius: '0.25rem', // rounded
+              }),
+            }}
           />
         </div>
       </div>
 
+      {/* DATA SECTION */}
       <div className="space-y-4 mb-6">
-        <div className="grid grid-cols-3 gap-4">
+        {/* Row 1: Detail SO - 3 Kolom Sejajar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[{ k: "soNo", l: "SO Number" }, { k: "soDate", l: "Tanggal SO" }, { k: "customer", l: "Customer" }].map((f) => (
             <div key={f.k} className="flex flex-col">
               <label className="text-xs font-bold text-gray-500 mb-1 uppercase">{f.l}</label>
-              <input type="text" className="border border-gray-200 p-2 rounded text-sm bg-gray-50 text-gray-600" value={header[f.k]} readOnly />
+              <input
+                type="text"
+                className="border border-gray-200 p-2 rounded text-sm bg-gray-50 text-gray-600 outline-none"
+                value={header[f.k]}
+                readOnly
+              />
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-4">
+
+        {/* Row 2: Tanggal - 2 Kolom Sejajar (Gunakan md:grid-cols-2 agar memenuhi lebar yang sama) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col">
             <label className="text-xs font-bold text-blue-600 mb-1 uppercase">Tanggal Delivery</label>
-            <input type="date" className="border border-blue-200 p-2 rounded text-sm" value={header.deliveryDate} onChange={(e) => updateHeader("deliveryDate", e.target.value)} />
+            <input
+              type="date"
+              className="border border-blue-200 p-2 rounded text-sm outline-none focus:ring-1 focus:ring-blue-300"
+              value={header.deliveryDate}
+              onChange={(e) => updateHeader("deliveryDate", e.target.value)}
+            />
           </div>
           <div className="flex flex-col">
             <label className="text-xs font-bold text-orange-600 mb-1 uppercase">Selesai Produksi</label>
-            <input type="date" className="border border-orange-200 p-2 rounded text-sm" value={header.productionDate} onChange={(e) => updateHeader("productionDate", e.target.value)} />
+            <input
+              type="date"
+              className="border border-orange-200 p-2 rounded text-sm outline-none focus:ring-1 focus:ring-orange-300"
+              value={header.productionDate}
+              onChange={(e) => updateHeader("productionDate", e.target.value)}
+            />
           </div>
         </div>
       </div>
@@ -395,14 +425,14 @@ export default function FormDemand() {
                 const isHoliday = (holidays || []).includes(d.date);
                 const isShip = header.deliveryDate && d.date === header.deliveryDate;
                 const isProdStart = header.productionDate && d.date === header.productionDate; // Tambahkan ini
-                
+
                 return (
                   <div key={idx} className={`min-w-[130px] border rounded-lg p-2 text-[11px] 
-                    ${isHoliday ? 'bg-red-50 border-red-200' : 
-                      isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 
-                      isProdStart ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500' : // Warna Orange untuk Prod Date
-                      'border-gray-200 bg-white'}`}>
-                    
+                    ${isHoliday ? 'bg-red-50 border-red-200' :
+                      isShip ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' :
+                        isProdStart ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500' : // Warna Orange untuk Prod Date
+                          'border-gray-200 bg-white'}`}>
+
                     <div className={`text-center font-bold mb-1 border-b pb-1 
                       ${isHoliday ? 'text-red-600' : isShip ? 'text-blue-700' : isProdStart ? 'text-orange-700' : 'text-gray-400'}`}>
                       {formatDate(d.date)}
