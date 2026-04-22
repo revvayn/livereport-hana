@@ -267,6 +267,16 @@ export default function Items() {
               >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : (editId ? "UPDATE" : "SIMPAN")}
               </button>
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-bold transition-all active:scale-95 flex items-center justify-center border border-slate-200"
+                  title="Batal Edit"
+                >
+                  <X size={18} />
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -363,8 +373,8 @@ export default function Items() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
-                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm"
                         }`}
                     >
                       {page}

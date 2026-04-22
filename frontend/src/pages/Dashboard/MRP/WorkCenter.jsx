@@ -3,7 +3,7 @@ import api from "../../../api/api";
 import Swal from "sweetalert2";
 import {
   Layout, Search, Edit2, Trash2, Loader2, PlusCircle,
-  Clock, Target, Percent, Calculator, Database
+  Clock, Target, Percent, Calculator, Database, X
 } from "lucide-react";
 
 export default function WorkCenter() {
@@ -248,20 +248,35 @@ export default function WorkCenter() {
             </div>
 
             {/* BARIS 3: Tombol Submit (Full Width) */}
-            <div className="pt-2">
+            <div className="pt-2 flex gap-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-[48px] bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-indigo-100 active:scale-[0.98] flex items-center justify-center gap-2 disabled:bg-slate-300"
+                className={`flex-1 h-[48px] font-bold rounded-xl text-sm transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 disabled:bg-slate-300 text-white ${editId ? "bg-amber-600 hover:bg-amber-700 shadow-amber-100" : "bg-slate-900 hover:bg-slate-800 shadow-indigo-100"
+                  }`}
               >
                 {loading ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : editId ? (
-                  <>Update Operational Data</>
+                  "Update Operational Data"
                 ) : (
-                  <>Simpan Operational Data</>
+                  "Simpan Operational Data"
                 )}
               </button>
+
+              {/* Tombol Batal Edit - Muncul hanya saat mode edit */}
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={loading}
+                  className="px-4 h-[48px] bg-white border-2 border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 font-bold rounded-xl text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
+                  title="Batal Edit"
+                >
+                  <X size={18} />
+                  <span className="hidden sm:inline">Batal</span>
+                </button>
+              )}
             </div>
 
           </form>

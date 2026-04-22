@@ -219,35 +219,82 @@ export default function FinishingItems() {
 
         {/* Form Card */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">{editId ? "Mode Edit Data" : "Input Data Baru"}</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <input
-              type="text" placeholder="KODE"
-              className="px-4 py-2.5 border rounded-lg text-sm font-bold uppercase focus:border-slate-900 outline-none bg-slate-50"
-              value={form.finishing_code}
-              onChange={(e) => setForm({ ...form, finishing_code: e.target.value.toUpperCase() })}
-            />
-            <input
-              type="text" placeholder="Deskripsi Finishing"
-              className="md:col-span-2 px-4 py-2.5 border rounded-lg text-sm focus:border-slate-900 outline-none bg-slate-50"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-            <input
-              type="number" placeholder="Cycle Time (s)"
-              className="px-4 py-2.5 border rounded-lg text-sm focus:border-slate-900 outline-none bg-slate-50"
-              value={form.cycle_time}
-              onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
-            />
-            <input
-              type="text" placeholder="Warehouse"
-              className="px-4 py-2.5 border rounded-lg text-sm font-bold focus:border-slate-900 outline-none uppercase bg-slate-50"
-              value={form.warehouse}
-              onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
-            />
-            <button type="submit" disabled={loading} className={`text-white font-bold rounded-lg transition-all active:scale-95 disabled:opacity-50 ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}>
-              {loading ? <Loader2 className="animate-spin mx-auto" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
-            </button>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            {editId ? <Edit2 size={14} className="text-amber-500" /> : <PlusCircle size={14} />}
+            {editId ? "Mode Edit Data" : "Input Data Baru"}
+          </h2>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch">
+
+            {/* KODE */}
+            <div className="md:col-span-2 flex">
+              <input
+                type="text" placeholder="KODE"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold uppercase focus:border-slate-900 focus:ring-0 outline-none transition-all"
+                value={form.finishing_code}
+                onChange={(e) => setForm({ ...form, finishing_code: e.target.value.toUpperCase() })}
+              />
+            </div>
+
+            {/* DESKRIPSI */}
+            <div className="md:col-span-4 flex">
+              <input
+                type="text" placeholder="Deskripsi Finishing"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-slate-900 focus:ring-0 outline-none transition-all"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+
+            {/* CYCLE TIME */}
+            <div className="md:col-span-2 flex">
+              <input
+                type="number" placeholder="CT (s)"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-slate-900 focus:ring-0 outline-none transition-all font-mono"
+                value={form.cycle_time}
+                onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
+              />
+            </div>
+
+            {/* WAREHOUSE */}
+            <div className="md:col-span-2 flex">
+              <input
+                type="text" placeholder="WAREHOUSE"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:border-slate-900 focus:ring-0 outline-none uppercase transition-all"
+                value={form.warehouse}
+                onChange={(e) => setForm({ ...form, warehouse: e.target.value.toUpperCase() })}
+              />
+            </div>
+
+            {/* SEKSI TOMBOL */}
+            <div className="md:col-span-2 flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex-1 h-11 flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold text-white transition-all shadow-sm active:scale-95 disabled:opacity-50 ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
+                  }`}
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <>
+                    {editId ? <Edit2 size={16} /> : <PlusCircle size={16} />}
+                    <span>{editId ? "UPDATE" : "SIMPAN"}</span>
+                  </>
+                )}
+              </button>
+
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="w-11 h-11 shrink-0 flex items-center justify-center bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 rounded-lg transition-all active:scale-95 shadow-sm"
+                  title="Batal Edit"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -340,8 +387,8 @@ export default function FinishingItems() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
-                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
                         }`}
                     >
                       {page}

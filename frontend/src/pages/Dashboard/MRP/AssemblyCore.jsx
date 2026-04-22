@@ -220,6 +220,12 @@ export default function AssemblyCore() {
 
         {/* --- FORM CARD --- */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          {/* Header Indikator Mode */}
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            {editId ? <Edit2 size={16} className="text-amber-500" /> : <PlusCircle size={16} />}
+            {editId ? "Mode Edit Data" : "Input Data Baru"}
+          </h2>
+
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-2">
               <input
@@ -257,15 +263,33 @@ export default function AssemblyCore() {
                 onChange={(e) => setForm({ ...form, cycle_time: e.target.value })}
               />
             </div>
-            <div className="md:col-span-2">
+
+            {/* Section Tombol Aksi */}
+            <div className="md:col-span-2 flex gap-2">
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full h-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
-                  } disabled:opacity-50`}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-md active:scale-95 disabled:opacity-50 ${editId ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-slate-800"
+                  }`}
               >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : editId ? "UPDATE" : "SIMPAN"}
+                {loading ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <span>{editId ? "UPDATE" : "SIMPAN"}</span>
+                )}
               </button>
+
+              {/* Tombol Batal Edit */}
+              {editId && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-3 py-2.5 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-100 rounded-lg transition-all active:scale-95 shadow-sm flex items-center justify-center"
+                  title="Batal Edit"
+                >
+                  <X size={20} />
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -369,8 +393,8 @@ export default function AssemblyCore() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`min-w-[32px] h-8 text-xs font-bold rounded-lg transition-all border ${currentPage === page
-                          ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
+                        ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-sm"
                         }`}
                     >
                       {page}
