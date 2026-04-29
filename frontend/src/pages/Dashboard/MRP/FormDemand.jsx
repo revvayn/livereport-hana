@@ -70,29 +70,22 @@ const getTotalPlottedQty = (calendar) => {
 const autoPlotGlobalBackward = (items, deliveryDate, productionDate, holidays = []) => {
   if (!deliveryDate || !productionDate || items.length === 0) return items;
 
-  // 1. Bangun kalender standar (14 hari ke belakang dari deliveryDate)
   let updatedItems = items.map((it) => ({
     ...it,
     calendar: buildCalendar(new Date(deliveryDate + "T00:00:00"), 14),
   }));
 
-  // 2. Tentukan indeks "Start" untuk plotting berdasarkan productionDate
-  // Kita cari tanggal di kalender yang sama dengan productionDate
   const prodDateStr = productionDate;
-
-  // Asumsi: productionDate biasanya lebih awal atau sama dengan deliveryDate
-  // Kita cari index di calendar yang match dengan productionDate
   let startDayIdx = updatedItems[0].calendar.findIndex(d => d.date === prodDateStr);
 
-  // Jika productionDate di luar jangkauan 14 hari, default ke hari terakhir (delivery date) 
-  // atau beri proteksi agar tidak error
   if (startDayIdx === -1) {
-    // Jika tidak ketemu, kita mulai dari index 12 (H-1 Delivery) seperti sebelumnya
     startDayIdx = 12;
   }
 
   let currentDayIdx = startDayIdx;
-  let currentShift = 3;
+  
+  // UBAH: Kunci shift ke 1
+  let currentShift = 2; 
 
   updatedItems.forEach((item) => {
     let targetPcs = Number(item.pcs) || 0;
@@ -102,14 +95,14 @@ const autoPlotGlobalBackward = (items, deliveryDate, productionDate, holidays = 
 
     let currentPlotted = 0;
 
-    // Plotting mundur mulai dari currentDayIdx (Production Date)
     while (currentPlotted < targetPcs && currentDayIdx >= 0) {
       const dateString = item.calendar[currentDayIdx].date;
       const isHoliday = (holidays || []).includes(dateString);
 
       if (isHoliday) {
         currentDayIdx--;
-        currentShift = 3;
+        // UBAH: Tetap konsisten di shift 1 saat pindah hari
+        currentShift = 2; 
         continue;
       }
 
@@ -121,11 +114,9 @@ const autoPlotGlobalBackward = (items, deliveryDate, productionDate, holidays = 
       item.calendar[currentDayIdx].shifts[sKey].qty = amountToPlot;
       currentPlotted += amountToPlot;
 
-      currentShift--;
-      if (currentShift < 1) {
-        currentShift = 3;
-        currentDayIdx--;
-      }
+      // UBAH: Langsung kurangi index hari setelah mengisi shift 1
+      // Tidak perlu lagi loop currentShift--
+      currentDayIdx--; 
     }
   });
 

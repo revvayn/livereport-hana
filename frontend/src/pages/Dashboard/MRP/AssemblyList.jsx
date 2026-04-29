@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 import Swal from "sweetalert2";
 import api from "../../../api/api";
-import { Search, Calendar, FilterX, Trash2, ChevronLeft, ChevronRight } from "lucide-react"; 
+import { Search, Calendar, FilterX, Trash2, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 
 export default function AssemblyList() {
   /* ================= STATE ================= */
@@ -174,6 +176,50 @@ export default function AssemblyList() {
     }
   };
 
+  const handleExportBOM = async () => {
+    if (Object.keys(bomData).length === 0) {
+      Swal.fire("Gagal", "Tidak ada data BOM untuk di-export", "error");
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("BOM Assembly");
+
+    // Styling Header
+    worksheet.columns = [
+      { header: "FG Code", key: "fg", width: 20 },
+      { header: "Component Code", key: "comp", width: 25 },
+      { header: "Description", key: "desc", width: 35 },
+      { header: "Ratio", key: "ratio", width: 12 },
+      { header: "UOM", key: "uom", width: 10 },
+      { header: "Required Qty", key: "req", width: 15 },
+    ];
+
+    // Isi Data
+    Object.keys(bomData).forEach((fgCode) => {
+      bomData[fgCode].forEach((comp) => {
+        worksheet.addRow({
+          fg: fgCode,
+          comp: comp.component_code,
+          desc: comp.component_description,
+          ratio: Number(comp.ratio_component),
+          uom: comp.uom_component || "PCS",
+          req: Number(comp.required_qty),
+        });
+      });
+    });
+
+    // Formatting header agar berwarna orange (sesuai tema)
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "EA580C" } };
+    });
+
+    // Download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `BOM_Assembly_${selectedSO.so_number}.xlsx`);
+  };
+
   return (
     <div className="p-6 bg-[#f8f9fa] min-h-screen font-sans">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -183,39 +229,39 @@ export default function AssemblyList() {
           <h2 className="text-sm font-bold text-orange-600 uppercase tracking-widest">
             {view === "so" ? "Assembly Schedule" : `Edit Schedule: ${selectedSO?.so_number}`}
           </h2>
-          
+
           {view === "so" ? (
-             <div className="flex flex-wrap items-center gap-2">
-                <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                        type="text"
-                        placeholder="Cari SO atau Customer..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 pr-4 py-2 text-[11px] border border-gray-200 rounded-md focus:outline-none w-48 font-semibold"
-                    />
-                </div>
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
-                    <Calendar size={14} className="text-gray-400 mx-1" />
-                    <input 
-                        type="date"
-                        value={dateRange.start}
-                        onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-                        className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
-                    />
-                    <span className="text-gray-300 px-1">-</span>
-                    <input 
-                        type="date"
-                        value={dateRange.end}
-                        onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-                        className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
-                    />
-                </div>
-                {(searchTerm || dateRange.start || dateRange.end) && (
-                    <button onClick={resetFilter} className="p-2 text-red-500 hover:bg-red-50 rounded-md"><FilterX size={16} /></button>
-                )}
-             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cari SO atau Customer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-2 text-[11px] border border-gray-200 rounded-md focus:outline-none w-48 font-semibold"
+                />
+              </div>
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md px-2 gap-1">
+                <Calendar size={14} className="text-gray-400 mx-1" />
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+                <span className="text-gray-300 px-1">-</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  className="bg-transparent py-2 text-[10px] font-bold text-gray-600 outline-none"
+                />
+              </div>
+              {(searchTerm || dateRange.start || dateRange.end) && (
+                <button onClick={resetFilter} className="p-2 text-red-500 hover:bg-red-50 rounded-md"><FilterX size={16} /></button>
+              )}
+            </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => setActiveTab('schedule')} className={`text-[10px] px-4 py-2 rounded font-bold uppercase transition-all ${activeTab === 'schedule' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}>Jadwal</button>
@@ -247,12 +293,12 @@ export default function AssemblyList() {
                     <td className="py-4 px-4 text-center font-mono font-bold text-orange-600">{new Date(so.delivery_date).toLocaleDateString("id-ID")}</td>
                     <td className="py-4 px-4 text-right space-x-2">
                       {!so.is_assembly_generated && (
-                        <button 
-                            onClick={() => handleGenerateAssembly(so)} 
-                            className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${so.is_finishing_generated ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-                            title={!so.is_finishing_generated ? "Selesaikan Finishing dulu" : ""}
+                        <button
+                          onClick={() => handleGenerateAssembly(so)}
+                          className={`px-4 py-1.5 rounded text-[11px] font-bold transition-all ${so.is_finishing_generated ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                          title={!so.is_finishing_generated ? "Selesaikan Finishing dulu" : ""}
                         >
-                            Generate
+                          Generate
                         </button>
                       )}
                       <button onClick={() => handleShowDetail(so)} disabled={!so.is_assembly_generated} className={`px-4 py-1.5 rounded text-[11px] font-bold ${so.is_assembly_generated ? "bg-orange-600 text-white shadow-md hover:bg-orange-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Buka Jadwal</button>
@@ -283,16 +329,15 @@ export default function AssemblyList() {
                   >
                     <ChevronLeft size={16} className="text-orange-600" />
                   </button>
-                  
+
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`min-w-[24px] h-6 text-[10px] font-bold rounded transition-all ${
-                        currentPage === page
+                      className={`min-w-[24px] h-6 text-[10px] font-bold rounded transition-all ${currentPage === page
                           ? "bg-orange-600 text-white shadow-sm"
                           : "text-orange-600 hover:bg-white hover:border-orange-200 border border-transparent"
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>
@@ -407,6 +452,21 @@ export default function AssemblyList() {
             ) : (
               /* BOM VIEW */
               <div className="space-y-4">
+                {Object.keys(bomData).length > 0 && (
+                  <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                    <div>
+                      <h3 className="text-[10px] font-bold text-gray-800 uppercase tracking-wider">Bill of Materials Detail</h3>
+                      <p className="text-[8px] text-gray-500 uppercase">Export kebutuhan material ke format Excel (.xlsx)</p>
+                    </div>
+                    <button
+                      onClick={handleExportBOM}
+                      className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded text-[10px] font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                    >
+                      <FileDown size={14} />
+                      EXPORT EXCEL BOM
+                    </button>
+                  </div>
+                )}
                 {Object.keys(bomData).length > 0 ? Object.keys(bomData).map((fgCode) => (
                   <div key={fgCode} className="border rounded-lg overflow-hidden border-gray-200 shadow-sm bg-white">
                     <div className="bg-orange-600 px-4 py-2 text-white flex justify-between items-center">
@@ -437,7 +497,7 @@ export default function AssemblyList() {
                     </table>
                   </div>
                 )) : (
-                    <div className="text-center py-10 text-gray-400 text-xs italic bg-white rounded-lg border">Data BOM tidak ditemukan untuk SO ini.</div>
+                  <div className="text-center py-10 text-gray-400 text-xs italic bg-white rounded-lg border">Data BOM tidak ditemukan untuk SO ini.</div>
                 )}
               </div>
             )}
