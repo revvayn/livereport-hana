@@ -187,7 +187,7 @@ export default function AssemblyList() {
 
     // Styling Header
     worksheet.columns = [
-      { header: "FG Code", key: "fg", width: 20 },
+      { header: "Item Code", key: "fg", width: 20 },
       { header: "Component Code", key: "comp", width: 25 },
       { header: "Description", key: "desc", width: 35 },
       { header: "Ratio", key: "ratio", width: 12 },
