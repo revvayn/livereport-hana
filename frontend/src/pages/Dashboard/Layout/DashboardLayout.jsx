@@ -145,7 +145,7 @@ export default function DashboardLayout() {
               <EntryDropdown collapsed={collapsed} currentPath={location.pathname} />
               <RejectRateDropdown collapsed={collapsed} currentPath={location.pathname} />
               <BahanBakuDropdown collapsed={collapsed} currentPath={location.pathname} />
-              <MenuLink to="/dashboard/export-data" icon={Upload} label="Export Report" collapsed={collapsed} />
+              {/* <MenuLink to="/dashboard/export-data" icon={Upload} label="Export Report" collapsed={collapsed} /> */}
             </>
           )}
 
