@@ -34,7 +34,7 @@ import ItemRoutings from "../pages/Dashboard/MRP/ItemRoutings";
 import SalesOrders from "../pages/Dashboard/MRP/SalesOrders";
 import SalesOrderItems from "../pages/Dashboard/MRP/SalesOrderItems";
 import FormDemand from "../pages/Dashboard/MRP/FormDemand";
-import Bom from "../pages/Dashboard/MRP/Bom";
+import Mrp from "../pages/Dashboard/MRP/Mrp";
 import Kalender from "../pages/Dashboard/MRP/Kalender";
 import List from "../pages/Dashboard/MRP/List";
 import PackingList from "../pages/Dashboard/MRP/PackingList";
@@ -95,7 +95,7 @@ function AppRoutes() {
           <Route path="sales/sales-orders" element={<SalesOrders />} />
           {/*<Route path="sales/sales-order-items" element={<SalesOrderItems />} />*/}
           <Route path="demand/form" element={<FormDemand />} />
-          <Route path="bom" element={<Bom />} />
+          <Route path="Mrp" element={<Mrp />} />
           <Route path="production/kalender" element={<Kalender />} />
           <Route path="production/kalender/:itemId" element={<Kalender />} />
           <Route path="production/list" element={<List />} />

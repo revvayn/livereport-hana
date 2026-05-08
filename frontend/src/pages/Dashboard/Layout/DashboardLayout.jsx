@@ -43,7 +43,8 @@ import {
   Container,
   Warehouse,
   List,
-  GridIcon
+  GridIcon,
+  ListCheck
 } from "lucide-react";
 
 export default function DashboardLayout() {
@@ -277,6 +278,7 @@ function DemandDropdown({ collapsed, currentPath }) {
   return (
     <DropdownWrapper icon={GanttChart} label="Production Plan" collapsed={collapsed} isActive={isActive} open={open} setOpen={setOpen}>
       <SubMenuLink to="/dashboard/demand/form" icon={FormInput} label="Entry Demand" />
+      <SubMenuLink to="/dashboard/mrp" icon={ListCheck} label= "MRP" />
       <SubMenuLink to="/dashboard/production/kalender" icon={Calendar} label="Prod. Calendar" />
       <SubMenuLink to="/dashboard/production/list" icon={ListTodo} label="Prod. List" />
       <SubMenuLink to="/dashboard/packing" icon={Package} label="List Packing" />
