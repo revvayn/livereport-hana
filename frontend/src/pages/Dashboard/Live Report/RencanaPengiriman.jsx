@@ -1,39 +1,30 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { 
+  Plus, Calendar as CalendarIcon, 
+  ChevronLeft, ChevronRight, Search, 
+  X, Check, Printer, Download, Filter 
+} from "lucide-react";
 
-export default function RencanaPengiriman() {
-  const [time, setTime] = useState("");
+export default function ProductionSchedule() {
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
-  const [plans, setPlans] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [formData, setFormData] = useState({ text: "", type: "1" });
+
+  const [plans, setPlans] = useState(() => {
+    const saved = localStorage.getItem("prodScheduleCorporateV1");
+    return saved ? JSON.parse(saved) : {};
+  });
 
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(now.toLocaleString("id-ID", {
-        weekday: "short", day: "2-digit", month: "short",
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-      }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("rencanaPengirimanV3");
-    if (saved) setPlans(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("rencanaPengirimanV3", JSON.stringify(plans));
+    localStorage.setItem("prodScheduleCorporateV1", JSON.stringify(plans));
   }, [plans]);
 
-  const months = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-  ];
+  const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
   const generateCalendar = () => {
     const firstDay = new Date(year, month, 1);
@@ -45,183 +36,206 @@ export default function RencanaPengiriman() {
     return days;
   };
 
-  const handleAdd = (dateKey) => {
-    const text = prompt("Nama Pengiriman / Customer:");
-    if (!text) return;
-    const type = prompt("Prioritas? (1: Reguler, 2: Penting/Urgent, 3: Selesai)", "1");
-    
-    const colors = { 
-      "1": "bg-blue-50 text-blue-700 border-blue-200", 
-      "2": "bg-amber-50 text-amber-700 border-amber-200", 
-      "3": "bg-emerald-50 text-emerald-700 border-emerald-200" 
+  const handleSave = (e) => {
+    e.preventDefault();
+    if (!formData.text) return;
+
+    const config = {
+      "1": { label: "Reguler", style: "bg-slate-50 text-slate-700 border-slate-200" },
+      "2": { label: "Urgent", style: "bg-orange-50 text-orange-700 border-orange-200" },
+      "3": { label: "Selesai", style: "bg-blue-50 text-blue-700 border-blue-200" }
     };
 
     setPlans(prev => ({
       ...prev,
-      [dateKey]: [...(prev[dateKey] || []), { 
+      [selectedDate]: [...(prev[selectedDate] || []), { 
         id: Date.now(), 
-        text, 
-        style: colors[type] || colors["1"] 
+        text: formData.text, 
+        ...config[formData.type]
       }]
     }));
-  };
 
-  const handleDelete = (dateKey, id) => {
-    setPlans(prev => ({
-      ...prev,
-      [dateKey]: prev[dateKey].filter(p => p.id !== id)
-    }));
+    setFormData({ text: "", type: "1" });
+    setIsModalOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] p-4 md:p-6 lg:p-10 font-sans text-slate-900">
-      <div className="max-w-[1400px] mx-auto">
-        
-        {/* --- HEADER SECTION --- */}
-        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200">
-                <CalendarIcon className="text-white w-6 h-6" />
-              </div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-800 uppercase">
-                Shipment<span className="text-indigo-600 font-light">Hub</span>
-              </h1>
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-700">
+      {/* --- NAV BAR: SIMETRIS & ALIGNED --- */}
+      <nav className="bg-white border-b border-slate-200 px-8 py-3.5 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="bg-[#1e293b] w-10 h-10 flex items-center justify-center rounded-lg shadow-sm">
+              <CalendarIcon className="text-white w-5 h-5" />
             </div>
-            <div className="flex items-center gap-4 text-slate-500">
-              <p className="flex items-center gap-1.5 text-sm font-semibold italic">
-                <MapPin className="w-4 h-4 text-rose-500" />
-                PT Bahana Bhumiphala Persada
+            <div className="flex flex-col">
+              <h1 className="text-[15px] font-bold text-[#1e293b] leading-tight tracking-tight">Shipment Management</h1>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.15em] leading-tight mt-0.5">
+                Enterprise Resource Planning
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 w-fit">
-            <Clock className="w-5 h-5 text-indigo-500" />
-            <span className="text-sm font-mono font-bold text-slate-700 tabular-nums">{time}</span>
-          </div>
-        </header>
-
-        {/* --- NAVIGATION & FILTERS --- */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <div className="flex items-center bg-white p-1 rounded-xl shadow-sm border border-slate-200 w-full sm:w-auto">
-            <button 
-              onClick={() => { if(month === 0) {setMonth(11); setYear(year-1)} else {setMonth(month-1)} }}
-              className="p-2.5 hover:bg-slate-50 rounded-lg transition-all text-slate-400 hover:text-indigo-600"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            
-            <div className="flex-1 sm:flex-none px-6 text-center min-w-[180px]">
-              <span className="text-lg font-bold text-slate-800">{months[month]} {year}</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+              <button className="p-2.5 hover:bg-slate-50 border-r border-slate-200 text-slate-400 transition-colors">
+                <Printer className="w-4 h-4" />
+              </button>
+              <button className="p-2.5 hover:bg-slate-50 text-slate-400 transition-colors">
+                <Download className="w-4 h-4" />
+              </button>
             </div>
+            <div className="h-8 w-px bg-slate-200"></div>
+            <button className="bg-[#2563eb] hover:bg-blue-700 text-white text-[11px] font-bold py-2.5 px-6 rounded-lg shadow-md shadow-blue-100 transition-all uppercase tracking-wider">
+              Export Data
+            </button>
+          </div>
+        </div>
+      </nav>
 
-            <button 
-              onClick={() => { if(month === 11) {setMonth(0); setYear(year+1)} else {setMonth(month+1)} }}
-              className="p-2.5 hover:bg-slate-50 rounded-lg transition-all text-slate-400 hover:text-indigo-600"
-            >
-              <ChevronRight className="w-5 h-5" />
+      <main className="max-w-[1600px] mx-auto p-8">
+        {/* --- CONTROL PANEL --- */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 p-5 flex flex-col lg:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-[450px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Cari nomor SO atau nama customer..." 
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all"
+                onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+              />
+            </div>
+            <button className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+              <Filter className="w-4 h-4" /> Filter
             </button>
           </div>
 
-          <button 
-            onClick={() => { setMonth(today.getMonth()); setYear(today.getFullYear()); }}
-            className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95"
-          >
-            Hari Ini
-          </button>
+          <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+            <button 
+              onClick={() => month === 0 ? (setMonth(11), setYear(year - 1)) : setMonth(month - 1)} 
+              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-400 hover:text-slate-600"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <div className="px-6 text-xs font-bold text-slate-800 min-w-[160px] text-center uppercase tracking-[0.1em]">
+              {months[month]} {year}
+            </div>
+            <button 
+              onClick={() => month === 11 ? (setMonth(0), setYear(year + 1)) : setMonth(month + 1)} 
+              className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-400 hover:text-slate-600"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* --- MAIN CALENDAR BOARD --- */}
-        <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-          {/* Days Header */}
-          <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
-            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day, idx) => (
-              <div key={day} className={`py-4 text-center text-xs font-black uppercase tracking-widest ${idx >= 5 ? 'text-rose-500' : 'text-slate-400'}`}>
-                {day}
+        {/* --- CALENDAR GRID --- */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/30">
+            {["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"].map((day, idx) => (
+              <div key={day} className="py-4 text-center border-r border-slate-200 last:border-0">
+                <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${idx >= 5 ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {day}
+                </span>
               </div>
             ))}
           </div>
 
-          {/* Grid Days */}
-          <div className="grid grid-cols-7 md:auto-rows-[minmax(120px,auto)] sm:auto-rows-[100px]">
+          <div className="grid grid-cols-7 auto-rows-[minmax(130px,auto)]">
             {generateCalendar().map((day, i) => {
               const dateKey = day ? `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null;
-              const isTodayDate = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+              const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+              const dayPlans = plans[dateKey]?.filter(p => p.text.toLowerCase().includes(searchTerm)) || [];
 
-              if (!day) return <div key={`empty-${i}`} className="bg-slate-50/30 border-[0.5px] border-slate-100 hidden sm:block"></div>;
+              if (!day) return <div key={i} className="bg-slate-50/20 border-r border-b border-slate-100" />;
 
               return (
-                <div 
-                  key={dateKey} 
-                  className={`group relative flex flex-col p-2 md:p-3 border-[0.5px] border-slate-100 transition-all hover:bg-indigo-50/20
-                    ${isTodayDate ? "bg-indigo-50/40" : "bg-white"}`}
-                >
-                  {/* Date Number */}
+                <div key={dateKey} className={`group relative p-3 border-r border-b border-slate-100 transition-all hover:bg-blue-50/30 ${isToday ? 'bg-blue-50/10' : ''}`}>
                   <div className="flex justify-between items-start mb-2">
-                    <span className={`text-sm md:text-base font-black leading-none
-                      ${isTodayDate ? "text-indigo-600" : "text-slate-400"}`}>
-                      {day}
+                    <span className={`text-xs font-bold ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
+                      {String(day).padStart(2, '0')}
                     </span>
-                    {isTodayDate && <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></span>}
+                    <button 
+                      onClick={() => { setSelectedDate(dateKey); setIsModalOpen(true); }}
+                      className="opacity-0 group-hover:opacity-100 p-1 bg-blue-600 text-white rounded-md shadow hover:bg-blue-700 transition-all transform scale-90 group-hover:scale-100"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  {/* Shipment Items */}
-                  <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[80px] md:max-h-[120px] custom-scrollbar pr-1">
-                    {plans[dateKey]?.map(p => (
-                      <div
-                        key={p.id}
-                        className={`${p.style} text-[10px] md:text-[11px] font-bold px-2 py-1.5 rounded-lg border flex justify-between items-center animate-in fade-in zoom-in duration-200`}
-                      >
+                  <div className="space-y-1.5 max-h-[90px] overflow-y-auto pr-1 custom-scrollbar">
+                    {dayPlans.map(p => (
+                      <div key={p.id} className={`${p.style} p-1.5 px-2 rounded-md border text-[10px] font-bold flex justify-between items-center shadow-sm`}>
                         <span className="truncate pr-1">{p.text}</span>
-                        <button
-                          onClick={() => handleDelete(dateKey, p.id)}
-                          className="text-current opacity-40 hover:opacity-100 transition-opacity"
+                        <button 
+                          onClick={() => {
+                            const newPlans = { ...plans };
+                            newPlans[dateKey] = newPlans[dateKey].filter(x => x.id !== p.id);
+                            setPlans(newPlans);
+                          }}
+                          className="hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     ))}
                   </div>
-
-                  {/* Add Button */}
-                  <button
-                    onClick={() => handleAdd(dateKey)}
-                    className="absolute top-2 right-2 sm:bottom-3 sm:right-3 sm:top-auto opacity-0 group-hover:opacity-100 transition-all bg-indigo-600 text-white p-1.5 rounded-lg shadow-lg hover:scale-110 active:scale-90"
-                  >
-                    <Plus className="w-3.5 h-3.5 md:w-4 h-4" />
-                  </button>
                 </div>
               );
             })}
           </div>
         </div>
+      </main>
 
-        {/* --- FOOTER LEGEND --- */}
-        <div className="mt-6 flex flex-wrap gap-4 justify-center text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">
-          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-slate-200">
-            <span className="w-2 h-2 bg-blue-400 rounded-full"></span> Reguler
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-slate-200">
-            <span className="w-2 h-2 bg-amber-400 rounded-full"></span> Urgent
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-slate-200">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full"></span> Selesai
+      {/* --- MODAL --- */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 flex justify-between items-center border-b border-slate-100 bg-slate-50/50">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Form Agenda Baru</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:bg-slate-200 rounded-full transition-colors"><X className="w-4 h-4" /></button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-6 space-y-5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Informasi Shipment / Detail</label>
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={formData.text}
+                  onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                  placeholder="SO-8812 - PT Maju Jaya"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 outline-none text-sm font-bold transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Level Prioritas</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[{v:"1", l:"Reguler"}, {v:"2", l:"Urgent"}, {v:"3", l:"Selesai"}].map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, type: opt.v })}
+                      className={`py-2.5 text-[10px] font-bold rounded-xl border transition-all ${formData.type === opt.v ? 'bg-slate-800 text-white border-slate-800 shadow-lg' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-bold text-xs hover:bg-slate-50 rounded-xl transition-all">BATAL</button>
+                <button type="submit" className="flex-1 py-3 bg-[#2563eb] text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                  <Check className="w-4 h-4" /> Simpan Data
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-        
-        @media (max-width: 640px) {
-          .grid-cols-7 { gap: 4px; background: #F1F5F9; }
-          .grid-cols-7 > div { border: none !important; border-radius: 12px; height: 100px !important; }
-        }
-      `}</style>
+      )}
     </div>
   );
 }
