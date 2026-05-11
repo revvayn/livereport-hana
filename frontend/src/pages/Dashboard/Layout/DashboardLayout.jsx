@@ -272,7 +272,7 @@ function SalesDropdown({ collapsed, currentPath }) {
 }
 
 function DemandDropdown({ collapsed, currentPath }) {
-  const isActive = ["demand", "production", "packing", "finishing", "assembly"].some(p => currentPath.includes(p)) && !currentPath.includes("master");
+  const isActive = ["demand","mrp", "production", "packing", "finishing", "assembly"].some(p => currentPath.includes(p)) && !currentPath.includes("master");
   const [open, setOpen] = useState(isActive);
   useEffect(() => setOpen(isActive), [isActive]);
   return (
